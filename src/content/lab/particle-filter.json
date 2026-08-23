@@ -1,0 +1,10 @@
+{
+  "title": "ParticleFilter",
+  "href": "https://github.com/zeeshananjumjunaidi/ParticleFilter",
+  "category": "Self-Driving Car Nanodegree",
+  "year": "2017–2021",
+  "description": "Particle filter localisation on a bicycle model, in C++.",
+  "featured": false,
+  "group": "Self-Driving Car Nanodegree · 2017–2021",
+  "order": 4
+}

@@ -1,0 +1,36 @@
+---
+import RadarPreview from './previews/RadarPreview.astro';
+import TurretPreview from './previews/TurretPreview.astro';
+import BarsPreview from './previews/BarsPreview.astro';
+import GridPreview from './previews/GridPreview.astro';
+
+interface Props {
+  title: string;
+  href: string;
+  category: string;
+  year: string;
+  description?: string;
+  preview?: 'radar' | 'turret' | 'bars' | 'grid';
+}
+
+const { title, href, category, year, description, preview } = Astro.props;
+
+const previews = {
+  radar: RadarPreview,
+  turret: TurretPreview,
+  bars: BarsPreview,
+  grid: GridPreview,
+};
+
+const Preview = preview ? previews[preview] : null;
+---
+<a class="card" href={href} target="_blank" rel="noopener">
+  <div class="card-preview">
+    {Preview && <Preview />}
+  </div>
+  <div class="card-body">
+    <div class="card-status"><span>{category}</span><span>{year}</span></div>
+    <h3 class="card-title">{title}</h3>
+    {description && <p class="card-desc">{description}</p>}
+  </div>
+</a>

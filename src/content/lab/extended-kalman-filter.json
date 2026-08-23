@@ -1,0 +1,10 @@
+{
+  "title": "extended-kalman-filter",
+  "href": "https://github.com/zeeshananjumjunaidi/extended-kalman-filter",
+  "category": "Self-Driving Car Nanodegree",
+  "year": "2017–2021",
+  "description": "EKF fusing LIDAR and RADAR, in C++.",
+  "featured": false,
+  "group": "Self-Driving Car Nanodegree · 2017–2021",
+  "order": 5
+}

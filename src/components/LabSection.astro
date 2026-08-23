@@ -1,0 +1,68 @@
+---
+import { getCollection } from 'astro:content';
+import LabCard from './LabCard.astro';
+import RepoListItem from './RepoListItem.astro';
+import { skillsTicker } from '../data/skillsTicker';
+
+const entries = await getCollection('lab');
+const sorted = entries.map((e) => e.data).sort((a, b) => a.order - b.order);
+
+const featured = sorted.filter((e) => e.featured);
+const grouped = sorted.filter((e) => !e.featured);
+
+// Grouped entries keep the order they appear in, grouped by their `group` label.
+const groups: { label: string; items: typeof grouped }[] = [];
+for (const entry of grouped) {
+  const label = entry.group ?? '';
+  let group = groups.find((g) => g.label === label);
+  if (!group) {
+    group = { label, items: [] };
+    groups.push(group);
+  }
+  group.items.push(entry);
+}
+
+const tickerSeparator = ' &nbsp;·&nbsp; ';
+const tickerLine = skillsTicker.join(' · ') + tickerSeparator;
+const tickerDoubled = tickerLine + tickerLine;
+---
+<section id="lab" aria-labelledby="lab-label" style="margin-top:44px;">
+  <div class="section-label-row">
+    <span class="section-label" id="lab-label">The Lab</span>
+    <span class="section-meta">PUBLIC REPOSITORIES</span>
+    <span class="line"></span>
+  </div>
+
+  <div class="lab-grid lab-grid-2">
+    {featured.map((entry) => (
+      <LabCard
+        title={entry.title}
+        href={entry.href}
+        category={entry.category}
+        year={entry.year}
+        description={entry.description}
+        preview={entry.preview}
+      />
+    ))}
+  </div>
+
+  {groups.map((group) => (
+    <>
+      <div class="repo-list-header">
+        <span class="section-meta">{group.label}</span>
+      </div>
+      <div class="repo-list">
+        {group.items.map((entry) => (
+          <RepoListItem title={entry.title} href={entry.href} description={entry.description} />
+        ))}
+      </div>
+    </>
+  ))}
+
+  <div class="ticker-wrap">
+    <div class="ticker-track">
+      <span set:html={tickerDoubled} />
+      <span set:html={tickerDoubled} />
+    </div>
+  </div>
+</section>

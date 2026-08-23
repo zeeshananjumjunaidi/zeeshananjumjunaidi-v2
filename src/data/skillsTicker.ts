@@ -1,0 +1,17 @@
+export const skillsTicker: string[] = [
+  'PYTHON',
+  'TYPESCRIPT',
+  'GOOGLE CLOUD',
+  'KUBERNETES',
+  'TERRAFORM',
+  'TENSORFLOW',
+  'OPENCV',
+  'ROS2',
+  'POSTGRESQL',
+  'REACT',
+  'FASTAPI',
+  'ANTHROPIC API',
+  'RUST',
+  'KALMAN FILTERS',
+  'DOCKER',
+];
