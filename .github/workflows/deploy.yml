@@ -24,8 +24,6 @@ jobs:
         uses: pnpm/action-setup@v4
       - name: Build
         uses: withastro/action@v3
-        with:
-          package-manager: pnpm@latest
   deploy:
     needs: build
     runs-on: ubuntu-latest
