@@ -417,7 +417,7 @@ img { max-width: 100%; display: block; }
   gap: 14px;
 }
 
-.lab-grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 340px)); }
+.lab-grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 
 .repo-list-header { margin-top: 30px; margin-bottom: 12px; }
 .repo-list-header .section-meta { color: var(--section-label); }

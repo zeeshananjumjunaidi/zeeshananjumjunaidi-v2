@@ -1,0 +1,795 @@
+---
+// Ported from zeeshananjumjunaidi/src/components/sims/SlamPlaygroundSim.astro.
+// The simulation script below is copied verbatim (raycasting, ICP, Kalman-style
+// fusion, rendering) — only the <style> block was retokenized onto v2's theme
+// variables. The canvases and their legend colors are intentionally left as a
+// constant, always-dark "instrument screen" regardless of site theme; only the
+// surrounding chrome (panels, controls, concepts prose) follows dark/light.
+---
+
+<div class="sim-root">
+<div class="sim-main">
+  <div class="views">
+    <div class="panel">
+      <h2>Ground truth — what actually exists</h2>
+      <canvas id="world" width="560" height="560"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Robot's belief — map built from sensors only</h2>
+      <canvas id="belief" width="560" height="560"></canvas>
+      <div class="legend">
+        <span style="--c:var(--truth)">ground-truth path</span>
+        <span style="--c:var(--dead)">dead reckoning</span>
+        <span style="--c:var(--est)">fused estimate</span>
+        <span style="--c:var(--gps)">GPS fixes</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="group"><span class="tag">vehicle</span>
+      <div class="ctl">
+        <select id="veh">
+          <option value="diff">point robot (diff-drive)</option>
+          <option value="car">car (Ackermann)</option>
+          <option value="drone">drone (holonomic)</option>
+        </select>
+      </div>
+      <span class="hint" id="vehHint">turns in place — A/D or ←/→</span>
+    </div>
+    <div class="group"><span class="tag">noise</span>
+      <div class="ctl"><label for="noise">LiDAR σ</label>
+        <input id="noise" type="range" min="0" max="4" step="0.1" value="1">
+        <span class="val" id="noiseV">1.0</span></div>
+      <div class="ctl"><label for="drift">odometry drift</label>
+        <input id="drift" type="range" min="0" max="3" step="0.1" value="1">
+        <span class="val" id="driftV">1.0</span></div>
+    </div>
+    <div class="group"><span class="tag">sensors</span>
+      <div class="ctl"><input id="icp" type="checkbox">
+        <label for="icp">LiDAR scan matching</label></div>
+      <div class="ctl"><input id="gps" type="checkbox">
+        <label for="gps">GPS fix (1 Hz, σ≈8 u)</label></div>
+      <div class="ctl"><input id="imu" type="checkbox">
+        <label for="imu">IMU compass heading</label></div>
+    </div>
+    <button id="reset">Reset run</button>
+  </div>
+
+  <div class="hud">
+    <span>dead-reckoning error <b id="errDead">0.0</b> u</span>
+    <span>fused estimate error <b id="errEst">0.0</b> u</span>
+    <span>position uncertainty σ <b id="sigPos">2.0</b> u</span>
+    <span>keyframes <b id="kfCount">0</b></span>
+  </div>
+
+  <div class="dpad">
+    <button data-k="al">◀</button>
+    <button data-k="fwd">▲</button>
+    <button data-k="back">▼</button>
+    <button data-k="ar">▶</button>
+  </div>
+
+  <!-- ====================== concepts ====================== -->
+  <section class="concepts">
+    <h2>The concepts, with intuition</h2>
+    <div class="tabbar" id="tabbar">
+      <button data-t="slam" class="active">The SLAM problem</button>
+      <button data-t="lidar">LiDAR &amp; raycasting</button>
+      <button data-t="odom">Odometry &amp; drift</button>
+      <button data-t="motion">Motion models</button>
+      <button data-t="grid">Occupancy grids</button>
+      <button data-t="icpT">Scan matching (ICP)</button>
+      <button data-t="fusion">Sensor fusion</button>
+      <button data-t="gpsT">GPS &amp; absolute references</button>
+      <button data-t="loop">Loop closure (next)</button>
+    </div>
+
+    <div class="pane active" id="pane-slam">
+      <h3>A chicken-and-egg problem</h3>
+      <p>To build a map you need to know where you are; to know where you are you need
+         a map. SLAM, simultaneous localization and mapping, solves both at once by
+         keeping a running <em>belief</em>: a best-guess pose plus a best-guess map, each
+         refined using the other. The left view is reality; the right view is everything
+         the robot is allowed to know. The entire field exists because those two views
+         disagree, and every technique below is a way of pulling them back together.</p>
+      <p class="try">turn every sensor off, drive a lap, and compare the two views.
+         That gap is the problem statement.</p>
+    </div>
+
+    <div class="pane" id="pane-lidar">
+      <h3>Seeing with distances</h3>
+      <p>A 2D LiDAR spins and reports one number per angle: how far until the beam hits
+         something. Here each of the 180 beams is a ray/segment intersection test: solve
+         <code>p + t·d = a + s·(b−a)</code> for the nearest wall, plus Gaussian
+         noise on the range. The key intuition: a scan is a <em>fingerprint of a place</em>.
+         Corners and wall junctions make the fingerprint distinctive; long featureless
+         corridors make scans ambiguous, which is exactly where scan matching struggles
+         (a real effect called the corridor problem).</p>
+      <p class="try">raise LiDAR σ to 4 and watch walls in the belief map thicken into fuzz,
+         since each cell is hit by samples scattered around the true surface.</p>
+    </div>
+
+    <div class="pane" id="pane-odom">
+      <h3>Why dead reckoning always loses</h3>
+      <p>Odometry integrates wheel motion: "I moved 2 cm, turned 0.5°, repeat." Each
+         step's error is tiny, but integration means errors <em>never cancel, they
+         compound</em>. Worse, the killer term is heading: a small angle error θ becomes a
+         position error of <code>distance × θ</code>, so position error grows faster than
+         linearly with travel. This sim adds noise proportional to motion plus a small
+         systematic turn bias, which is why the red path doesn't just wander. It
+         <em>curls</em>, like walking blindfolded with one leg slightly stronger.</p>
+      <p class="try">drive a straight line along a wall with drift at 3.0: the red path
+         bends away while the green stays true. Standing still adds zero drift.</p>
+    </div>
+
+    <div class="pane" id="pane-motion">
+      <h3>Holonomic vs non-holonomic</h3>
+      <p>A motion model is the set of moves a vehicle is physically allowed to make.
+         The <em>drone</em> is holonomic: it can translate in any direction at any moment.
+         Position and heading are independent, so it can strafe sideways along a wall
+         while facing it. The <em>car</em> is non-holonomic: wheels forbid sideways motion,
+         so heading change comes bundled with rolling, the bicycle model
+         <code>dθ = (v/L)·tan(δ)</code> with wheelbase L and steering angle δ. A car can
+         still reach any pose, but only via maneuvers (parallel parking exists because
+         of this constraint). The diff-drive point robot sits between them: no sideways
+         motion, but it can rotate in place.</p>
+      <p>Constraints matter to SLAM twice. First, they shape odometry error: a car
+         physically cannot have drifted sideways, so a good filter shouldn't entertain
+         lateral error its encoders can't produce. Second, they shape which trajectories
+         exist at all: any planner for a car must respect its minimum turning radius.</p>
+      <p class="try">switch to the car and notice you can't spin in place to look around.
+         You must roll to turn. Then take the drone and strafe sideways with A/D.</p>
+    </div>
+
+    <div class="pane" id="pane-grid">
+      <h3>A map made of bets</h3>
+      <p>The map is a grid where each cell holds the odds it's occupied. Each beam is
+         evidence: cells the beam <em>passed through</em> are probably free, the cell it
+         <em>stopped at</em> is probably occupied. We store log-odds so fusing evidence is
+         just addition: <code>L += +0.9</code> on a hit, <code>L += −0.35</code> along the ray
+         (traced with Bresenham's line algorithm), clamped so the map can still change
+         its mind. One noisy scan proves nothing; a hundred overlapping scans vote a
+         crisp wall into existence. Mid-gray cells are honest ignorance, cells never observed.</p>
+      <p class="try">park the robot and wait: repeated scans sharpen nearby walls as the
+         votes accumulate.</p>
+    </div>
+
+    <div class="pane" id="pane-icpT">
+      <h3>Sliding the tracing paper</h3>
+      <p>ICP (iterative closest point) treats the current scan like a drawing on tracing
+         paper laid over a previous reference scan, then slides and rotates it until the
+         drawings line up. Each iteration: pair every point with its nearest reference
+         point, then solve the best rigid fit in closed form. The rotation is just
+         <code>atan2(Σ cross, Σ dot)</code> of the centered pairs. Re-pair, re-fit, repeat
+         until it converges. Whatever shift was needed to align the scans is precisely
+         the odometry error, so we apply it to the pose. It needs a decent initial guess
+         (odometry provides one) and distinctive geometry to grip onto.</p>
+      <p class="try">enable scan matching and drive the same loop: the blue estimate hugs
+         the green truth, and the keyframe counter ticks as references are saved.</p>
+    </div>
+
+    <div class="pane" id="pane-fusion">
+      <h3>Trust, quantified</h3>
+      <p>Sensor fusion is a weighted argument between sources that disagree. The weight
+         is the Kalman gain: <code>K = P / (P + R)</code>, where P is how uncertain
+         <em>you</em> are and R is how noisy <em>the sensor</em> is. Hopelessly lost
+         (P ≫ R)? K → 1: take the measurement. Confident with a junk sensor (P ≪ R)?
+         K → 0: ignore it. Between measurements, motion grows P; each measurement
+         shrinks it by <code>P ← (1−K)·P</code>. The circle around the robot in the
+         belief view is exactly this P. Watch it breathe: inflating as you drive,
+         snapping tight on every fix. Each sensor constrains only what it observes:
+         GPS pins position, the compass pins heading, ICP pins both locally.</p>
+      <p class="try">enable only GPS and drive: the circle inflates between the 1 Hz
+         fixes and contracts at each yellow ×.</p>
+    </div>
+
+    <div class="pane" id="pane-gpsT">
+      <h3>Noisy but never lost</h3>
+      <p>GPS is the opposite personality of odometry: each fix is coarse (meters of
+         noise) but the error is <em>bounded</em>. It never compounds. Odometry is smooth
+         but drifts forever. Fusion gets both virtues: GPS anchors the long term,
+         odometry smooths the short term. Two honest limitations are simulated here:
+         fixes arrive slowly (1 Hz), and GPS says nothing about which way you're
+         <em>facing</em>, so with GPS alone, position stays bounded while heading still
+         drifts, and the map smears rotationally. That's why the IMU compass exists as a
+         separate toggle: absolute heading is a different observation than absolute
+         position. (Indoors, real robots swap GPS for UWB beacons, same math.)</p>
+      <p class="try">enable GPS + compass but not ICP: the map stays roughly anchored yet
+         walls are coarser than with scan matching. Then add ICP and compare.</p>
+    </div>
+
+    <div class="pane" id="pane-loop">
+      <h3>The piece this demo earns next</h3>
+      <p>Everything above corrects <em>locally</em>: each fix only looks at the recent
+         past. Drive a long loop and tiny residual errors still accumulate, so when you
+         return to the start, the map's two ends don't meet. Loop closure is recognizing
+         "I've been here before" (e.g. ICP against an <em>old</em> keyframe succeeds), which
+         adds a constraint between now and long ago. A pose graph then treats every
+         keyframe pose as a node, every odometry/ICP/loop constraint as a spring, and
+         relaxes the whole network at once with Gauss-Newton over all poses, redistributing
+         the accumulated error along the entire trajectory. Watching a sheared map snap
+         straight is the most satisfying moment in SLAM, and it's the natural next phase
+         of this project: the keyframes here already store everything a pose graph needs.</p>
+    </div>
+  </section>
+</div>
+</div>
+
+<style>
+.sim-root {
+    /* Canvas/legend colors are intentionally constant — an instrument's own
+       screen, not themed with the rest of the site. */
+    --truth:#4ade80; --dead:#f87171; --est:#38bdf8; --lidar:#ffb454; --gps:#facc15;
+  }
+  .sim-root *{box-sizing:border-box}
+  .sim-root {margin:0;background:transparent;color:var(--headline-color);
+    font-family:var(--font-mono);font-size:15px;line-height:1.6}
+  .sim-main {max-width:1240px;margin:0 auto;padding:0}
+  .views{display:flex;gap:16px;flex-wrap:wrap}
+  .panel{background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;
+    padding:12px;flex:1 1 460px;min-width:320px}
+  .panel h2{font-size:12px;font-weight:600;margin:0 0 8px;color:var(--card-desc);
+    text-transform:uppercase;letter-spacing:.12em}
+  canvas{width:100%;height:auto;display:block;border-radius:6px;background:#0d1117}
+  .controls{display:flex;gap:14px 26px;flex-wrap:wrap;align-items:center;
+    background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;
+    padding:14px 18px;margin-top:16px;font-size:13px}
+  .ctl{display:flex;align-items:center;gap:9px}
+  .ctl label{color:var(--card-desc);white-space:nowrap;cursor:pointer}
+  .group{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+    border-left:2px solid var(--card-border);padding-left:14px}
+  .group .tag{color:var(--card-desc);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  input[type=range]{width:120px;accent-color:var(--card-label)}
+  input[type=checkbox]{accent-color:var(--card-label);width:16px;height:16px;cursor:pointer}
+  select{background:var(--card-bg);color:var(--headline-color);border:1px solid var(--card-border);
+    border-radius:6px;padding:5px 8px;font:inherit;font-size:13px;cursor:pointer}
+  .hint{color:var(--card-desc);font-size:12px}
+  .val{min-width:34px;text-align:right;color:var(--headline-color)}
+  button{background:transparent;color:var(--headline-color);border:1px solid var(--card-border);
+    border-radius:6px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer;
+    transition:border-color .4s ease}
+  button:hover{border-color:var(--card-label)}
+  .hud{display:flex;gap:24px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--card-desc)}
+  .hud b{color:var(--headline-color);font-weight:600}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--card-desc)}
+  .legend span::before{content:"";display:inline-block;width:18px;height:3px;
+    border-radius:2px;margin-right:6px;vertical-align:middle;background:var(--c)}
+  .dpad{display:none;gap:6px;margin-top:14px;justify-content:center}
+  .dpad button{width:54px;height:46px;font-size:17px}
+  @media (pointer:coarse){.dpad{display:flex}}
+
+  /* concepts section */
+  .concepts{margin-top:28px;background:var(--card-bg);border:1px solid var(--card-border);
+    border-radius:10px;overflow:hidden}
+  .concepts h2{font-size:12px;font-weight:600;margin:0;color:var(--card-desc);
+    text-transform:uppercase;letter-spacing:.12em;padding:14px 18px 0}
+  .tabbar{display:flex;flex-wrap:wrap;gap:6px;padding:12px 18px;border-bottom:1px solid var(--card-border)}
+  .tabbar button{padding:6px 12px;font-size:12.5px;color:var(--card-desc);border-radius:6px}
+  .tabbar button.active{color:var(--headline-color);border-color:var(--card-label);
+    background:color-mix(in srgb, var(--card-label) 10%, transparent)}
+  .pane{display:none;padding:18px 22px 22px;max-width:860px}
+  .pane.active{display:block}
+  .pane h3{font-family:var(--font-head);font-size:18px;font-weight:400;margin:0 0 10px}
+  .pane p{font-family:var(--font-body);font-weight:300;margin:0 0 12px;color:var(--card-desc);font-size:15px;line-height:1.75}
+  .pane code{background:var(--card-bg);border:1px solid var(--card-border);border-radius:4px;
+    padding:1px 6px;font-size:12.5px;font-family:var(--font-mono);color:var(--lidar)}
+  .pane .try{color:var(--card-label);font-size:13px;margin-top:4px;font-family:var(--font-mono)}
+  .pane .try::before{content:"▸ try it: ";color:var(--card-desc)}
+</style>
+
+<script is:inline>
+"use strict";
+/* ============================================================
+ * SLAM playground v2 — pipeline:
+ *   raycast LiDAR -> noisy odometry -> occupancy grid
+ *   -> ICP scan matching, GPS + IMU compass fusion
+ *      (Kalman-style: prediction grows P, measurements shrink it)
+ * World units: 1 unit = 1 canvas px (world is 560x560).
+ * ============================================================ */
+
+/* ---------- world definition (wall segments) ---------- */
+const W = 560;
+const WALLS = [
+  [10,10, 550,10],[550,10, 550,550],[550,550, 10,550],[10,550, 10,10],
+  [180,180, 380,180],[380,180, 380,380],[380,380, 230,380],[180,380, 180,180],
+  [10,140, 120,140],[440,10, 440,120],[550,420, 430,420],[120,550, 120,440],
+];
+
+/* ---------- tunables ---------- */
+const BEAMS = 180, MAXR = 220;
+const CELL = 4, GN = W / CELL;
+const L_FREE = -0.35, L_OCC = 0.9, L_CLAMP = 4;
+const SPEED = 95, TURN = 2.3;
+const WHEELBASE = 18, STEER_MAX = 0.55, STEER_RATE = 2.8;  // car (bicycle model)
+const STRAFE = 76;                                          // drone lateral speed
+const KF_DIST = 14, KF_ROT = 0.35;
+const ICP_ITERS = 8, ICP_MAX_D = 16, ICP_MIN_PAIRS = 25;
+/* sensor models */
+const GPS_SIGMA  = 8,    GPS_R  = GPS_SIGMA*GPS_SIGMA;   // position fix noise
+const GPS_PERIOD = 50;                                   // frames between fixes (~1 Hz)
+const COMP_SIGMA = 0.05, COMP_R = COMP_SIGMA*COMP_SIGMA; // compass noise (rad)
+const COMP_PERIOD = 14;
+
+/* ---------- state ---------- */
+const START = {x:80, y:80, th:0.0};
+let truth, dead, est;
+let Ppos, Pth;                        // pose covariance (scalar approx)
+let logodds = new Float32Array(GN*GN);
+let trailT = [], trailD = [], trailE = [];
+let keyframe = null, kfCount = 0, lastScan = null;
+let gpsFixes = [];                    // recent fixes for rendering
+let steer = 0;                        // car steering angle (rad)
+
+function resetRun(){
+  truth = {...START}; dead = {...START}; est = {...START};
+  Ppos = 4; Pth = 0.01; steer = 0;
+  logodds.fill(0);
+  trailT = [{...START}]; trailD = [{...START}]; trailE = [{...START}];
+  keyframe = null; kfCount = 0; lastScan = null; gpsFixes = [];
+}
+resetRun();
+
+/* ---------- small math helpers ---------- */
+let spare = null;
+function randn(){
+  if (spare !== null){ const v = spare; spare = null; return v; }
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  const m = Math.sqrt(-2 * Math.log(u));
+  spare = m * Math.sin(2*Math.PI*v);
+  return m * Math.cos(2*Math.PI*v);
+}
+const clamp = (v,a,b)=> v<a?a : v>b?b : v;
+const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+/* ---------- raycasting ---------- */
+function castRay(px,py,dx,dy){
+  let best = Infinity;
+  for (const [ax,ay,bx,by] of WALLS){
+    const rx = bx-ax, ry = by-ay;
+    const denom = dx*ry - dy*rx;
+    if (Math.abs(denom) < 1e-9) continue;
+    const t = ((ax-px)*ry - (ay-py)*rx) / denom;
+    const s = ((ax-px)*dy - (ay-py)*dx) / denom;
+    if (t >= 0 && s >= 0 && s <= 1 && t < best) best = t;
+  }
+  return best;
+}
+
+/* ---------- LiDAR scan from the TRUE pose ---------- */
+function scan(noiseSigma){
+  const out = new Array(BEAMS);
+  for (let i = 0; i < BEAMS; i++){
+    const a = (i / BEAMS) * 2*Math.PI - Math.PI;
+    const wa = truth.th + a;
+    const t = castRay(truth.x, truth.y, Math.cos(wa), Math.sin(wa));
+    let r, hit;
+    if (t < MAXR){ r = Math.max(1, t + randn()*noiseSigma); hit = true; }
+    else        { r = MAXR; hit = false; }
+    out[i] = {a, r, hit};
+  }
+  return out;
+}
+
+/* ---------- body-frame motion integration (forward, lateral, rotation) ----------
+ * Lateral (l) is only nonzero for the holonomic drone; for wheeled vehicles
+ * the non-holonomic constraint forces l = 0. Odometry noise is built inline
+ * in the main loop, proportional to actual motion. */
+function integrate3(p, f, l, r){
+  p.x += f*Math.cos(p.th) - l*Math.sin(p.th);
+  p.y += f*Math.sin(p.th) + l*Math.cos(p.th);
+  p.th = wrapAngle(p.th + r);
+}
+
+/* ---------- Kalman-style prediction: motion inflates uncertainty ---------- */
+function predictCovariance(dtrans, drot, k){
+  const sT  = 0.07*k*Math.abs(dtrans);                       // translational noise std
+  const sR  = 0.05*k*Math.abs(drot) + 0.0035*k*Math.abs(dtrans);
+  Pth  = Math.min(2,    Pth  + sR*sR);
+  /* heading uncertainty leaks into position: err ≈ dtrans * σθ */
+  Ppos = Math.min(2e4,  Ppos + sT*sT + dtrans*dtrans*Pth);
+}
+
+/* ---------- sensor updates: measurements shrink uncertainty ----------
+ * Absolute fixes move the estimate, so the local keyframe map must move
+ * WITH it — otherwise relative ICP just drags the pose back to the old
+ * (drifted) chain and the sensors fight each other. Re-anchoring the
+ * keyframe is a one-node version of pose-graph relaxation. */
+const K_CAP = 0.35;                       // limit per-fix jump (smoothness)
+function reanchorKeyframe(dx, dy, dth, px, py){
+  if (!keyframe) return;
+  const c = Math.cos(dth), s = Math.sin(dth);
+  for (const p of keyframe.pts){
+    const rx = p.x - px, ry = p.y - py;
+    p.x = px + c*rx - s*ry + dx;
+    p.y = py + s*rx + c*ry + dy;
+  }
+  const rx = keyframe.pose.x - px, ry = keyframe.pose.y - py;
+  keyframe.pose = {x: px + c*rx - s*ry + dx, y: py + s*rx + c*ry + dy,
+                   th: wrapAngle(keyframe.pose.th + dth)};
+}
+function gpsUpdate(){
+  const zx = truth.x + randn()*GPS_SIGMA;
+  const zy = truth.y + randn()*GPS_SIGMA;
+  const ix = zx - est.x, iy = zy - est.y;
+  /* innovation gate: a fix landing far outside our claimed uncertainty
+     means the filter is inconsistent — inflate P and admit being lost,
+     instead of confidently ignoring reality */
+  if ((ix*ix + iy*iy) / (Ppos + GPS_R) > 9){
+    Ppos = Math.min(2e4, Ppos*4 + 50);
+    Pth  = Math.min(2,   Pth*2 + 0.02);
+  }
+  const K = Math.min(K_CAP, Ppos / (Ppos + GPS_R));
+  const dx = K*ix, dy = K*iy;
+  est.x += dx; est.y += dy;
+  Ppos = Math.max(1.5, Ppos*(1 - K));      // floor: never freeze GPS out
+  reanchorKeyframe(dx, dy, 0, est.x, est.y);
+  gpsFixes.push({x:zx, y:zy, t:frame});
+  if (gpsFixes.length > 24) gpsFixes.shift();
+}
+function compassUpdate(){
+  const zth = truth.th + randn()*COMP_SIGMA;
+  const innov = wrapAngle(zth - est.th);
+  if (innov*innov / (Pth + COMP_R) > 9){
+    Pth = Math.min(2, Pth*4 + 0.05);       // inconsistent — inflate
+  }
+  const K = Math.min(0.25, Pth / (Pth + COMP_R));
+  const dth = K * innov;
+  est.th = wrapAngle(est.th + dth);
+  Pth = Math.max(0.0005, Pth*(1 - K));
+  if (Math.abs(dth) > 1e-4) reanchorKeyframe(0, 0, dth, est.x, est.y);
+}
+
+/* ---------- ICP: align current scan to keyframe points ---------- */
+function icpAlign(src, ref, pose){
+  let p = {...pose};
+  for (let iter = 0; iter < ICP_ITERS; iter++){
+    const c = Math.cos(p.th), s = Math.sin(p.th);
+    const pairs = [];
+    for (const q of src){
+      const wx = p.x + c*q.x - s*q.y;
+      const wy = p.y + s*q.x + c*q.y;
+      let bj = -1, bd = ICP_MAX_D * ICP_MAX_D;
+      for (let j = 0; j < ref.length; j++){
+        const dx = ref[j].x - wx, dy = ref[j].y - wy, d = dx*dx + dy*dy;
+        if (d < bd){ bd = d; bj = j; }
+      }
+      if (bj >= 0) pairs.push([wx, wy, ref[bj].x, ref[bj].y]);
+    }
+    if (pairs.length < ICP_MIN_PAIRS) return pose;
+    let ax=0, ay=0, bx=0, by=0;
+    for (const [x1,y1,x2,y2] of pairs){ ax+=x1; ay+=y1; bx+=x2; by+=y2; }
+    const n = pairs.length; ax/=n; ay/=n; bx/=n; by/=n;
+    let dot=0, cross=0;
+    for (const [x1,y1,x2,y2] of pairs){
+      const ux=x1-ax, uy=y1-ay, vx=x2-bx, vy=y2-by;
+      dot   += ux*vx + uy*vy;
+      cross += ux*vy - uy*vx;
+    }
+    const dth = Math.atan2(cross, dot);
+    const cd = Math.cos(dth), sd = Math.sin(dth);
+    const tx = bx - (cd*ax - sd*ay);
+    const ty = by - (sd*ax + cd*ay);
+    const nx = cd*p.x - sd*p.y + tx;
+    const ny = sd*p.x + cd*p.y + ty;
+    const moved = Math.hypot(nx - p.x, ny - p.y);
+    p = {x:nx, y:ny, th: wrapAngle(p.th + dth)};
+    if (moved < 0.01 && Math.abs(dth) < 1e-4) break;
+  }
+  return p;
+}
+function scanPointsRobot(sc){
+  const pts = [];
+  for (let i = 0; i < sc.length; i += 2){
+    const b = sc[i];
+    if (b.hit) pts.push({x: b.r*Math.cos(b.a), y: b.r*Math.sin(b.a)});
+  }
+  return pts;
+}
+function toWorld(pts, p){
+  const c = Math.cos(p.th), s = Math.sin(p.th);
+  return pts.map(q => ({x: p.x + c*q.x - s*q.y, y: p.y + s*q.x + c*q.y}));
+}
+
+/* ---------- occupancy grid ---------- */
+function bresenham(x0,y0,x1,y1,cb){
+  let dx = Math.abs(x1-x0), sx = x0<x1 ? 1 : -1;
+  let dy = -Math.abs(y1-y0), sy = y0<y1 ? 1 : -1;
+  let err = dx + dy;
+  for(;;){
+    cb(x0,y0);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2*err;
+    if (e2 >= dy){ err += dy; x0 += sx; }
+    if (e2 <= dx){ err += dx; y0 += sy; }
+  }
+}
+function updateGrid(pose, sc){
+  const cx = clamp(Math.floor(pose.x/CELL), 0, GN-1);
+  const cy = clamp(Math.floor(pose.y/CELL), 0, GN-1);
+  for (let i = 0; i < sc.length; i += 2){
+    const b = sc[i];
+    const wa = pose.th + b.a;
+    const r = Math.min(b.r, MAXR);
+    const gx = clamp(Math.floor((pose.x + r*Math.cos(wa))/CELL), 0, GN-1);
+    const gy = clamp(Math.floor((pose.y + r*Math.sin(wa))/CELL), 0, GN-1);
+    bresenham(cx, cy, gx, gy, (x,y)=>{
+      if (x === gx && y === gy) return;
+      const k = y*GN + x;
+      logodds[k] = Math.max(-L_CLAMP, logodds[k] + L_FREE);
+    });
+    if (b.hit){
+      const k = gy*GN + gx;
+      logodds[k] = Math.min(L_CLAMP, logodds[k] + L_OCC);
+    }
+  }
+}
+
+/* ---------- input ----------
+ * a/d and ←/→ are tracked separately: ground vehicles treat both as
+ * turn/steer; the drone strafes with A/D and yaws with ←/→. */
+const keys = {fwd:false, back:false, a:false, d:false, al:false, ar:false};
+const KEYMAP = {KeyW:'fwd', ArrowUp:'fwd', KeyS:'back', ArrowDown:'back',
+                KeyA:'a', KeyD:'d', ArrowLeft:'al', ArrowRight:'ar'};
+addEventListener('keydown', e=>{ const k = KEYMAP[e.code]; if(k){keys[k]=true; e.preventDefault();} });
+addEventListener('keyup',   e=>{ const k = KEYMAP[e.code]; if(k){keys[k]=false;} });
+for (const btn of document.querySelectorAll('.dpad button')){
+  const k = btn.dataset.k;
+  btn.addEventListener('pointerdown', e=>{ keys[k]=true; e.preventDefault(); });
+  btn.addEventListener('pointerup',   ()=> keys[k]=false);
+  btn.addEventListener('pointerleave',()=> keys[k]=false);
+}
+
+/* ---------- controls + tabs ---------- */
+const $ = id => document.getElementById(id);
+const ui = {noise:$('noise'), drift:$('drift'), icp:$('icp'), gps:$('gps'), imu:$('imu'), veh:$('veh')};
+const VEH_HINT = {
+  diff:  'turns in place — A/D or ←/→',
+  car:   'no turning in place — A/D steers, must roll to turn',
+  drone: 'A/D strafe sideways, ←/→ yaw'
+};
+ui.veh.onchange = ()=>{ $('vehHint').textContent = VEH_HINT[ui.veh.value]; steer = 0; };
+ui.noise.oninput = ()=> $('noiseV').textContent = (+ui.noise.value).toFixed(1);
+ui.drift.oninput = ()=> $('driftV').textContent = (+ui.drift.value).toFixed(1);
+$('reset').onclick = resetRun;
+$('tabbar').addEventListener('click', e=>{
+  const t = e.target.dataset && e.target.dataset.t;
+  if (!t) return;
+  document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.t===t));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+t));
+});
+
+/* ---------- rendering ---------- */
+const wctx = $('world').getContext('2d');
+const bctx = $('belief').getContext('2d');
+const gridCanvas = document.createElement('canvas');
+gridCanvas.width = GN; gridCanvas.height = GN;
+const gctx = gridCanvas.getContext('2d');
+const gridImg = gctx.createImageData(GN, GN);
+
+function drawRobot(ctx, p, color){
+  ctx.save();
+  ctx.translate(p.x, p.y); ctx.rotate(p.th);
+  ctx.fillStyle = color; ctx.strokeStyle = color;
+  const m = ui.veh.value;
+  if (m === 'car'){
+    ctx.fillRect(-9, -5, 15, 10);                        // body
+    ctx.beginPath();                                     // nose
+    ctx.moveTo(12,0); ctx.lineTo(6,-5); ctx.lineTo(6,5);
+    ctx.closePath(); ctx.fill();
+  } else if (m === 'drone'){
+    ctx.lineWidth = 2;
+    ctx.beginPath();                                     // cross frame
+    ctx.moveTo(-6,-6); ctx.lineTo(6,6); ctx.moveTo(-6,6); ctx.lineTo(6,-6);
+    ctx.stroke();
+    for (const [qx,qy] of [[-6,-6],[6,6],[-6,6],[6,-6]]){
+      ctx.beginPath(); ctx.arc(qx, qy, 3.5, 0, 2*Math.PI); ctx.stroke();
+    }
+    ctx.beginPath();                                     // heading tick
+    ctx.moveTo(11,0); ctx.lineTo(4,-3); ctx.lineTo(4,3);
+    ctx.closePath(); ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(11,0); ctx.lineTo(-7,6); ctx.lineTo(-4,0); ctx.lineTo(-7,-6);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawTrail(ctx, trail, color, dashed){
+  if (trail.length < 2) return;
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+  ctx.setLineDash(dashed ? [4,4] : []);
+  ctx.beginPath();
+  ctx.moveTo(trail[0].x, trail[0].y);
+  for (const p of trail) ctx.lineTo(p.x, p.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+function renderWorld(sc){
+  wctx.fillStyle = '#0d1117'; wctx.fillRect(0,0,W,W);
+  if (sc){
+    wctx.strokeStyle = 'rgba(255,180,84,0.16)'; wctx.lineWidth = 1;
+    wctx.beginPath();
+    for (let i = 0; i < sc.length; i += 3){
+      const b = sc[i], wa = truth.th + b.a;
+      wctx.moveTo(truth.x, truth.y);
+      wctx.lineTo(truth.x + b.r*Math.cos(wa), truth.y + b.r*Math.sin(wa));
+    }
+    wctx.stroke();
+  }
+  wctx.strokeStyle = '#aab8c5'; wctx.lineWidth = 2.5; wctx.lineCap = 'round';
+  wctx.beginPath();
+  for (const [ax,ay,bx,by] of WALLS){ wctx.moveTo(ax,ay); wctx.lineTo(bx,by); }
+  wctx.stroke();
+  drawTrail(wctx, trailT, 'rgba(74,222,128,0.55)', false);
+  drawRobot(wctx, truth, '#4ade80');
+}
+function renderBelief(fusionOn){
+  const d = gridImg.data;
+  for (let i = 0; i < GN*GN; i++){
+    const t = 1 / (1 + Math.exp(-logodds[i]));
+    let r,g,b;
+    if (t > 0.5){ const u = (t-0.5)*2;
+      r = 27 + u*(230-27); g = 35 + u*(237-35); b = 48 + u*(243-48);
+    } else {      const u = (0.5-t)*2;
+      r = 27 - u*13; g = 35 - u*15; b = 48 - u*16;
+    }
+    d[i*4]=r; d[i*4+1]=g; d[i*4+2]=b; d[i*4+3]=255;
+  }
+  gctx.putImageData(gridImg, 0, 0);
+  bctx.imageSmoothingEnabled = false;
+  bctx.clearRect(0,0,W,W);
+  bctx.drawImage(gridCanvas, 0, 0, W, W);
+
+  /* GPS fixes: fading yellow crosses */
+  for (const f of gpsFixes){
+    const age = (frame - f.t) / 200;
+    if (age > 1) continue;
+    bctx.strokeStyle = `rgba(250,204,21,${0.85*(1-age)})`;
+    bctx.lineWidth = 1.5;
+    bctx.beginPath();
+    bctx.moveTo(f.x-4, f.y-4); bctx.lineTo(f.x+4, f.y+4);
+    bctx.moveTo(f.x-4, f.y+4); bctx.lineTo(f.x+4, f.y-4);
+    bctx.stroke();
+  }
+
+  drawTrail(bctx, trailT, 'rgba(74,222,128,0.7)', true);
+  drawTrail(bctx, trailD, 'rgba(248,113,113,0.8)', false);
+  if (fusionOn) drawTrail(bctx, trailE, 'rgba(56,189,248,0.9)', false);
+
+  const shown = fusionOn ? est : dead;
+  /* uncertainty circle: 2σ position confidence */
+  const rad = Math.min(120, 2*Math.sqrt(Ppos));
+  bctx.strokeStyle = 'rgba(56,189,248,0.35)';
+  bctx.fillStyle   = 'rgba(56,189,248,0.06)';
+  bctx.lineWidth = 1;
+  bctx.beginPath();
+  bctx.arc(shown.x, shown.y, rad, 0, 2*Math.PI);
+  bctx.fill(); bctx.stroke();
+
+  drawRobot(bctx, shown, fusionOn ? '#38bdf8' : '#f87171');
+}
+
+/* ---------- main loop ---------- */
+let frame = 0, last = performance.now();
+function tick(now){
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  frame++;
+  const fusionOn = ui.icp.checked || ui.gps.checked || ui.imu.checked;
+
+  /* ---- drive the true robot under the selected motion model ---- */
+  const model = ui.veh.value;
+  let df = 0, dl = 0, dr = 0;                 // body-frame deltas: fwd, lateral, rot
+  if (model === 'car'){
+    /* non-holonomic bicycle model: heading change is COUPLED to rolling */
+    const v = (keys.fwd ? SPEED : 0) - (keys.back ? SPEED*0.6 : 0);
+    const want = (((keys.d||keys.ar)?1:0) - ((keys.a||keys.al)?1:0)) * STEER_MAX;
+    steer += clamp(want - steer, -STEER_RATE*dt, STEER_RATE*dt);
+    df = v*dt;                                // dr derived AFTER collision below
+  } else if (model === 'drone'){
+    /* holonomic: translation in any direction, yaw independent */
+    df = ((keys.fwd ? SPEED : 0) - (keys.back ? SPEED : 0)) * dt;
+    dl = ((keys.a ? STRAFE : 0) - (keys.d ? STRAFE : 0)) * dt;   // +left
+    dr = ((keys.ar ? TURN : 0) - (keys.al ? TURN : 0)) * dt;
+  } else {
+    /* diff-drive point robot: forward + rotate in place */
+    df = ((keys.fwd ? SPEED : 0) - (keys.back ? SPEED*0.6 : 0)) * dt;
+    dr = (((keys.d||keys.ar) ? TURN : 0) - ((keys.a||keys.al) ? TURN : 0)) * dt;
+  }
+
+  /* wall stop along the actual direction of travel; blocked wheels/rotors
+     produce no encoder motion (the wheel-slip lesson) */
+  let aF = 0, aL = 0;
+  const mag = Math.hypot(df, dl);
+  if (mag > 0){
+    const ma = truth.th + Math.atan2(dl, df);
+    const ahead = castRay(truth.x, truth.y, Math.cos(ma), Math.sin(ma));
+    if (ahead > mag + 9){
+      truth.x += df*Math.cos(truth.th) - dl*Math.sin(truth.th);
+      truth.y += df*Math.sin(truth.th) + dl*Math.cos(truth.th);
+      aF = df; aL = dl;
+    }
+  }
+  if (model === 'car') dr = (aF / WHEELBASE) * Math.tan(steer);  // constraint:
+  truth.th = wrapAngle(truth.th + dr);                           // no roll, no turn
+
+  /* odometry: ACTUAL motion, corrupted; prediction inflates P */
+  const aMag = Math.hypot(aF, aL);
+  const moving = aMag !== 0 || dr !== 0;
+  if (moving){
+    const k = +ui.drift.value;
+    const nF = aF*(1 + 0.02*k) + randn()*0.05*k*Math.abs(aF);
+    const nL = aL*(1 + 0.02*k) + randn()*0.05*k*Math.abs(aL);
+    const nR = dr + randn()*0.05*k*Math.abs(dr)
+                  + randn()*0.0025*k*aMag
+                  + 0.0009*k*aF;              // systematic bias
+    integrate3(dead, nF, nL, nR);
+    integrate3(est,  nF, nL, nR);
+    predictCovariance(aMag, dr, k);
+  }
+
+  /* sense + scan match + map (every 2nd frame).
+     Order matters: relative ICP first, absolute sensors LAST,
+     so ICP can't immediately undo GPS/compass corrections. */
+  let sc = lastScan;
+  if (frame % 2 === 0){
+    sc = lastScan = scan(+ui.noise.value);
+
+    if (ui.icp.checked){
+      const src = scanPointsRobot(sc);
+      if (keyframe && src.length >= ICP_MIN_PAIRS){
+        const prev = est;                  // icpAlign returns prev on failure
+        const fit = icpAlign(src, keyframe.pts, est);
+        const jump = Math.hypot(fit.x - est.x, fit.y - est.y);
+        const jrot = Math.abs(wrapAngle(fit.th - est.th));
+        /* gate: between consecutive scans the legitimate correction is tiny;
+           a huge "correction" means ICP snapped to a wrong local minimum
+           (aliasing) — reject it and trust odometry instead */
+        if (fit !== prev && jump < 8 && jrot < 0.25){
+          est = fit;
+          /* ICP is RELATIVE (to a drifting keyframe chain), so it must not
+             collapse absolute uncertainty — keep GPS gain alive */
+          Ppos = Math.min(Ppos, 25);
+          Pth  = Math.min(Pth, 0.02);
+        }
+      }
+      const needKF = !keyframe
+        || Math.hypot(est.x - keyframe.pose.x, est.y - keyframe.pose.y) > KF_DIST
+        || Math.abs(wrapAngle(est.th - keyframe.pose.th)) > KF_ROT;
+      if (needKF && src.length >= ICP_MIN_PAIRS){
+        keyframe = {pts: toWorld(src, est), pose: {...est}};
+        kfCount++;
+      }
+    }
+
+    /* absolute measurement updates (these also re-anchor the keyframe) */
+    if (ui.gps.checked && frame % GPS_PERIOD === 0) gpsUpdate();
+    if (ui.imu.checked && frame % COMP_PERIOD === 0) compassUpdate();
+
+    const mapPose = fusionOn ? est : dead;
+    if (moving || frame < 30) updateGrid(mapPose, sc);
+  }
+
+  /* trails (sampled, length-capped) */
+  if (frame % 6 === 0){
+    trailT.push({x:truth.x, y:truth.y});
+    trailD.push({x:dead.x,  y:dead.y});
+    trailE.push({x:est.x,   y:est.y});
+    if (trailT.length > 2200){ trailT.shift(); trailD.shift(); trailE.shift(); }
+  }
+
+  renderWorld(sc);
+  renderBelief(fusionOn);
+
+  if (frame % 15 === 0){
+    $('errDead').textContent = Math.hypot(dead.x-truth.x, dead.y-truth.y).toFixed(1);
+    $('errEst').textContent  = Math.hypot(est.x-truth.x,  est.y-truth.y).toFixed(1);
+    $('sigPos').textContent  = Math.sqrt(Ppos).toFixed(1);
+    $('kfCount').textContent = kfCount;
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>

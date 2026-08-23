@@ -6,8 +6,9 @@ interface Props {
 }
 
 const { title, href, description } = Astro.props;
+const isExternal = /^https?:\/\//.test(href);
 ---
-<a class="repo-item" href={href} target="_blank" rel="noopener">
-  <span class="repo-name">{title} <span class="arrow">↗</span></span>
+<a class="repo-item" href={href} target={isExternal ? '_blank' : undefined} rel={isExternal ? 'noopener' : undefined}>
+  <span class="repo-name">{title} {isExternal && <span class="arrow">↗</span>}</span>
   {description && <p class="repo-desc">{description}</p>}
 </a>

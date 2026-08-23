@@ -1,0 +1,60 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Nav from '../../components/Nav.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import SlamPlaygroundSim from '../../components/labs/SlamPlaygroundSim.astro';
+import { labs } from '../../data/labs';
+
+const SIM_COMPONENTS: Record<string, any> = {
+  'slam-playground': SlamPlaygroundSim,
+};
+
+export function getStaticPaths() {
+  return labs.map((lab) => ({ params: { slug: lab.slug }, props: { lab } }));
+}
+
+const { lab } = Astro.props;
+const SimComponent = SIM_COMPONENTS[lab.slug];
+---
+<BaseLayout title={`${lab.title} — Zeeshan Anjum Junaidi`} description={lab.tagline}>
+  <div class="lab-page">
+    <Nav />
+
+    <a class="back-link" href="/#lab">← Back to The Lab</a>
+
+    <div class="lab-page-head">
+      <span class="section-label">{lab.title}</span>
+      <p class="subhead" style="max-width:60ch;">{lab.tagline}</p>
+      <div class="tag-row">
+        {lab.tags.map((tag) => <span class="tag">{tag}</span>)}
+      </div>
+    </div>
+
+    <div class="writing-block" style="margin-top:24px;">
+      {lab.writeup.map((para) => <p>{para}</p>)}
+    </div>
+
+    <div class="sim-frame">
+      {SimComponent && <SimComponent />}
+    </div>
+  </div>
+
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .lab-page { padding: 28px 4px 0; }
+  .back-link {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--card-desc);
+    transition: color .4s ease;
+    display: inline-block;
+    margin: 24px 0 8px;
+  }
+  .back-link:hover, .back-link:focus-visible { color: var(--card-label); }
+  .lab-page-head { display: flex; flex-direction: column; gap: 14px; margin-bottom: 8px; }
+  .sim-frame { margin: 32px 0 64px; }
+</style>

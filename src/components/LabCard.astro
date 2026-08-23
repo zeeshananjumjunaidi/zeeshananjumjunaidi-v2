@@ -23,8 +23,9 @@ const previews = {
 };
 
 const Preview = preview ? previews[preview] : null;
+const isExternal = /^https?:\/\//.test(href);
 ---
-<a class="card" href={href} target="_blank" rel="noopener">
+<a class="card" href={href} target={isExternal ? '_blank' : undefined} rel={isExternal ? 'noopener' : undefined}>
   <div class="card-preview">
     {Preview && <Preview />}
   </div>

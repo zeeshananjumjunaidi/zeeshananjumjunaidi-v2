@@ -25,10 +25,12 @@
     applyLabel();
   }
 
-  document.querySelectorAll('a[href^="#"]').forEach(function (link) {
+  document.querySelectorAll('a[href*="#"]').forEach(function (link) {
     link.addEventListener("click", function (evt) {
-      var id = link.getAttribute("href").slice(1);
-      var target = id && document.getElementById(id);
+      var url;
+      try { url = new URL(link.href); } catch (e) { return; }
+      if (url.pathname !== window.location.pathname || !url.hash) return;
+      var target = document.getElementById(url.hash.slice(1));
       if (!target) return;
       evt.preventDefault();
       target.scrollIntoView({ behavior: "smooth", block: "start" });

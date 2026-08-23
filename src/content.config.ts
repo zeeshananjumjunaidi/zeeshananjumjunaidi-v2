@@ -5,7 +5,7 @@ const lab = defineCollection({
   loader: glob({ pattern: '**/*.json', base: './src/content/lab' }),
   schema: z.object({
     title: z.string(),
-    href: z.string().url(),
+    href: z.string(), // external URL or an internal path like /lab/slam-playground
     category: z.string(),
     year: z.string(),
     description: z.string().optional(),
