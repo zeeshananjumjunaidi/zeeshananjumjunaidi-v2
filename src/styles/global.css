@@ -615,6 +615,13 @@ img { max-width: 100%; display: block; }
   font-family: var(--font-body); font-weight: 300; font-size: 16px; line-height: 1.85;
   color: var(--subhead-color); margin: 0;
 }
+kbd {
+  font-family: var(--font-mono); font-size: 0.85em; font-style: normal;
+  padding: 2px 7px; border: 1px solid var(--card-border); border-radius: 5px;
+  background: var(--card-bg); color: var(--headline-color);
+  box-shadow: 0 2px 0 var(--card-border);
+  white-space: nowrap;
+}
 .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .tag {
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;

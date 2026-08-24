@@ -33,7 +33,7 @@ const SimComponent = SIM_COMPONENTS[lab.slug];
     </div>
 
     <div class="writing-block" style="margin-top:24px;">
-      {lab.writeup.map((para) => <p>{para}</p>)}
+      {lab.writeup.map((para) => <p set:html={para} />)}
     </div>
 
     <div class="sim-frame">
