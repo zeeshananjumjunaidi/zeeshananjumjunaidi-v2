@@ -3,10 +3,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import Nav from '../../components/Nav.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SlamPlaygroundSim from '../../components/labs/SlamPlaygroundSim.astro';
+import HybridAstarParkingSim from '../../components/labs/HybridAstarParkingSim.astro';
 import { labs } from '../../data/labs';
 
 const SIM_COMPONENTS: Record<string, any> = {
   'slam-playground': SlamPlaygroundSim,
+  'hybrid-astar-parking': HybridAstarParkingSim,
 };
 
 export function getStaticPaths() {

@@ -1,0 +1,618 @@
+---
+// Ported from zeeshananjumjunaidi/src/components/sims/HybridAstarParkingSim.astro.
+// The simulation script below is copied verbatim (Reeds-Shepp curves, Hybrid A*
+// search, collision checks, rendering) — only the <style> block was retokenized
+// onto v2's theme variables, same pattern as the SLAM Playground port. The canvas
+// and its legend colors stay a constant, always-dark "instrument screen"
+// regardless of site theme; only the surrounding chrome follows dark/light.
+---
+
+<div class="sim-root">
+<div class="sim-main">
+  <div class="stage">
+    <div class="canvaswrap panel">
+      <canvas id="cv" width="560" height="560"></canvas>
+      <div class="overlay" id="ovl">planning…</div>
+    </div>
+    <div class="side panel">
+      <h2>Status</h2>
+      <div class="stat"><span>mode</span><b id="sMode">autonomous</b></div>
+      <div class="stat"><span>state</span><b id="sState">idle</b></div>
+      <div class="stat"><span>nodes expanded</span><b id="sNodes">—</b></div>
+      <div class="stat"><span>plan time</span><b id="sTime">—</b></div>
+      <div class="stat"><span>path length</span><b id="sLen">—</b></div>
+      <div class="stat"><span>gear changes</span><b id="sGear">—</b></div>
+      <div class="stat"><span>final pose error</span><b id="sErr">—</b></div>
+      <div class="legend">
+        <span style="--c:var(--fwd)">forward segment</span>
+        <span style="--c:var(--rev)">reverse segment</span>
+        <span style="--c:var(--shot)">Reeds-Shepp shot</span>
+        <span style="--c:var(--explore)">explored states</span>
+        <span style="--c:var(--goal)">goal pose</span>
+        <span style="--c:var(--car)">car</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="group"><span class="tag">mode</span>
+      <button id="mAuto" class="on">Autonomous</button>
+      <button id="mManual">Manual</button>
+    </div>
+    <div class="group"><span class="tag">car</span>
+      <div class="ctl"><label for="radius">turn radius</label>
+        <input id="radius" type="range" min="18" max="60" step="1" value="28">
+        <span class="val" id="radiusV">28</span></div>
+    </div>
+    <div class="group"><span class="tag">cost</span>
+      <div class="ctl"><label for="rev">reverse penalty</label>
+        <input id="rev" type="range" min="1" max="5" step="0.1" value="2">
+        <span class="val" id="revV">2.0</span></div>
+      <div class="ctl"><label for="dir">gear-switch penalty</label>
+        <input id="dir" type="range" min="0" max="20" step="1" value="8">
+        <span class="val" id="dirV">8</span></div>
+    </div>
+    <div class="group"><span class="tag">view</span>
+      <div class="ctl"><input id="showTree" type="checkbox" checked>
+        <label for="showTree">show search</label></div>
+    </div>
+    <button id="reset">Reset</button>
+  </div>
+
+  <section class="concepts">
+    <h2>The concepts, with intuition</h2>
+    <div class="tabbar" id="tabbar">
+      <button data-t="hybrid" class="active">Hybrid A*</button>
+      <button data-t="bike">Bicycle model</button>
+      <button data-t="rs">Reeds-Shepp curves</button>
+      <button data-t="heur">Heuristics</button>
+      <button data-t="shot">Analytic expansion</button>
+      <button data-t="cost">Cost &amp; penalties</button>
+    </div>
+
+    <div class="pane active" id="pane-hybrid">
+      <h3>A* that respects the steering wheel</h3>
+      <p>Plain grid A* plans paths a car can't drive: diagonal zig-zags, right-angle
+         corners, spinning in place. Hybrid A* fixes this by expanding nodes with the <em>actual</em> motion
+         model: from each state it rolls the car forward and back
+         through a few fixed steering angles, producing successor states that are always
+         physically reachable. The trick that keeps it tractable: although the car's pose <code>(x,
+         y, θ)</code> is continuous, successors are <em>binned</em> into a coarse
+         grid so the search doesn't drown in nearly-identical states. At most one node
+         survives per cell. So it searches in continuous space but prunes in discretized
+         space, getting drivable paths without exploding.</p>
+      <p class="try">turn on "show search" and watch the explored states fan out. They
+         curve, because every expansion is a little arc the car could actually follow.</p>
+    </div>
+
+    <div class="pane" id="pane-bike">
+      <h3>Why a car isn't a dot</h3>
+      <p>The kinematic bicycle model collapses the four wheels into two: the heading
+         changes only when the car <em>rolls</em>, at a rate set by the steering angle δ and
+         wheelbase L, <code>dθ = (v/L)·tan(δ)·dt</code>. Two consequences define everything
+         here. There's a <em>minimum turning radius</em> <code>R = L/tan(δ_max)</code>, so the
+         car physically cannot turn tighter, and a goal just beside it may require pulling
+         forward and back. And there's <em>no sideways motion</em>: you can't slide into a
+         parking spot, you arc into it. Every successor in the search and every Reeds-Shepp
+         segment obeys exactly this model.</p>
+      <p class="try">drop the turn-radius slider to its minimum and re-park. The planner
+         finds tighter maneuvers. Crank it up and the car needs sweeping approaches.</p>
+    </div>
+
+    <div class="pane" id="pane-rs">
+      <h3>The shortest path for a car that reverses</h3>
+      <p>In 1990 Reeds and Shepp proved that the shortest path between two poses for a car
+         moving at constant speed <em>both forward and backward</em>, with a fixed turning
+         radius, is always one of a small finite catalogue of words: sequences of
+         left-arc, straight, and right-arc segments like <code>L⁺S⁺R⁻</code>, where the sign
+         is the gear. At most five segments, ignoring obstacles. This sim implements the
+         core curve families and picks the shortest valid one analytically, no search, just
+         formulas. Every candidate is reconstructed and checked to land exactly on the goal
+         pose before it's trusted, so the maneuver is correct to a fraction of a unit. It's
+         what lets the car finish <em>precisely</em> in the slot rather than "close enough."</p>
+      <p class="try">park somewhere with clear space. The final approach (purple) is a pure
+         Reeds-Shepp curve splicing the car neatly onto the goal.</p>
+    </div>
+
+    <div class="pane" id="pane-heur">
+      <h3>Two ways to be wrong, combined</h3>
+      <p>A* needs a heuristic, an optimistic guess of remaining cost, and a good one is
+         what makes Hybrid A* fast instead of exhaustive. This planner takes the <em>maximum</em> of
+         two: one that knows the car's kinematics but ignores walls (the
+         Reeds-Shepp distance to goal, capturing "you'll need to swing around to face the
+         right way"), and one that knows the walls but ignores kinematics (a flood-fill
+         distance through free space, capturing "there's an obstacle, go around"). Each
+         alone has a blind spot the other covers; their max is still admissible (never
+         overestimates) so the path stays optimal, but far more informed. The flood-fill
+         is what stops the search from wandering hopefully into a dead-end alcove.</p>
+      <p class="try">park behind the obstacle block. Without the obstacle-aware term the
+         search would waste thousands of nodes probing the wall; here it routes around.</p>
+    </div>
+
+    <div class="pane" id="pane-shot">
+      <h3>Don't search the last mile, solve it</h3>
+      <p>Pure grid search struggles to terminate <em>exactly</em> on a continuous goal pose.
+         Binning means it lands in the right cell, not the right point. Analytic expansion
+         fixes this: every so often, instead of expanding a node, the planner tries to
+         connect it straight to the goal with a single Reeds-Shepp curve. If that curve is
+         collision-free, the search is done: the path is "search to get close, then shoot
+         analytically to land." This both guarantees an exact finish and dramatically
+         speeds things up, since the shot often succeeds long before the grid search would
+         have crawled all the way there.</p>
+      <p class="try">watch the node counter. It usually stops at a few hundred, because the
+         Reeds-Shepp shot connected to the goal early.</p>
+    </div>
+
+    <div class="pane" id="pane-cost">
+      <h3>What "realistic" actually means</h3>
+      <p>A drivable path isn't enough. It should also feel natural, and that's pure cost
+         shaping. Reversing is penalized so the car prefers driving forward when it can;
+         switching gears (forward↔reverse) carries a fixed penalty so it doesn't dither
+         back and forth; steering and steering-<em>changes</em> are penalized so the path is
+         smooth rather than wiggly. None of these change what's <em>possible</em>. They change
+         what's <em>preferred</em>, and tuning them is most of what separates a planner that
+         technically works from one that parks like a person.</p>
+      <p class="try">push gear-switch penalty to 20. The car works hard to avoid three-point
+         turns. Drop it to 0 and it'll happily shuffle back and forth.</p>
+    </div>
+  </section>
+</div>
+</div>
+
+<style>
+.sim-root {
+    /* Canvas/legend colors are intentionally constant — an instrument's own
+       screen, not themed with the rest of the site. Same convention as the
+       SLAM Playground port. */
+    --fwd:#4ade80; --rev:#fb7185; --car:#38bdf8; --goal:#facc15; --shot:#c084fc;
+    --explore:#2b6cb0;
+  }
+  .sim-root *{box-sizing:border-box}
+  .sim-root {margin:0;background:transparent;color:var(--headline-color);
+    font-family:var(--font-mono);font-size:15px;line-height:1.6}
+  .sim-main {max-width:1100px;margin:0 auto;padding:0}
+  .stage{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .panel{background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;padding:12px}
+  .canvaswrap{flex:1 1 560px;min-width:320px;position:relative}
+  canvas{width:100%;height:auto;display:block;border-radius:6px;background:#0d1117;
+    touch-action:none;cursor:crosshair}
+  .side{flex:1 1 240px;min-width:220px;font-size:13px}
+  .side h2{font-size:12px;font-weight:600;margin:0 0 10px;color:var(--card-desc);
+    text-transform:uppercase;letter-spacing:.12em}
+  .stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--card-border)}
+  .stat b{color:var(--headline-color);font-weight:600}
+  .legend{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:12px;color:var(--card-desc)}
+  .legend span::before{content:"";display:inline-block;width:18px;height:3px;border-radius:2px;
+    margin-right:8px;vertical-align:middle;background:var(--c)}
+  .controls{display:flex;gap:14px 26px;flex-wrap:wrap;align-items:center;
+    background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;
+    padding:14px 18px;margin-top:16px;font-size:13px}
+  .ctl{display:flex;align-items:center;gap:9px}
+  .ctl label{color:var(--card-desc);white-space:nowrap;cursor:pointer}
+  .group{display:flex;gap:14px;align-items:center;flex-wrap:wrap;
+    border-left:2px solid var(--card-border);padding-left:14px}
+  .group .tag{color:var(--card-desc);font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  input[type=range]{width:120px;accent-color:var(--card-label)}
+  .val{min-width:30px;text-align:right;color:var(--headline-color)}
+  button{background:transparent;color:var(--headline-color);border:1px solid var(--card-border);
+    border-radius:6px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer;
+    transition:border-color .4s ease}
+  button:hover{border-color:var(--card-label)}
+  button.on{border-color:var(--card-label);background:color-mix(in srgb, var(--card-label) 10%, transparent)}
+  .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(11,15,20,.55);border-radius:6px;font-size:14px;color:#e6edf3}
+  .overlay.show{display:flex}
+  .concepts{margin-top:28px;background:var(--card-bg);border:1px solid var(--card-border);
+    border-radius:10px;overflow:hidden}
+  .concepts h2{font-size:12px;font-weight:600;margin:0;color:var(--card-desc);
+    text-transform:uppercase;letter-spacing:.12em;padding:14px 18px 0}
+  .tabbar{display:flex;flex-wrap:wrap;gap:6px;padding:12px 18px;border-bottom:1px solid var(--card-border)}
+  .tabbar button{padding:6px 12px;font-size:12.5px;color:var(--card-desc);border-radius:6px}
+  .tabbar button.active{color:var(--headline-color);border-color:var(--card-label);
+    background:color-mix(in srgb, var(--card-label) 10%, transparent)}
+  .pane{display:none;padding:18px 22px 22px;max-width:820px}
+  .pane.active{display:block}
+  .pane h3{font-family:var(--font-head);font-size:18px;font-weight:400;margin:0 0 10px}
+  .pane p{font-family:var(--font-body);font-weight:300;margin:0 0 12px;color:var(--card-desc);font-size:15px;line-height:1.75}
+  .pane code{background:var(--card-bg);border:1px solid var(--card-border);border-radius:4px;
+    padding:1px 6px;font-size:12.5px;font-family:var(--font-mono);color:var(--goal)}
+  .pane .try{color:var(--card-label);font-size:13px;font-family:var(--font-mono)}
+  .pane .try::before{content:"▸ try it: ";color:var(--card-desc)}
+</style>
+
+<script is:inline>
+"use strict";
+const PI = Math.PI;
+const M = t => { t = t % (2*PI); if (t < -PI) t += 2*PI; if (t >= PI) t -= 2*PI; return t; };
+const clamp = (v,a,b)=> v<a?a:v>b?b:v;
+const polarR = (x,y)=> [Math.hypot(x,y), Math.atan2(y,x)];
+
+/* ===================== Reeds-Shepp (CSC + CCC) ===================== */
+function wLSL(x,y,phi){
+  const [u,t] = polarR(x - Math.sin(phi), y - 1 + Math.cos(phi));
+  if (t >= -1e-9){ const v = M(phi - t); if (v >= -1e-9) return [t,u,v]; } return null;
+}
+function wLSR(x,y,phi){
+  const [u1,t1] = polarR(x + Math.sin(phi), y - 1 - Math.cos(phi));
+  const uu = u1*u1 - 4;
+  if (uu >= -1e-9){ const u = Math.sqrt(Math.max(0,uu)); const th = Math.atan2(2,u);
+    const t = M(t1 + th), v = M(t - phi);
+    if (t >= -1e-9 && v >= -1e-9) return [t,u,v]; } return null;
+}
+function wLRL(x,y,phi){
+  const [u1,t1] = polarR(x - Math.sin(phi), y - 1 + Math.cos(phi));
+  if (u1 <= 4){ const u = -2*Math.asin(u1/4);
+    const t = M(t1 + 0.5*u + PI), v = M(phi - t + u);
+    if (t >= -1e-9 && u <= 1e-9) return [t,u,v]; } return null;
+}
+function expand(word, fn, x, y, phi){
+  const out = [];
+  const swap = w => w.replace(/[LR]/g, c=> c==='L'?'R':'L');
+  const push = (letters, L) => { if (L) out.push(letters.split('').map((c,i)=>({type:c,len:L[i]}))); };
+  push(word,        fn( x,  y,  phi));
+  push(word,        (r=>r&&r.map(v=>-v))(fn(-x,  y, -phi)));
+  push(swap(word),  fn( x, -y, -phi));
+  push(swap(word),  (r=>r&&r.map(v=>-v))(fn(-x, -y,  phi)));
+  return out;
+}
+function reconUnit(segs, step=0.05){
+  let x=0,y=0,th=0;
+  for (const s of segs){ const L=Math.abs(s.len), dir=Math.sign(s.len)||1;
+    const k=(s.type==='L'?1:s.type==='R'?-1:0);
+    let d=0; while(d<L-1e-12){const h=Math.min(step,L-d);const ss=dir*h,tm=th+0.5*k*ss;
+      x+=Math.cos(tm)*ss;y+=Math.sin(tm)*ss;th+=k*ss;d+=h;} }
+  return [x,y,M(th)];
+}
+const segLen = segs => segs.reduce((a,s)=>a+Math.abs(s.len),0);
+/* realism score: raw shortest is often alien-looking (reverse arcs to save 2%).
+   Prefer forward motion and few gear flips, like a human driver. */
+function rsScore(segs){
+  let L=0, prev=0, flips=0;
+  for (const s of segs){ const l=s.len; if (Math.abs(l)<1e-9) continue;
+    L += Math.abs(l) * (l<0 ? 1.3 : 1);
+    const sg = Math.sign(l); if (prev && sg!==prev) flips++;
+    prev = sg; }
+  return L + 0.6*flips;
+}
+function rsCandidates(x,y,phi){
+  let c = [];
+  for (const [w,fn] of [['LSL',wLSL],['LSR',wLSR],['LRL',wLRL]]) c = c.concat(expand(w,fn,x,y,phi));
+  const valid = [];
+  for (const segs of c){ if(!segs.length) continue;
+    const [rx,ry,rth] = reconUnit(segs);
+    if (Math.hypot(rx-x,ry-y)+Math.abs(M(rth-phi)) < 2e-2) valid.push(segs); }
+  valid.sort((a,b)=>rsScore(a)-rsScore(b));
+  return valid;
+}
+function reedsShepp(s, g, R){
+  const maxc = 1/R;
+  const dx=g.x-s.x, dy=g.y-s.y, c=Math.cos(s.th), si=Math.sin(s.th);
+  const xn=(c*dx+si*dy)*maxc, yn=(-si*dx+c*dy)*maxc, phin=M(g.th-s.th);
+  const v = rsCandidates(xn,yn,phin);
+  if (!v.length) return null;
+  return { segs:v[0], length: segLen(v[0])*R };
+}
+/* fast RS distance for the A* heuristic: min word length, NO reconstruction
+   validation (symmetry guarantees validity; this is the hot path) */
+function rsLenFast(x,y,phi){
+  let best=Infinity;
+  for (const [w,fn] of [['LSL',wLSL],['LSR',wLSR],['LRL',wLRL]])
+    for (const cand of expand(w,fn,x,y,phi)){ if(!cand.length) continue;
+      const L=segLen(cand); if(L<best) best=L; }
+  return best;
+}
+function rsHeur(s,g,R){ const maxc=1/R, dx=g.x-s.x, dy=g.y-s.y, c=Math.cos(s.th), si=Math.sin(s.th);
+  return rsLenFast((c*dx+si*dy)*maxc, (-si*dx+c*dy)*maxc, M(g.th-s.th)) * R; }
+/* sample a (world-frame) path made of RS segments into dense poses */
+function sampleSegs(start, segs, R, step=2.5){
+  let x=start.x,y=start.y,th=start.th; const out=[{x,y,th,dir:1}];
+  for (const seg of segs){ const L=Math.abs(seg.len)*R, dir=Math.sign(seg.len)||1,
+    k=(seg.type==='L'?1:seg.type==='R'?-1:0)/R;
+    let d=0; while(d<L-1e-9){const h=Math.min(step,L-d);const ss=dir*h,tm=th+0.5*k*ss;
+      x+=Math.cos(tm)*ss;y+=Math.sin(tm)*ss;th+=k*ss;d+=h;out.push({x,y,th,dir});} }
+  return out;
+}
+
+/* ===================== scene + collision ===================== */
+const Wd=560, Hd=560;
+const CAR={l:34, w:18};
+/* obstacle rects [x,y,w,h]; parking slots {x,y,th, label} */
+const scene = {
+  rects:[ [138,68,24,44], [198,68,24,44], [398,68,24,44], [458,68,24,44],  // top parked cars
+          [240,300,80,40],                                                  // center block
+          [120,420,64,92] ],                                                // lower-left block
+  slots:[ {x:300,y:90,th:-PI/2}, {x:360,y:90,th:-PI/2},                      // nose-in gaps, top row
+          {x:500,y:140,th:PI/2}, {x:460,y:500,th:0} ]                       // open drive-in spots
+};
+function carCircles(p){ const c=Math.cos(p.th), s=Math.sin(p.th), r=CAR.w*0.5+4;
+  return [-CAR.l*0.3,0,CAR.l*0.3].map(o=>({x:p.x+c*o,y:p.y+s*o,r})); }
+function collides(p){
+  if (p.x<CAR.l*0.5 || p.y<CAR.l*0.5 || p.x>Wd-CAR.l*0.5 || p.y>Hd-CAR.l*0.5) return true;
+  for (const cc of carCircles(p)) for (const [rx,ry,rw,rh] of scene.rects){
+    const nx=clamp(cc.x,rx,rx+rw), ny=clamp(cc.y,ry,ry+rh);
+    if ((nx-cc.x)**2+(ny-cc.y)**2 < cc.r*cc.r) return true; }
+  return false;
+}
+function rsCollisionFree(s, segs, R){
+  for (const p of sampleSegs(s,segs,R,3)) if (collides(p)) return false; return true;
+}
+
+/* ===================== Hybrid A* ===================== */
+class Heap{ constructor(){this.a=[];}
+  get size(){return this.a.length;}
+  push(n){const a=this.a;a.push(n);let i=a.length-1;
+    while(i>0){const p=(i-1)>>1; if(a[p].f<=a[i].f)break;[a[p],a[i]]=[a[i],a[p]];i=p;}}
+  pop(){const a=this.a,top=a[0],last=a.pop();
+    if(a.length){a[0]=last;let i=0,n=a.length;for(;;){let l=2*i+1,r=l+1,m=i;
+      if(l<n&&a[l].f<a[m].f)m=l; if(r<n&&a[r].f<a[m].f)m=r; if(m===i)break;
+      [a[m],a[i]]=[a[i],a[m]];i=m;}} return top;}
+}
+function holonomicH(goal, res){
+  const nx=Math.ceil(Wd/res), ny=Math.ceil(Hd/res);
+  const cost=new Float64Array(nx*ny).fill(Infinity);
+  const free=(gx,gy)=>{const x=gx*res+res/2,y=gy*res+res/2;
+    return !collides({x,y,th:0}) && !collides({x,y,th:PI/2});};
+  const gi=clamp(Math.floor(goal.x/res),0,nx-1), gj=clamp(Math.floor(goal.y/res),0,ny-1);
+  const q=[[gi,gj]]; cost[gj*nx+gi]=0; let head=0;
+  const N=[[1,0,1],[-1,0,1],[0,1,1],[0,-1,1],[1,1,1.414],[1,-1,1.414],[-1,1,1.414],[-1,-1,1.414]];
+  while(head<q.length){const [cx,cy]=q[head++],base=cost[cy*nx+cx];
+    for(const[dx,dy,w]of N){const ax=cx+dx,ay=cy+dy;
+      if(ax<0||ay<0||ax>=nx||ay>=ny)continue;const idx=ay*nx+ax;
+      if(!free(ax,ay))continue; const nc=base+w*res;
+      if(nc<cost[idx]){cost[idx]=nc;q.push([ax,ay]);}}}
+  return (x,y)=>{const i=Math.floor(x/res),j=Math.floor(y/res);
+    if(i<0||j<0||i>=nx||j>=ny)return Infinity; return cost[j*nx+i];};
+}
+function hybridAStar(start, goal, opt){
+  const R=opt.R, XY=opt.xy, TH=opt.th, ARC=opt.arc, steerMax=Math.atan(CAR.l/R);
+  const steers=[-1,-0.5,0,0.5,1].map(s=>s*steerMax), dirs=[1,-1];
+  const hol=holonomicH(goal,XY);
+  const key=p=>`${Math.round(p.x/XY)},${Math.round(p.y/XY)},${((Math.round(M(p.th)/TH))%24+24)%24}`;
+  const h=p=>Math.max(rsHeur(p,goal,R), hol(p.x,p.y));
+  const s0={...start,g:0,steer:0,dir:1,parent:null}; s0.f=h(s0);
+  const open=new Map(), heap=new Heap(); heap.push(s0); open.set(key(s0),s0);
+  const closed=new Set(), explored=[]; let nodes=0;
+  const deadline=performance.now()+(opt.budgetMs||700);
+  while(heap.size && nodes<opt.maxNodes){
+    if((nodes&63)===0 && performance.now()>deadline) break;
+    const cur=heap.pop(), ck=key(cur);
+    if(closed.has(ck))continue; closed.add(ck); nodes++;
+    explored.push({x:cur.x,y:cur.y,th:cur.th});
+    if(nodes%opt.shotEvery===0 || h(cur)<opt.shotDist){
+      const rs=reedsShepp(cur,goal,R);
+      if(rs && rsCollisionFree(cur,rs.segs,R)) return {node:cur,shot:rs,explored,nodes,found:true};
+    }
+    if(Math.hypot(cur.x-goal.x,cur.y-goal.y)<XY && Math.abs(M(cur.th-goal.th))<TH)
+      return {node:cur,shot:null,explored,nodes,found:true};
+    for(const st of steers) for(const dir of dirs){
+      let x=cur.x,y=cur.y,th=cur.th; const k=Math.tan(st)/CAR.l;
+      const steps=Math.max(2,Math.ceil(ARC/3)), ds=(ARC/steps)*dir; let bad=false;
+      for(let i=0;i<steps;i++){const tm=th+0.5*k*ds;x+=Math.cos(tm)*ds;y+=Math.sin(tm)*ds;th+=k*ds;
+        if(collides({x,y,th})){bad=true;break;}}
+      if(bad)continue; th=M(th);
+      let g=cur.g+ARC*(dir>0?1:opt.reverseCost)+opt.steerCost*Math.abs(st)
+            +opt.steerChange*Math.abs(st-cur.steer)+(dir!==cur.dir?opt.dirChange:0);
+      const nn={x,y,th,g,steer:st,dir,parent:cur}, nk=key(nn);
+      if(closed.has(nk))continue; const ex=open.get(nk);
+      if(!ex||g<ex.g){ nn.f=g+h(nn); open.set(nk,nn); heap.push(nn); }
+    }
+  }
+  return {node:null,explored,nodes,found:false};
+}
+function buildPath(res, opt){
+  const R=opt.R, ARC=opt.arc;
+  const chain=[]; let n=res.node; while(n){chain.push(n);n=n.parent;} chain.reverse();
+  /* densely re-simulate each motion primitive so the path is the TRUE arc
+     sampled every ~2.5u — uniform spacing for constant-speed animation */
+  const dense=[{x:chain[0].x, y:chain[0].y, th:chain[0].th, dir:1}];
+  for(let i=1;i<chain.length;i++){
+    const b=chain[i];                       // b stores steer/dir used to reach it
+    const a=dense[dense.length-1];
+    const k=Math.tan(b.steer)/CAR.l;
+    const steps=Math.max(2,Math.ceil(ARC/2.5)), ds=(ARC/steps)*b.dir;
+    let x=a.x,y=a.y,th=a.th;
+    for(let j=0;j<steps;j++){const tm=th+0.5*k*ds;x+=Math.cos(tm)*ds;y+=Math.sin(tm)*ds;th+=k*ds;
+      dense.push({x,y,th:M(th),dir:b.dir});}
+    const lp=dense[dense.length-1]; lp.x=b.x; lp.y=b.y; lp.th=b.th;  // resync exactly
+  }
+  if(res.shot){ const sp=sampleSegs(res.node,res.shot.segs,R,2.5);
+    for(let i=1;i<sp.length;i++) dense.push({...sp[i],shot:true}); }
+  if(dense.length>1) dense[0].dir=dense[1].dir;
+  return dense;
+}
+/* path cost for smoothing: length + reverse distance + gear flips */
+function pathCost(p){ let L=0,g=0,rev=0;
+  for(let i=1;i<p.length;i++){ const d=Math.hypot(p[i].x-p[i-1].x,p[i].y-p[i-1].y);
+    L+=d; if(p[i].dir<0)rev+=d;
+    if(Math.sign(p[i].dir)!==Math.sign(p[i-1].dir))g++; }
+  return L + 0.35*rev + 18*g;
+}
+/* Reeds-Shepp shortcutting: try replacing random subsections with a direct
+   collision-free RS connection; keep it only if the whole path gets cheaper.
+   This is what removes the binning wiggles Hybrid A* leaves behind. */
+function shortcut(path, R, budgetMs){
+  const t0=performance.now(); let best=path, bc=pathCost(path), tries=0;
+  while(performance.now()-t0<budgetMs && tries<500){ tries++;
+    const n=best.length; if(n<26) break;
+    const i=1+Math.floor(Math.random()*(n-22));
+    const j=Math.min(n-2, i+10+Math.floor(Math.random()*(n-i-12)));
+    if(j-i<10) continue;
+    const a=best[i], b=best[j];
+    const rs=reedsShepp(a,b,R); if(!rs) continue;
+    if(!rsCollisionFree(a,rs.segs,R)) continue;
+    const sub=sampleSegs(a,rs.segs,R,2.5);
+    const cand=best.slice(0,i+1).concat(sub.slice(1), best.slice(j+1));
+    const cc=pathCost(cand);
+    if(cc < bc-1){ best=cand; bc=cc; }
+  }
+  if(best.length>1) best[0].dir=best[1].dir;
+  return best;
+}
+
+/* ===================== rendering ===================== */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+let car={x:80,y:500,th:0}, steer=0;
+let plan=null, explored=null, mode='auto', state='idle';
+let trav={i:0,s:0,pause:0}, driveDir=1;
+const AUTO_FWD=70, AUTO_REV=42, GEAR_PAUSE=0.45;
+let goalGhost=null, dragging=false, pressPt=null;
+
+function drawCarShape(p, color, fill){
+  ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.th);
+  ctx.strokeStyle=color; ctx.lineWidth=2;
+  if(fill){ ctx.fillStyle=fill; ctx.fillRect(-CAR.l/2,-CAR.w/2,CAR.l,CAR.w); }
+  ctx.strokeRect(-CAR.l/2,-CAR.w/2,CAR.l,CAR.w);
+  ctx.fillStyle=color;                                    // nose wedge
+  ctx.beginPath(); ctx.moveTo(CAR.l/2,0); ctx.lineTo(CAR.l/2-6,-5); ctx.lineTo(CAR.l/2-6,5);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function render(){
+  ctx.fillStyle='#0d1117'; ctx.fillRect(0,0,Wd,Hd);
+  // slots
+  for(const sl of scene.slots){ ctx.save(); ctx.translate(sl.x,sl.y); ctx.rotate(sl.th);
+    ctx.strokeStyle='rgba(139,152,165,.35)'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+    ctx.strokeRect(-CAR.l/2-4,-CAR.w/2-4,CAR.l+8,CAR.w+8); ctx.setLineDash([]); ctx.restore(); }
+  // obstacles
+  ctx.fillStyle='#243244'; ctx.strokeStyle='#3a4a5e'; ctx.lineWidth=1;
+  for(const [x,y,w,h] of scene.rects){ ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h); }
+  // explored search states
+  if(explored && $('showTree').checked){
+    ctx.fillStyle='rgba(43,108,176,.5)';
+    for(let i=0;i<explored.length;i+=1){ const e=explored[i];
+      ctx.beginPath(); ctx.arc(e.x,e.y,1.4,0,2*PI); ctx.fill(); }
+  }
+  // planned path
+  if(plan){
+    for(let i=1;i<plan.length;i++){ const a=plan[i-1], b=plan[i];
+      ctx.strokeStyle = b.shot ? 'rgba(192,132,252,.95)' : (b.dir<0?'rgba(251,113,133,.95)':'rgba(74,222,128,.95)');
+      ctx.lineWidth = b.shot?2.5:2;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  }
+  // goal ghost
+  if(goalGhost) drawCarShape(goalGhost,'rgba(250,204,21,.9)',null);
+  // the car
+  const gear = (mode==='auto' && state==='driving' && driveDir<0);
+  drawCarShape(car, gear?'#fb7185':'#38bdf8', 'rgba(56,189,248,.12)');
+  // steering wheels (manual)
+  if(mode==='manual'){ ctx.save(); ctx.translate(car.x,car.y); ctx.rotate(car.th);
+    ctx.strokeStyle='#38bdf8'; ctx.lineWidth=2.5;
+    for(const sx of [CAR.l*0.32]){ for(const sy of [-CAR.w/2,CAR.w/2]){
+      ctx.save(); ctx.translate(sx,sy); ctx.rotate(steer);
+      ctx.beginPath(); ctx.moveTo(-4,0); ctx.lineTo(4,0); ctx.stroke(); ctx.restore(); }}
+    ctx.restore(); }
+}
+
+/* ===================== autonomous: plan + animate ===================== */
+function options(){ return { R:+$('radius').value, xy:6, th:PI/12, arc:16,
+  reverseCost:+$('rev').value, steerCost:1.2, steerChange:1.4, dirChange:+$('dir').value,
+  maxNodes:8000, budgetMs:700, shotEvery:6, shotDist:60 }; }
+function planTo(goal){
+  if(collides(goal)){ setState('goal blocked'); goalGhost=goal; plan=null; explored=null; render(); return; }
+  setState('planning'); $('ovl').classList.add('show'); goalGhost=goal; render();
+  setTimeout(()=>{
+    const opt=options(); const t0=performance.now();
+    const res=hybridAStar(car,goal,opt); const dt=performance.now()-t0;
+    explored=res.explored;
+    $('ovl').classList.remove('show');
+    $('sNodes').textContent=res.nodes; $('sTime').textContent=dt.toFixed(0)+' ms';
+    if(!res.found){ setState('no path found'); plan=null; render(); return; }
+    plan=shortcut(buildPath(res,opt), opt.R, 60);
+    trav={i:0,s:0,pause:0}; driveDir=plan.length>1?plan[1].dir:1;
+    state='driving'; $('sState').textContent='driving';
+    let len=0,gears=0; for(let i=1;i<plan.length;i++){ len+=Math.hypot(plan[i].x-plan[i-1].x,plan[i].y-plan[i-1].y);
+      if(Math.sign(plan[i].dir)!==Math.sign(plan[i-1].dir))gears++; }
+    const end=plan[plan.length-1]; $('sLen').textContent=len.toFixed(0)+' u';
+    $('sGear').textContent=gears; $('sErr').textContent=(Math.hypot(end.x-goal.x,end.y-goal.y)+Math.abs(M(end.th-goal.th))).toFixed(2)+' u';
+  }, 30);
+}
+function setState(s){ state=s; $('sState').textContent=s; }
+
+/* pointer → goal pose */
+function cvPos(e){ const r=cv.getBoundingClientRect();
+  return { x:(e.clientX-r.left)*Wd/r.width, y:(e.clientY-r.top)*Hd/r.height }; }
+cv.addEventListener('pointerdown', e=>{ if(mode!=='auto')return; cv.setPointerCapture(e.pointerId);
+  pressPt=cvPos(e); dragging=true; goalGhost={...pressPt, th:0}; plan=null; render(); });
+cv.addEventListener('pointermove', e=>{ if(!dragging)return; const m=cvPos(e);
+  const d=Math.hypot(m.x-pressPt.x,m.y-pressPt.y);
+  goalGhost={x:pressPt.x,y:pressPt.y, th: d>6?Math.atan2(m.y-pressPt.y,m.x-pressPt.x):0}; render(); });
+cv.addEventListener('pointerup', e=>{ if(!dragging)return; dragging=false; const m=cvPos(e);
+  const d=Math.hypot(m.x-pressPt.x,m.y-pressPt.y);
+  let goal;
+  if(d<=6){ // a click: snap to a slot if pressed inside one, else heading East
+    let best=null,bd=1e9; for(const sl of scene.slots){const dd=Math.hypot(sl.x-pressPt.x,sl.y-pressPt.y);
+      if(dd<30&&dd<bd){bd=dd;best=sl;}}
+    goal = best?{x:best.x,y:best.y,th:best.th}:{x:pressPt.x,y:pressPt.y,th:0};
+  } else goal={x:pressPt.x,y:pressPt.y,th:Math.atan2(m.y-pressPt.y,m.x-pressPt.x)};
+  planTo(goal);
+});
+
+/* ===================== manual driving ===================== */
+const keys={fwd:false,back:false,left:false,right:false};
+const KEY={KeyW:'fwd',ArrowUp:'fwd',KeyS:'back',ArrowDown:'back',
+           KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
+addEventListener('keydown',e=>{const k=KEY[e.code]; if(k&&mode==='manual'){keys[k]=true;e.preventDefault();}});
+addEventListener('keyup',e=>{const k=KEY[e.code]; if(k){keys[k]=false;}});
+
+/* ===================== main loop ===================== */
+let last=performance.now();
+function tick(now){ const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(mode==='manual'){
+    const R=+$('radius').value, steerMax=Math.atan(CAR.l/R), SPEED=95, RATE=2.8;
+    const v=(keys.fwd?SPEED:0)-(keys.back?SPEED*0.6:0);
+    const want=((keys.right?1:0)-(keys.left?1:0))*steerMax;
+    steer+=clamp(want-steer,-RATE*dt,RATE*dt);
+    const dtr=v*dt;
+    if(dtr!==0){ const k=Math.tan(steer)/CAR.l; const tm=car.th+0.5*k*dtr;
+      const nx=car.x+Math.cos(tm)*dtr, ny=car.y+Math.sin(tm)*dtr, nth=M(car.th+k*dtr);
+      if(!collides({x:nx,y:ny,th:nth})){ car.x=nx; car.y=ny; car.th=nth; } }
+  } else if(state==='driving' && plan){
+    if(trav.pause>0){ trav.pause-=dt; }
+    else{
+      let move=(plan[Math.min(trav.i+1,plan.length-1)].dir<0?AUTO_REV:AUTO_FWD)*dt;
+      while(move>0 && trav.i<plan.length-1){
+        const a=plan[trav.i], b=plan[trav.i+1];
+        const segL=Math.hypot(b.x-a.x,b.y-a.y)||1e-6;
+        const rem=segL-trav.s;
+        if(move>=rem){
+          move-=rem; trav.i++; trav.s=0;
+          const nb=plan[trav.i+1];
+          if(nb && Math.sign(nb.dir)!==Math.sign(plan[trav.i].dir)){
+            trav.pause=GEAR_PAUSE; break;            // stop, shift gear, go
+          }
+        } else { trav.s+=move; move=0; }
+      }
+      if(trav.i>=plan.length-1){
+        const e=plan[plan.length-1]; car={x:e.x,y:e.y,th:e.th}; setState('parked');
+      } else {
+        const a=plan[trav.i], b=plan[trav.i+1];
+        const segL=Math.hypot(b.x-a.x,b.y-a.y)||1e-6, f=trav.s/segL;
+        car={x:a.x+(b.x-a.x)*f, y:a.y+(b.y-a.y)*f, th:M(a.th+M(b.th-a.th)*f)};
+        driveDir=b.dir;
+      }
+    }
+  }
+  render(); requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* ===================== controls ===================== */
+$('radiusV');
+for(const [id,fmt] of [['radius',v=>v],['rev',v=>(+v).toFixed(1)],['dir',v=>v]]){
+  const el=$(id); const out=$(id+'V'); el.oninput=()=>out.textContent=fmt(el.value);
+}
+$('mAuto').onclick=()=>{ mode='auto'; $('mAuto').classList.add('on'); $('mManual').classList.remove('on');
+  $('sMode').textContent='autonomous'; setState('idle'); };
+$('mManual').onclick=()=>{ mode='manual'; $('mManual').classList.add('on'); $('mAuto').classList.remove('on');
+  $('sMode').textContent='manual'; setState('driving'); plan=null; explored=null; goalGhost=null; };
+$('reset').onclick=()=>{ car={x:80,y:500,th:0}; steer=0; plan=null; explored=null; goalGhost=null;
+  trav={i:0,s:0,pause:0}; driveDir=1; setState('idle'); for(const k in keys)keys[k]=false;
+  $('sNodes').textContent='—';$('sTime').textContent='—';$('sLen').textContent='—';
+  $('sGear').textContent='—';$('sErr').textContent='—'; };
+$('tabbar').addEventListener('click',e=>{ const t=e.target.dataset&&e.target.dataset.t; if(!t)return;
+  document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.t===t));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id==='pane-'+t)); });
+
+render();
+</script>

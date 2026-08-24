@@ -100,8 +100,8 @@
     <div class="pane" id="pane-lidar">
       <h3>Seeing with distances</h3>
       <p>A 2D LiDAR spins and reports one number per angle: how far until the beam hits
-         something. Here each of the 180 beams is a ray/segment intersection test: solve
-         <code>p + t·d = a + s·(b−a)</code> for the nearest wall, plus Gaussian
+         something. Here each of the 180 beams is a ray/segment intersection test: solve <code>p
+         + t·d = a + s·(b−a)</code> for the nearest wall, plus Gaussian
          noise on the range. The key intuition: a scan is a <em>fingerprint of a place</em>.
          Corners and wall junctions make the fingerprint distinctive; long featureless
          corridors make scans ambiguous, which is exactly where scan matching struggles
@@ -117,8 +117,8 @@
          compound</em>. Worse, the killer term is heading: a small angle error θ becomes a
          position error of <code>distance × θ</code>, so position error grows faster than
          linearly with travel. This sim adds noise proportional to motion plus a small
-         systematic turn bias, which is why the red path doesn't just wander. It
-         <em>curls</em>, like walking blindfolded with one leg slightly stronger.</p>
+         systematic turn bias, which is why the red path doesn't just wander. It <em>curls</em>,
+         like walking blindfolded with one leg slightly stronger.</p>
       <p class="try">drive a straight line along a wall with drift at 3.0: the red path
          bends away while the green stays true. Standing still adds zero drift.</p>
     </div>
@@ -129,8 +129,8 @@
          The <em>drone</em> is holonomic: it can translate in any direction at any moment.
          Position and heading are independent, so it can strafe sideways along a wall
          while facing it. The <em>car</em> is non-holonomic: wheels forbid sideways motion,
-         so heading change comes bundled with rolling, the bicycle model
-         <code>dθ = (v/L)·tan(δ)</code> with wheelbase L and steering angle δ. A car can
+         so heading change comes bundled with rolling, the bicycle model <code>dθ =
+         (v/L)·tan(δ)</code> with wheelbase L and steering angle δ. A car can
          still reach any pose, but only via maneuvers (parallel parking exists because
          of this constraint). The diff-drive point robot sits between them: no sideways
          motion, but it can rotate in place.</p>
@@ -145,8 +145,8 @@
     <div class="pane" id="pane-grid">
       <h3>A map made of bets</h3>
       <p>The map is a grid where each cell holds the odds it's occupied. Each beam is
-         evidence: cells the beam <em>passed through</em> are probably free, the cell it
-         <em>stopped at</em> is probably occupied. We store log-odds so fusing evidence is
+         evidence: cells the beam <em>passed through</em> are probably free, the cell it <em>stopped
+         at</em> is probably occupied. We store log-odds so fusing evidence is
          just addition: <code>L += +0.9</code> on a hit, <code>L += −0.35</code> along the ray
          (traced with Bresenham's line algorithm), clamped so the map can still change
          its mind. One noisy scan proves nothing; a hundred overlapping scans vote a
@@ -160,8 +160,8 @@
       <p>ICP (iterative closest point) treats the current scan like a drawing on tracing
          paper laid over a previous reference scan, then slides and rotates it until the
          drawings line up. Each iteration: pair every point with its nearest reference
-         point, then solve the best rigid fit in closed form. The rotation is just
-         <code>atan2(Σ cross, Σ dot)</code> of the centered pairs. Re-pair, re-fit, repeat
+         point, then solve the best rigid fit in closed form. The rotation is just <code>atan2(Σ
+         cross, Σ dot)</code> of the centered pairs. Re-pair, re-fit, repeat
          until it converges. Whatever shift was needed to align the scans is precisely
          the odometry error, so we apply it to the pose. It needs a decent initial guess
          (odometry provides one) and distinctive geometry to grip onto.</p>
@@ -172,8 +172,8 @@
     <div class="pane" id="pane-fusion">
       <h3>Trust, quantified</h3>
       <p>Sensor fusion is a weighted argument between sources that disagree. The weight
-         is the Kalman gain: <code>K = P / (P + R)</code>, where P is how uncertain
-         <em>you</em> are and R is how noisy <em>the sensor</em> is. Hopelessly lost
+         is the Kalman gain: <code>K = P / (P + R)</code>, where P is how uncertain <em>you</em> are
+         and R is how noisy <em>the sensor</em> is. Hopelessly lost
          (P ≫ R)? K → 1: take the measurement. Confident with a junk sensor (P ≪ R)?
          K → 0: ignore it. Between measurements, motion grows P; each measurement
          shrinks it by <code>P ← (1−K)·P</code>. The circle around the robot in the
@@ -190,8 +190,8 @@
          noise) but the error is <em>bounded</em>. It never compounds. Odometry is smooth
          but drifts forever. Fusion gets both virtues: GPS anchors the long term,
          odometry smooths the short term. Two honest limitations are simulated here:
-         fixes arrive slowly (1 Hz), and GPS says nothing about which way you're
-         <em>facing</em>, so with GPS alone, position stays bounded while heading still
+         fixes arrive slowly (1 Hz), and GPS says nothing about which way you're <em>facing</em>,
+         so with GPS alone, position stays bounded while heading still
          drifts, and the map smears rotationally. That's why the IMU compass exists as a
          separate toggle: absolute heading is a different observation than absolute
          position. (Indoors, real robots swap GPS for UWB beacons, same math.)</p>
