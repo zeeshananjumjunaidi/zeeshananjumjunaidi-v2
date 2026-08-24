@@ -3,6 +3,7 @@ import RadarPreview from './previews/RadarPreview.astro';
 import TurretPreview from './previews/TurretPreview.astro';
 import BarsPreview from './previews/BarsPreview.astro';
 import GridPreview from './previews/GridPreview.astro';
+import VehiclePreview from './previews/VehiclePreview.astro';
 
 interface Props {
   title: string;
@@ -10,7 +11,7 @@ interface Props {
   category: string;
   year: string;
   description?: string;
-  preview?: 'radar' | 'turret' | 'bars' | 'grid';
+  preview?: 'radar' | 'turret' | 'bars' | 'grid' | 'vehicle';
 }
 
 const { title, href, category, year, description, preview } = Astro.props;
@@ -20,6 +21,7 @@ const previews = {
   turret: TurretPreview,
   bars: BarsPreview,
   grid: GridPreview,
+  vehicle: VehiclePreview,
 };
 
 const Preview = preview ? previews[preview] : null;

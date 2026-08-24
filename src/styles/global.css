@@ -191,6 +191,8 @@ img { max-width: 100%; display: block; }
 @keyframes nodeVisit { 0%,72%,100% { background: var(--grid-visited); box-shadow: none; } 12%,40% { background: var(--ember-1); box-shadow: 0 0 12px rgba(227,192,105,0.55); } }
 @keyframes radarSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes vehicleDrive { from { left: 8%; } to { left: 62%; } }
+@keyframes pingPulse { 0% { transform: scale(0.4); opacity: .8; } 100% { transform: scale(2.6); opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
@@ -547,6 +549,36 @@ img { max-width: 100%; display: block; }
   position: absolute; left: -3px; top: -8px; width: 10px; height: 10px;
   border: 1px solid var(--ember-1); border-radius: 50%;
   animation: gripPulse 2.75s ease-in-out infinite;
+}
+
+.preview-vehicle { position: absolute; inset: 0; overflow: hidden; }
+.v-road {
+  position: absolute; left: 0; right: 0; bottom: 38px; height: 2px;
+  background-image: repeating-linear-gradient(90deg, var(--card-preview-border) 0 10px, transparent 10px 20px);
+}
+.v-car {
+  position: absolute; bottom: 40px; left: 8%;
+  animation: vehicleDrive 5.5s ease-in-out infinite alternate;
+}
+.v-body {
+  position: relative; width: 46px; height: 15px; border-radius: 3px 7px 3px 3px;
+  background: linear-gradient(var(--ember-1), var(--ember-2));
+}
+.v-cabin {
+  position: absolute; top: -9px; left: 9px; width: 21px; height: 10px;
+  border-radius: 5px 8px 0 0;
+  background: linear-gradient(var(--ember-1), var(--ember-2));
+}
+.v-wheel {
+  position: absolute; bottom: -4px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--card-preview-border);
+}
+.v-wheel.w1 { left: 4px; }
+.v-wheel.w2 { left: 32px; }
+.v-ping {
+  position: absolute; right: -6px; top: -2px; width: 11px; height: 11px; border-radius: 50%;
+  border: 1px solid var(--ember-1); opacity: 0;
+  animation: pingPulse 2.2s ease-out infinite;
 }
 
 /* ---- Ticker ---- */

@@ -9,7 +9,7 @@ const lab = defineCollection({
     category: z.string(),
     year: z.string(),
     description: z.string().optional(),
-    preview: z.enum(['radar', 'turret', 'bars', 'grid']).optional(),
+    preview: z.enum(['radar', 'turret', 'bars', 'grid', 'vehicle']).optional(),
     featured: z.boolean().default(false),
     group: z.string().optional(),
     order: z.number().default(0),

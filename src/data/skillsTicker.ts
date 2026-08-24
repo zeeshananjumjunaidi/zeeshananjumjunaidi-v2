@@ -1,6 +1,7 @@
 export const skillsTicker: string[] = [
   'PYTHON',
   'TYPESCRIPT',
+  'AWS',
   'GOOGLE CLOUD',
   'KUBERNETES',
   'TERRAFORM',
@@ -10,7 +11,6 @@ export const skillsTicker: string[] = [
   'POSTGRESQL',
   'REACT',
   'FASTAPI',
-  'ANTHROPIC API',
   'RUST',
   'KALMAN FILTERS',
   'DOCKER',
