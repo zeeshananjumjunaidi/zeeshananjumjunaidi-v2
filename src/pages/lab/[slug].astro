@@ -4,11 +4,13 @@ import Nav from '../../components/Nav.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SlamPlaygroundSim from '../../components/labs/SlamPlaygroundSim.astro';
 import HybridAstarParkingSim from '../../components/labs/HybridAstarParkingSim.astro';
+import BackOfTheEnvelopeCalc from '../../components/labs/BackOfTheEnvelopeCalc.astro';
 import { labs } from '../../data/labs';
 
 const SIM_COMPONENTS: Record<string, any> = {
   'slam-playground': SlamPlaygroundSim,
   'hybrid-astar-parking': HybridAstarParkingSim,
+  'back-of-the-envelope': BackOfTheEnvelopeCalc,
 };
 
 export function getStaticPaths() {
@@ -18,7 +20,7 @@ export function getStaticPaths() {
 const { lab } = Astro.props;
 const SimComponent = SIM_COMPONENTS[lab.slug];
 ---
-<BaseLayout title={`${lab.title} — Zeeshan Anjum Junaidi`} description={lab.tagline}>
+<BaseLayout title={`${lab.title} - Zeeshan Anjum Junaidi`} description={lab.tagline}>
   <div class="lab-page">
     <Nav />
 

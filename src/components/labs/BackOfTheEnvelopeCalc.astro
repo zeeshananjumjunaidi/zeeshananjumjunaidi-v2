@@ -1,0 +1,269 @@
+---
+// Ported from a standalone React/Tailwind prototype (back-of-the-envelope.jsx).
+// This project doesn't use React or Tailwind, so the port is a rewrite onto
+// plain Astro markup + vanilla JS + this site's own CSS tokens, following the
+// same "retheme the chrome, keep the math untouched" approach used for the
+// SLAM and Hybrid A* Parking sims. Only the Traffic section is built for now.
+// The source has 13 sections total (Storage, Bandwidth, Cache, Compute,
+// Database, Queue, Latency, Availability, Cost, Toolbox, Cheat sheet, Summary);
+// more get added a couple at a time. No preset scenarios, by request.
+---
+
+<div class="boe-root">
+  <div class="boe-head">
+    <div>
+      <p class="boe-blurb">Capacity math for system design. Change one assumption and watch it move through the numbers below.</p>
+    </div>
+    <button type="button" id="boeReset" class="boe-reset">Reset</button>
+  </div>
+
+  <div class="boe-grid">
+    <div>
+      <div class="boe-panel">
+        <h3 class="boe-panel-title">Inputs</h3>
+        <label class="boe-field">
+          <span class="boe-label">Daily active users<span class="boe-unit">DAU</span></span>
+          <input class="boe-inp" type="number" min="0" step="any" id="dau" value="10000000">
+          <span class="boe-hint">People who hit the system in a day.</span>
+        </label>
+        <label class="boe-field">
+          <span class="boe-label">Requests per user per day<span class="boe-unit">req</span></span>
+          <input class="boe-inp" type="number" min="0" step="any" id="rpu" value="20">
+          <span class="boe-hint">Count API calls, not screens.</span>
+        </label>
+        <label class="boe-field">
+          <span class="boe-label-row">
+            <span class="boe-label-text">Peak-to-average factor</span>
+            <span class="boe-slide-val"><span id="peakVal">3</span>×</span>
+          </span>
+          <input class="boe-range" type="range" min="1" max="20" step="0.5" id="peak" value="3">
+          <span class="boe-hint">Traffic is never flat. 2–4× for global apps, 10×+ for sales and live events.</span>
+        </label>
+        <label class="boe-field">
+          <span class="boe-label">Reads per write<span class="boe-unit">: 1</span></span>
+          <input class="boe-inp" type="number" min="0" step="any" id="rw" value="100">
+          <span class="boe-hint">100 means 100 reads for every write.</span>
+        </label>
+      </div>
+
+      <div class="boe-learn">
+        <div class="boe-learn-label">Why it works</div>
+        <p>Everything downstream hangs off peak RPS, so get it first. The only constant you need is <strong>86,400 seconds in a day</strong>, round it to 100,000 and your numbers land within 15%, which is well inside the error bars of every other guess you are making.</p>
+        <p>Size for <strong>peak</strong>, not average. A system sized for the mean is down every evening.</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="boe-panel">
+        <h3 class="boe-panel-title">Derived load</h3>
+        <div class="boe-out boe-out-big">
+          <div class="boe-out-row"><span>Peak requests per second</span><span class="boe-out-val" id="out-peakRps">—<span class="boe-out-unit">RPS</span></span></div>
+          <div class="boe-formula">peak = DAU × req/user ÷ 86,400 × peak factor</div>
+        </div>
+        <div class="boe-out">
+          <div class="boe-out-row"><span>Average RPS</span><span class="boe-out-val" id="out-rps">—<span class="boe-out-unit">RPS</span></span></div>
+          <div class="boe-formula">DAU × req/user ÷ 86,400</div>
+        </div>
+        <div class="boe-out">
+          <div class="boe-out-row"><span>Requests per day</span><span class="boe-out-val" id="out-reqDay">—</span></div>
+          <div class="boe-formula">DAU × req/user</div>
+        </div>
+        <div class="boe-out">
+          <div class="boe-out-row"><span>Requests per month</span><span class="boe-out-val" id="out-reqMonth">—</span></div>
+          <div class="boe-formula">× 30</div>
+        </div>
+      </div>
+
+      <div class="boe-panel">
+        <h3 class="boe-panel-title">Read / write split</h3>
+        <div class="boe-out">
+          <div class="boe-out-row"><span>Peak read RPS</span><span class="boe-out-val" id="out-peakReadRps">—<span class="boe-out-unit">RPS</span></span></div>
+          <div class="boe-formula" id="out-rShare">—</div>
+        </div>
+        <div class="boe-out">
+          <div class="boe-out-row"><span>Peak write RPS</span><span class="boe-out-val" id="out-peakWriteRps">—<span class="boe-out-unit">RPS</span></span></div>
+          <div class="boe-formula" id="out-wShare">—</div>
+        </div>
+        <div class="boe-out">
+          <div class="boe-out-row"><span>Writes per day</span><span class="boe-out-val" id="out-writesDay">—</span></div>
+          <div class="boe-sub">Feeds the storage tab, once it's built</div>
+        </div>
+        <div class="boe-out">
+          <div class="boe-out-row"><span>Reads per day</span><span class="boe-out-val" id="out-readsDay">—</span></div>
+        </div>
+      </div>
+
+      <div class="boe-flag" id="flag-scale">
+        Above ~100k RPS you are past what a single region and a single primary database will do comfortably. Expect sharding, regional partitioning and an edge tier in your design.
+      </div>
+      <div class="boe-flag boe-flag-ok" id="flag-readheavy">
+        Read-heavy. This is a caching and read-replica problem. Writes are almost a rounding error, so spend your design budget on the read path.
+      </div>
+      <div class="boe-flag" id="flag-writeheavy">
+        Write-heavy. Caching will not save you. Look at LSM-tree stores, batching, and a log in front of the database.
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.boe-root { font-family: var(--font-mono); color: var(--headline-color); font-size: 14px; }
+
+.boe-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.boe-blurb { font-family: var(--font-body); font-weight: 300; font-size: 15px; line-height: 1.7; color: var(--card-desc); max-width: 52ch; margin: 0; }
+.boe-reset {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--tone-bad); background: transparent; border: 1px solid var(--card-border);
+  padding: 6px 12px; cursor: pointer; flex-shrink: 0; transition: border-color .4s ease;
+}
+.boe-reset:hover { border-color: var(--tone-bad); }
+
+.boe-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 860px) { .boe-grid { grid-template-columns: 1fr 1fr; align-items: start; } }
+
+.boe-panel {
+  background: var(--card-bg); border: 1px solid var(--card-border);
+  padding: 16px 18px; margin-bottom: 14px;
+}
+.boe-panel-title {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--card-desc); margin: 0 0 14px;
+}
+
+.boe-field { display: block; margin-bottom: 14px; }
+.boe-label, .boe-label-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-desc); margin-bottom: 5px;
+}
+.boe-unit { color: var(--card-desc); opacity: 0.8; }
+.boe-slide-val { font-family: var(--font-mono); font-size: 13px; color: var(--card-label); text-transform: none; letter-spacing: 0; }
+.boe-inp {
+  width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--card-border);
+  padding: 5px 2px; color: var(--card-label); font-family: var(--font-mono); font-size: 14px;
+  outline: none; border-radius: 0;
+}
+.boe-inp:focus { border-bottom-color: var(--card-label); }
+.boe-range { width: 100%; accent-color: var(--card-label); }
+.boe-hint { display: block; margin-top: 5px; font-family: var(--font-body); font-size: 12px; font-style: italic; color: var(--card-desc); }
+
+.boe-out { padding: 8px 0; border-bottom: 1px solid var(--card-border); }
+.boe-out:last-child { border-bottom: 0; }
+.boe-out-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-family: var(--font-body); font-size: 13px; }
+.boe-out-val { font-family: var(--font-mono); font-size: 15px; font-weight: 500; color: var(--card-label); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.boe-out-unit { font-size: 11px; color: var(--card-desc); margin-left: 3px; }
+.boe-out-big .boe-out-row { font-size: 14px; }
+.boe-out-big .boe-out-val { font-size: 24px; font-weight: 600; padding-bottom: 2px; border-bottom: 3px double var(--card-label); }
+.boe-formula { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); opacity: 0.85; margin-top: 4px; }
+.boe-sub { font-family: var(--font-body); font-size: 11.5px; color: var(--card-desc); margin-top: 2px; }
+
+.boe-learn {
+  border-left: 3px solid var(--tone-bad); background: color-mix(in srgb, var(--tone-bad) 6%, transparent);
+  padding: 14px 16px; margin-bottom: 14px;
+}
+.boe-learn-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--tone-bad); margin-bottom: 8px; }
+.boe-learn p { font-family: var(--font-body); font-weight: 300; font-size: 13.5px; line-height: 1.7; color: var(--headline-color); margin: 0 0 10px; }
+.boe-learn p:last-child { margin-bottom: 0; }
+
+.boe-flag {
+  font-family: var(--font-body); font-size: 12.5px; line-height: 1.6; color: var(--tone-bad);
+  border: 1px dashed var(--tone-bad); padding: 10px 14px; margin: 8px 0; display: none;
+}
+.boe-flag.on { display: block; }
+.boe-flag-ok { color: var(--tone-ok); border-color: var(--tone-ok); }
+</style>
+
+<script is:inline>
+(function () {
+  function n(v) { var x = parseFloat(v); return isFinite(x) ? x : 0; }
+  function fmt(x, d) {
+    d = d === undefined ? 2 : d;
+    if (!isFinite(x)) return "—";
+    var a = Math.abs(x);
+    if (a === 0) return "0";
+    if (a >= 1e15) return x.toExponential(2);
+    if (a >= 1e12) return (x / 1e12).toFixed(d) + "T";
+    if (a >= 1e9) return (x / 1e9).toFixed(d) + "B";
+    if (a >= 1e6) return (x / 1e6).toFixed(d) + "M";
+    if (a >= 1e3) return (x / 1e3).toFixed(d) + "K";
+    if (a >= 100) return x.toFixed(0);
+    if (a >= 1) return x.toFixed(d);
+    if (a >= 0.001) return x.toFixed(4);
+    return x.toExponential(2);
+  }
+  function int(x) {
+    if (!isFinite(x)) return "—";
+    return Math.round(x).toLocaleString("en-US");
+  }
+
+  function derive(s) {
+    var d = {};
+    d.dau = n(s.dau);
+    d.reqDay = d.dau * n(s.rpu);
+    d.rps = d.reqDay / 86400;
+    d.peakF = Math.max(n(s.peak), 1);
+    d.peakRps = d.rps * d.peakF;
+    var rw = Math.max(n(s.rw), 0);
+    d.rShare = rw / (rw + 1);
+    d.wShare = 1 - d.rShare;
+    d.peakReadRps = d.peakRps * d.rShare;
+    d.peakWriteRps = d.peakRps * d.wShare;
+    d.writesDay = d.reqDay * d.wShare;
+    d.readsDay = d.reqDay * d.rShare;
+    d.reqMonth = d.reqDay * 30;
+    return d;
+  }
+
+  var DEFAULTS = { dau: "10000000", rpu: "20", peak: "3", rw: "100" };
+  var ids = ["dau", "rpu", "peak", "rw"];
+  var els = {};
+  ids.forEach(function (id) { els[id] = document.getElementById(id); });
+
+  function state() {
+    var s = {};
+    ids.forEach(function (id) { s[id] = els[id].value; });
+    return s;
+  }
+
+  function render() {
+    var s = state();
+    var d = derive(s);
+
+    document.getElementById("peakVal").textContent = s.peak;
+
+    document.getElementById("out-peakRps").firstChild.textContent = int(d.peakRps);
+    document.getElementById("out-rps").firstChild.textContent = int(d.rps);
+    document.getElementById("out-reqDay").textContent = fmt(d.reqDay);
+    document.getElementById("out-reqMonth").textContent = fmt(d.reqMonth);
+
+    document.getElementById("out-peakReadRps").firstChild.textContent = int(d.peakReadRps);
+    document.getElementById("out-peakWriteRps").firstChild.textContent = int(d.peakWriteRps);
+    document.getElementById("out-writesDay").textContent = fmt(d.writesDay);
+    document.getElementById("out-readsDay").textContent = fmt(d.readsDay);
+    document.getElementById("out-rShare").textContent = (d.rShare * 100).toFixed(1) + "% of traffic";
+    document.getElementById("out-wShare").textContent = (d.wShare * 100).toFixed(1) + "% of traffic";
+
+    var rw = n(s.rw);
+    toggle("flag-scale", d.peakRps > 100000);
+    toggle("flag-readheavy", rw >= 50);
+    toggle("flag-writeheavy", rw < 1 && rw >= 0);
+  }
+
+  function toggle(id, on) {
+    var el = document.getElementById(id);
+    el.classList.toggle("on", on);
+  }
+
+  ids.forEach(function (id) {
+    var evt = els[id].type === "range" ? "input" : "input";
+    els[id].addEventListener(evt, render);
+  });
+
+  document.getElementById("boeReset").addEventListener("click", function () {
+    ids.forEach(function (id) { els[id].value = DEFAULTS[id]; });
+    render();
+  });
+
+  render();
+})();
+</script>

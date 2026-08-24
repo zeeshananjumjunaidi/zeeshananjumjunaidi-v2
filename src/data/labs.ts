@@ -29,4 +29,15 @@ export const labs: Lab[] = [
       'Worth trying: turn on "show search" to see the fan of explored states before the final path is chosen, and drop the turn-radius slider to its minimum to force noticeably tighter, more careful maneuvers.',
     ],
   },
+  {
+    slug: 'back-of-the-envelope',
+    title: 'Back of the Envelope',
+    tagline: 'Capacity math for system design',
+    tags: ['capacity planning', 'estimation'],
+    writeup: [
+      "Start from daily active users and requests per user, and everything else, peak load, storage, cache size, server count, cost, falls out as a straightforward calculation. Change one assumption and the numbers move through the rest.",
+      "Right now it covers traffic: daily users, requests per user, a peak-to-average factor, and read/write ratio, deriving peak RPS and the read/write split. More sections (storage, cache, compute, database, cost, and the rest) get added a couple at a time.",
+      "Every number here is an order-of-magnitude estimate. The value is in the ratios and the binding constraint, not the digits, if a result changes your architecture, verify it with a measurement before you build on it.",
+    ],
+  },
 ];

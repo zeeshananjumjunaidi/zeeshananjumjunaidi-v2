@@ -1,0 +1,10 @@
+{
+  "title": "Back of the Envelope",
+  "href": "/lab/back-of-the-envelope",
+  "category": "Systems Design · Capacity Planning",
+  "year": "Tool",
+  "description": "Start from daily users and requests, and peak load falls out as a calculation.",
+  "preview": "bars",
+  "featured": true,
+  "order": -0.25
+}

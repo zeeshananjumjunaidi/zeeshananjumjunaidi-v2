@@ -1,6 +1,6 @@
 /* ============================================================================
-   Zeeshan Anjum Junaidi — personal site
-   Visual system: "Instrument & Lab" — gilded serif headings on a dark or
+   Zeeshan Anjum Junaidi, personal site
+   Visual system: "Instrument & Lab". Gilded serif headings on a dark or
    ivory plate, mono telemetry labels, script ornament. Two color modes,
    one layout. Ported from the Design exploration
    "Color and Type Pairings" (Turn 6).
@@ -16,7 +16,7 @@
   --max-width: 1180px;
 }
 
-/* ---- Dark theme (default) — "Instrument & Lab" ---- */
+/* ---- Dark theme (default): "Instrument & Lab" ---- */
 :root,
 :root[data-theme="dark"] {
   --page-bg: #0c0908;
@@ -82,10 +82,13 @@
   --tag-border: #3d2c1e;
   --tag-text: #bfae91;
 
+  --tone-ok: #4ade80;
+  --tone-bad: #f87171;
+
   color-scheme: dark;
 }
 
-/* ---- Light theme — "Daylight" ---- */
+/* ---- Light theme: "Daylight" ---- */
 :root[data-theme="light"] {
   --page-bg: #eae6dc;
   --plate-grad: linear-gradient(168deg,#f8f0dd,#eadfc4);
@@ -149,6 +152,9 @@
   --tag-bg: #f4ead4;
   --tag-border: #ddcaa4;
   --tag-text: #6b563c;
+
+  --tone-ok: #16a34a;
+  --tone-bad: #dc2626;
 
   color-scheme: light;
 }

@@ -1,7 +1,7 @@
 ---
 // Ported from zeeshananjumjunaidi/src/components/sims/SlamPlaygroundSim.astro.
 // The simulation script below is copied verbatim (raycasting, ICP, Kalman-style
-// fusion, rendering) — only the <style> block was retokenized onto v2's theme
+// fusion, rendering) - only the <style> block was retokenized onto v2's theme
 // variables. The canvases and their legend colors are intentionally left as a
 // constant, always-dark "instrument screen" regardless of site theme; only the
 // surrounding chrome (panels, controls, concepts prose) follows dark/light.
@@ -11,11 +11,11 @@
 <div class="sim-main">
   <div class="views">
     <div class="panel">
-      <h2>Ground truth — what actually exists</h2>
+      <h2>Ground truth - what actually exists</h2>
       <canvas id="world" width="560" height="560"></canvas>
     </div>
     <div class="panel">
-      <h2>Robot's belief — map built from sensors only</h2>
+      <h2>Robot's belief - map built from sensors only</h2>
       <canvas id="belief" width="560" height="560"></canvas>
       <div class="legend">
         <span style="--c:var(--truth)">ground-truth path</span>
@@ -35,7 +35,7 @@
           <option value="drone">drone (holonomic)</option>
         </select>
       </div>
-      <span class="hint" id="vehHint">turns in place — A/D or ←/→</span>
+      <span class="hint" id="vehHint">turns in place - A/D or ←/→</span>
     </div>
     <div class="group"><span class="tag">noise</span>
       <div class="ctl"><label for="noise">LiDAR σ</label>
@@ -218,7 +218,7 @@
 
 <style>
 .sim-root {
-    /* Canvas/legend colors are intentionally constant — an instrument's own
+    /* Canvas/legend colors are intentionally constant - an instrument's own
        screen, not themed with the rest of the site. */
     --truth:#4ade80; --dead:#f87171; --est:#38bdf8; --lidar:#ffb454; --gps:#facc15;
   }
@@ -281,7 +281,7 @@
 <script is:inline>
 "use strict";
 /* ============================================================
- * SLAM playground v2 — pipeline:
+ * SLAM playground v2 - pipeline:
  *   raycast LiDAR -> noisy odometry -> occupancy grid
  *   -> ICP scan matching, GPS + IMU compass fusion
  *      (Kalman-style: prediction grows P, measurements shrink it)
@@ -394,7 +394,7 @@ function predictCovariance(dtrans, drot, k){
 
 /* ---------- sensor updates: measurements shrink uncertainty ----------
  * Absolute fixes move the estimate, so the local keyframe map must move
- * WITH it — otherwise relative ICP just drags the pose back to the old
+ * WITH it - otherwise relative ICP just drags the pose back to the old
  * (drifted) chain and the sensors fight each other. Re-anchoring the
  * keyframe is a one-node version of pose-graph relaxation. */
 const K_CAP = 0.35;                       // limit per-fix jump (smoothness)
@@ -415,7 +415,7 @@ function gpsUpdate(){
   const zy = truth.y + randn()*GPS_SIGMA;
   const ix = zx - est.x, iy = zy - est.y;
   /* innovation gate: a fix landing far outside our claimed uncertainty
-     means the filter is inconsistent — inflate P and admit being lost,
+     means the filter is inconsistent - inflate P and admit being lost,
      instead of confidently ignoring reality */
   if ((ix*ix + iy*iy) / (Ppos + GPS_R) > 9){
     Ppos = Math.min(2e4, Ppos*4 + 50);
@@ -433,7 +433,7 @@ function compassUpdate(){
   const zth = truth.th + randn()*COMP_SIGMA;
   const innov = wrapAngle(zth - est.th);
   if (innov*innov / (Pth + COMP_R) > 9){
-    Pth = Math.min(2, Pth*4 + 0.05);       // inconsistent — inflate
+    Pth = Math.min(2, Pth*4 + 0.05);       // inconsistent - inflate
   }
   const K = Math.min(0.25, Pth / (Pth + COMP_R));
   const dth = K * innov;
@@ -546,8 +546,8 @@ for (const btn of document.querySelectorAll('.dpad button')){
 const $ = id => document.getElementById(id);
 const ui = {noise:$('noise'), drift:$('drift'), icp:$('icp'), gps:$('gps'), imu:$('imu'), veh:$('veh')};
 const VEH_HINT = {
-  diff:  'turns in place — A/D or ←/→',
-  car:   'no turning in place — A/D steers, must roll to turn',
+  diff:  'turns in place - A/D or ←/→',
+  car:   'no turning in place - A/D steers, must roll to turn',
   drone: 'A/D strafe sideways, ←/→ yaw'
 };
 ui.veh.onchange = ()=>{ $('vehHint').textContent = VEH_HINT[ui.veh.value]; steer = 0; };
@@ -746,11 +746,11 @@ function tick(now){
         const jrot = Math.abs(wrapAngle(fit.th - est.th));
         /* gate: between consecutive scans the legitimate correction is tiny;
            a huge "correction" means ICP snapped to a wrong local minimum
-           (aliasing) — reject it and trust odometry instead */
+           (aliasing) - reject it and trust odometry instead */
         if (fit !== prev && jump < 8 && jrot < 0.25){
           est = fit;
           /* ICP is RELATIVE (to a drifting keyframe chain), so it must not
-             collapse absolute uncertainty — keep GPS gain alive */
+             collapse absolute uncertainty - keep GPS gain alive */
           Ppos = Math.min(Ppos, 25);
           Pth  = Math.min(Pth, 0.02);
         }

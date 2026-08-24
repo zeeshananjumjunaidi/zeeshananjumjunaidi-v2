@@ -1,7 +1,7 @@
 ---
 // Ported from zeeshananjumjunaidi/src/components/sims/HybridAstarParkingSim.astro.
 // The simulation script below is copied verbatim (Reeds-Shepp curves, Hybrid A*
-// search, collision checks, rendering) — only the <style> block was retokenized
+// search, collision checks, rendering) - only the <style> block was retokenized
 // onto v2's theme variables, same pattern as the SLAM Playground port. The canvas
 // and its legend colors stay a constant, always-dark "instrument screen"
 // regardless of site theme; only the surrounding chrome follows dark/light.
@@ -18,11 +18,11 @@
       <h2>Status</h2>
       <div class="stat"><span>mode</span><b id="sMode">autonomous</b></div>
       <div class="stat"><span>state</span><b id="sState">idle</b></div>
-      <div class="stat"><span>nodes expanded</span><b id="sNodes">—</b></div>
-      <div class="stat"><span>plan time</span><b id="sTime">—</b></div>
-      <div class="stat"><span>path length</span><b id="sLen">—</b></div>
-      <div class="stat"><span>gear changes</span><b id="sGear">—</b></div>
-      <div class="stat"><span>final pose error</span><b id="sErr">—</b></div>
+      <div class="stat"><span>nodes expanded</span><b id="sNodes">-</b></div>
+      <div class="stat"><span>plan time</span><b id="sTime">-</b></div>
+      <div class="stat"><span>path length</span><b id="sLen">-</b></div>
+      <div class="stat"><span>gear changes</span><b id="sGear">-</b></div>
+      <div class="stat"><span>final pose error</span><b id="sErr">-</b></div>
       <div class="legend">
         <span style="--c:var(--fwd)">forward segment</span>
         <span style="--c:var(--rev)">reverse segment</span>
@@ -161,7 +161,7 @@
 
 <style>
 .sim-root {
-    /* Canvas/legend colors are intentionally constant — an instrument's own
+    /* Canvas/legend colors are intentionally constant - an instrument's own
        screen, not themed with the rest of the site. Same convention as the
        SLAM Playground port. */
     --fwd:#4ade80; --rev:#fb7185; --car:#38bdf8; --goal:#facc15; --shot:#c084fc;
@@ -403,7 +403,7 @@ function buildPath(res, opt){
   const R=opt.R, ARC=opt.arc;
   const chain=[]; let n=res.node; while(n){chain.push(n);n=n.parent;} chain.reverse();
   /* densely re-simulate each motion primitive so the path is the TRUE arc
-     sampled every ~2.5u — uniform spacing for constant-speed animation */
+     sampled every ~2.5u - uniform spacing for constant-speed animation */
   const dense=[{x:chain[0].x, y:chain[0].y, th:chain[0].th, dir:1}];
   for(let i=1;i<chain.length;i++){
     const b=chain[i];                       // b stores steer/dir used to reach it
@@ -608,8 +608,8 @@ $('mManual').onclick=()=>{ mode='manual'; $('mManual').classList.add('on'); $('m
   $('sMode').textContent='manual'; setState('driving'); plan=null; explored=null; goalGhost=null; };
 $('reset').onclick=()=>{ car={x:80,y:500,th:0}; steer=0; plan=null; explored=null; goalGhost=null;
   trav={i:0,s:0,pause:0}; driveDir=1; setState('idle'); for(const k in keys)keys[k]=false;
-  $('sNodes').textContent='—';$('sTime').textContent='—';$('sLen').textContent='—';
-  $('sGear').textContent='—';$('sErr').textContent='—'; };
+  $('sNodes').textContent='-';$('sTime').textContent='-';$('sLen').textContent='-';
+  $('sGear').textContent='-';$('sErr').textContent='-'; };
 $('tabbar').addEventListener('click',e=>{ const t=e.target.dataset&&e.target.dataset.t; if(!t)return;
   document.querySelectorAll('.tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.t===t));
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('active',p.id==='pane-'+t)); });
