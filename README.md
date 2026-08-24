@@ -2,7 +2,7 @@
 
 [![Deploy to GitHub Pages](https://github.com/zeeshananjumjunaidi/zeeshananjumjunaidi-v2/actions/workflows/deploy.yml/badge.svg)](https://github.com/zeeshananjumjunaidi/zeeshananjumjunaidi-v2/actions/workflows/deploy.yml)
 
-My personal site, rebuilt in Astro. It's a static site, deployed to GitHub Pages at [v2.zeeshananjum.com](https://v2.zeeshananjum.com).
+My personal site, rebuilt in Astro. It's a static site, deployed to GitHub Pages at [zeeshananjum.com](https://zeeshananjum.com).
 
 ## Stack
 
