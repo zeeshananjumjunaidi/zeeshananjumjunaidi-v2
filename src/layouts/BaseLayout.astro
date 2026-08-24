@@ -29,6 +29,15 @@ const { title, description } = Astro.props;
   } catch (e) {}
 })();
 </script>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-LPHSGGX5GG"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-LPHSGGX5GG');
+</script>
 </head>
 <body>
 <div class="wrap">
