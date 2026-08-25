@@ -4,9 +4,18 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description: string;
+  image?: string;
+  type?: 'website' | 'profile' | 'article';
 }
 
-const { title, description } = Astro.props;
+const {
+  title,
+  description,
+  image = 'https://avatars.githubusercontent.com/u/17067044?v=4',
+  type = 'website',
+} = Astro.props;
+
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 <!doctype html>
 <html lang="en">
@@ -15,6 +24,26 @@ const { title, description } = Astro.props;
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
 <meta name="description" content={description}>
+<meta name="robots" content="index, follow">
+<link rel="canonical" href={canonicalURL}>
+
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+<meta name="theme-color" content="#0c0908" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#eae6dc" media="(prefers-color-scheme: light)">
+
+<meta property="og:type" content={type}>
+<meta property="og:site_name" content="Zeeshan Anjum Junaidi">
+<meta property="og:title" content={title}>
+<meta property="og:description" content={description}>
+<meta property="og:url" content={canonicalURL}>
+<meta property="og:image" content={image}>
+<meta property="og:locale" content="en_US">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content={title}>
+<meta name="twitter:description" content={description}>
+<meta name="twitter:image" content={image}>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
