@@ -131,7 +131,10 @@
         <button type="button" class="dg-btn" id="dgUngroup" disabled>Ungroup</button>
         <button type="button" class="dg-btn" id="dgToFront" disabled>To Front</button>
         <button type="button" class="dg-btn" id="dgToBack" disabled>To Back</button>
+        <button type="button" class="dg-btn" id="dgDuplicate" disabled>Duplicate</button>
+        <button type="button" class="dg-btn" id="dgUndo" disabled>Undo</button>
         <span class="dg-toolbar-spacer"></span>
+        <button type="button" class="dg-btn" id="dgFullscreen">Fullscreen</button>
         <button type="button" class="dg-btn" id="dgExport">Export JSON</button>
         <button type="button" class="dg-btn dg-btn-danger" id="dgClear">Clear</button>
       </div>
@@ -149,9 +152,10 @@
           <div id="dgNodeLayer"></div>
         </div>
         <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
+        <div id="dgContextMenu" class="dg-context-menu" hidden></div>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box or connection for more actions. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
     </div>
   </div>
 </div>
@@ -336,6 +340,30 @@
   background: var(--card-bg); border: 1px solid var(--card-label); padding: 3px 6px; outline: none; width: 120px;
 }
 
+.dg-context-menu {
+  position: absolute; z-index: 10; min-width: 140px;
+  background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: 0 4px 16px color-mix(in srgb, #000 30%, transparent);
+  padding: 4px; flex-direction: column;
+}
+/* [hidden] and .dg-context-menu are equal specificity, so the plain class rule above
+   must not set display itself (it would win the cascade tie and stay visible even
+   when the hidden attribute is set). Gate display on :not([hidden]) instead. */
+.dg-context-menu:not([hidden]) { display: flex; }
+.dg-context-menu button {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--headline-color); background: transparent; border: 0; text-align: left;
+  padding: 7px 10px; cursor: pointer;
+}
+.dg-context-menu button:hover { background: color-mix(in srgb, var(--card-label) 12%, transparent); color: var(--card-label); }
+.dg-context-menu button.danger { color: var(--tone-bad); }
+.dg-context-menu button.danger:hover { background: color-mix(in srgb, var(--tone-bad) 12%, transparent); }
+.dg-context-menu hr { width: 100%; border: 0; border-top: 1px solid var(--card-border); margin: 4px 0; }
+
+.dg-root:fullscreen { background: var(--page-bg); padding: 18px 22px; }
+.dg-root:fullscreen .dg-canvas-wrap { height: calc(100vh - 130px); }
+.dg-root:-webkit-full-screen { background: var(--page-bg); padding: 18px 22px; }
+.dg-root:-webkit-full-screen .dg-canvas-wrap { height: calc(100vh - 130px); }
+
 .dg-hint { margin-top: 10px; }
 </style>
 
@@ -475,6 +503,11 @@
   var ungroupBtn = document.getElementById("dgUngroup");
   var toFrontBtn = document.getElementById("dgToFront");
   var toBackBtn = document.getElementById("dgToBack");
+  var duplicateBtn = document.getElementById("dgDuplicate");
+  var undoBtn = document.getElementById("dgUndo");
+  var fullscreenBtn = document.getElementById("dgFullscreen");
+  var contextMenu = document.getElementById("dgContextMenu");
+  var dgRoot = wrap.closest(".dg-root");
 
   var view = { panX: 40, panY: 40, zoom: 1 };
   var nodes = [];
@@ -482,12 +515,37 @@
   var nextId = 1;
   var selectedNodeIds = new Set();
   var selectedEdgeId = null;
+  var undoStack = [];
+  var UNDO_LIMIT = 50;
 
   function uid(prefix) { return (prefix || "b") + (nextId++); }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
   var GRID = 22; // matches .dg-canvas-wrap's dotted background-size, so snapped positions land on visible dots
   function snap(v) { return Math.round(v / GRID) * GRID; }
+
+  function snapshotState() {
+    return JSON.parse(JSON.stringify({ nodes: nodes, edges: edges }));
+  }
+  function commitUndo(preSnapshot) {
+    undoStack.push(preSnapshot);
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    undoBtn.disabled = false;
+  }
+  function pushUndo() {
+    commitUndo(snapshotState());
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    var prev = undoStack.pop();
+    nodes = prev.nodes;
+    edges = prev.edges;
+    clearSelection();
+    renderNodes();
+    renderEdges();
+    save();
+    undoBtn.disabled = undoStack.length === 0;
+  }
 
   function nearestPort(node, px, py) {
     var candidates = [
@@ -571,6 +629,7 @@
     });
     toFrontBtn.disabled = ids.length === 0;
     toBackBtn.disabled = ids.length === 0;
+    duplicateBtn.disabled = ids.length === 0;
   }
 
   function renderGroupOverlay() {
@@ -641,12 +700,17 @@
     sel.addRange(range);
 
     var committed = false;
+    var labelBefore = node.label;
     function commit() {
       if (committed) return;
       committed = true;
       label.removeAttribute("contenteditable");
       var text = label.textContent.trim();
-      node.label = text || "Component";
+      var newLabel = text || "Component";
+      if (newLabel !== labelBefore) {
+        pushUndo();
+        node.label = newLabel;
+      }
       label.textContent = node.label;
       label.removeEventListener("blur", commit);
       label.removeEventListener("keydown", onKeydown);
@@ -733,6 +797,7 @@
       setHoverTarget(null);
       var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
       if (targetId) {
+        pushUndo();
         edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "" });
         renderEdges();
         save();
@@ -758,6 +823,7 @@
     });
 
     el.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
       if (isHandle(e.target)) return;
       if (label.isContentEditable) return;
       e.stopPropagation();
@@ -791,6 +857,7 @@
         var n = nodeById(id);
         return { id: id, x: n.x, y: n.y };
       });
+      var preDrag = snapshotState();
       var moved = false;
       el.setPointerCapture(e.pointerId);
 
@@ -819,6 +886,7 @@
             var container = containerAt(cx, cy, node.id);
             node.parentId = container ? container.id : null;
           }
+          commitUndo(preDrag);
           save();
         }
       }
@@ -829,15 +897,18 @@
     ["n", "e", "s", "w"].forEach(function (side) {
       var port = el.querySelector(".dg-port-" + side);
       port.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
         e.stopPropagation();
         startConnectDrag(node, e);
       });
     });
 
     handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
       e.stopPropagation();
       var startX = e.clientX, startY = e.clientY;
       var origW = node.w, origH = node.h;
+      var preResize = snapshotState();
       handle.setPointerCapture(e.pointerId);
 
       function onMove(ev) {
@@ -854,6 +925,7 @@
       function onUp() {
         handle.removeEventListener("pointermove", onMove);
         handle.removeEventListener("pointerup", onUp);
+        commitUndo(preResize);
         save();
       }
       handle.addEventListener("pointermove", onMove);
@@ -908,6 +980,7 @@
 
   function wireEdgeEvents(g, edge) {
     g.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
       e.stopPropagation();
       selectEdgeOnly(edge.id);
     });
@@ -983,7 +1056,11 @@
     edgeInput.select();
 
     function commit() {
-      edge.label = edgeInput.value.trim();
+      var newLabel = edgeInput.value.trim();
+      if (newLabel !== (edge.label || "")) {
+        pushUndo();
+        edge.label = newLabel;
+      }
       edgeInput.hidden = true;
       edgeInput.removeEventListener("blur", commit);
       edgeInput.removeEventListener("keydown", onKeydown);
@@ -1019,6 +1096,7 @@
       var c = containerAt(x + node.w / 2, y + node.h / 2, null);
       if (c) node.parentId = c.id;
     }
+    pushUndo();
     // New containers go behind everything already on the canvas, since a
     // frame that paints on top of existing boxes would hide them.
     if (isContainer) nodes.unshift(node); else nodes.push(node);
@@ -1032,7 +1110,9 @@
   }
 
   wrap.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
     if (e.target.closest(".dg-node") || e.target.closest(".dg-edge")) return;
+    hideContextMenu();
     var startX = e.clientX, startY = e.clientY;
     var origPanX = view.panX, origPanY = view.panY;
     wrap.setPointerCapture(e.pointerId);
@@ -1142,6 +1222,7 @@
   clearBtn.addEventListener("click", function () {
     if (!nodes.length && !edges.length) return;
     if (!confirm("Clear the diagram? This can't be undone.")) return;
+    pushUndo();
     nodes = [];
     edges = [];
     clearSelection();
@@ -1152,6 +1233,7 @@
 
   groupBtn.addEventListener("click", function () {
     if (selectedNodeIds.size < 2) return;
+    pushUndo();
     var gid = uid("g");
     selectedNodeIds.forEach(function (id) {
       var n = nodeById(id);
@@ -1162,6 +1244,7 @@
   });
 
   ungroupBtn.addEventListener("click", function () {
+    pushUndo();
     selectedNodeIds.forEach(function (id) {
       var n = nodeById(id);
       if (n) n.groupId = null;
@@ -1172,6 +1255,7 @@
 
   function reorderSelected(toFront) {
     if (selectedNodeIds.size === 0) return;
+    pushUndo();
     var picked = nodes.filter(function (n) { return selectedNodeIds.has(n.id); });
     var rest = nodes.filter(function (n) { return !selectedNodeIds.has(n.id); });
     nodes = toFront ? rest.concat(picked) : picked.concat(rest);
@@ -1182,32 +1266,174 @@
   toFrontBtn.addEventListener("click", function () { reorderSelected(true); });
   toBackBtn.addEventListener("click", function () { reorderSelected(false); });
 
-  document.addEventListener("keydown", function (e) {
+  function duplicateSelection() {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    var offset = GRID * 2;
+    var idMap = {};
+    var groupIdMap = {};
+    var selectedArr = nodes.filter(function (n) { return selectedNodeIds.has(n.id); });
+    var newNodes = selectedArr.map(function (n) {
+      var newId = uid();
+      idMap[n.id] = newId;
+      var newGroupId = null;
+      if (n.groupId) {
+        if (!groupIdMap[n.groupId]) groupIdMap[n.groupId] = uid("g");
+        newGroupId = groupIdMap[n.groupId];
+      }
+      return {
+        id: newId, x: snap(n.x + offset), y: snap(n.y + offset), w: n.w, h: n.h,
+        label: n.label, type: n.type, groupId: newGroupId, parentId: null
+      };
+    });
+    newNodes.forEach(function (nn, i) {
+      var origParent = selectedArr[i].parentId;
+      if (origParent) nn.parentId = idMap[origParent] || origParent;
+    });
+    var newEdges = [];
+    edges.forEach(function (ed) {
+      if (idMap[ed.from] && idMap[ed.to]) {
+        newEdges.push({ id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label });
+      }
+    });
+    newNodes.forEach(function (nn) {
+      if (nn.type === "container") nodes.unshift(nn); else nodes.push(nn);
+    });
+    edges = edges.concat(newEdges);
+    renderNodes();
+    renderEdges();
+    selectNodesOnly(newNodes.map(function (n) { return n.id; }));
+    save();
+  }
+  duplicateBtn.addEventListener("click", duplicateSelection);
+  undoBtn.addEventListener("click", undo);
+
+  function deleteSelection() {
     if (selectedNodeIds.size === 0 && !selectedEdgeId) return;
+    pushUndo();
+    if (selectedNodeIds.size > 0) {
+      var removedIds = selectedNodeIds;
+      // Deleting a container releases its children rather than taking them with it.
+      nodes.forEach(function (n) {
+        if (n.parentId && removedIds.has(n.parentId)) n.parentId = null;
+      });
+      nodes = nodes.filter(function (nd) { return !removedIds.has(nd.id); });
+      edges = edges.filter(function (ed) { return !removedIds.has(ed.from) && !removedIds.has(ed.to); });
+    } else if (selectedEdgeId) {
+      var removedEdgeId = selectedEdgeId;
+      edges = edges.filter(function (ed) { return ed.id !== removedEdgeId; });
+    }
+    clearSelection();
+    renderNodes();
+    renderEdges();
+    save();
+  }
+
+  document.addEventListener("keydown", function (e) {
     var panel = wrap.closest(".boe-tab");
     if (panel && panel.hidden) return;
     var active = document.activeElement;
     if (active && (active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      duplicateSelection();
+      return;
+    }
+
+    if (selectedNodeIds.size === 0 && !selectedEdgeId) return;
     if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
-      if (selectedNodeIds.size > 0) {
-        var removedIds = selectedNodeIds;
-        // Deleting a container releases its children rather than taking them with it.
-        nodes.forEach(function (n) {
-          if (n.parentId && removedIds.has(n.parentId)) n.parentId = null;
-        });
-        nodes = nodes.filter(function (nd) { return !removedIds.has(nd.id); });
-        edges = edges.filter(function (ed) { return !removedIds.has(ed.from) && !removedIds.has(ed.to); });
-      } else if (selectedEdgeId) {
-        var removedEdgeId = selectedEdgeId;
-        edges = edges.filter(function (ed) { return ed.id !== removedEdgeId; });
-      }
-      clearSelection();
-      renderNodes();
-      renderEdges();
-      save();
+      deleteSelection();
     }
   });
+
+  // Stop pointerdown from bubbling to wrap's pan/deselect handler, which would
+  // clear the selection and hide the menu before a menu button's own click fires.
+  contextMenu.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+
+  function hideContextMenu() {
+    contextMenu.hidden = true;
+    contextMenu.innerHTML = "";
+  }
+
+  function showContextMenu(items, clientX, clientY) {
+    contextMenu.innerHTML = "";
+    items.forEach(function (item) {
+      if (item === "separator") {
+        contextMenu.appendChild(document.createElement("hr"));
+        return;
+      }
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = item.label;
+      if (item.danger) btn.className = "danger";
+      btn.addEventListener("click", function () {
+        hideContextMenu();
+        item.action();
+      });
+      contextMenu.appendChild(btn);
+    });
+    var rect = wrap.getBoundingClientRect();
+    contextMenu.style.left = (clientX - rect.left) + "px";
+    contextMenu.style.top = (clientY - rect.top) + "px";
+    contextMenu.hidden = false;
+  }
+
+  wrap.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
+    var nodeEl = e.target.closest(".dg-node");
+    var edgeEl = !nodeEl && e.target.closest(".dg-edge");
+    if (nodeEl) {
+      var id = nodeEl.dataset.id;
+      var node = nodeById(id);
+      if (!node) { hideContextMenu(); return; }
+      if (!selectedNodeIds.has(id)) selectNodesOnly([id]);
+      var items = [
+        { label: "Duplicate", action: duplicateSelection },
+        { label: "To Front", action: function () { reorderSelected(true); } },
+        { label: "To Back", action: function () { reorderSelected(false); } }
+      ];
+      if (selectedNodeIds.size >= 2) items.push({ label: "Group", action: function () { groupBtn.click(); } });
+      if (node.groupId) items.push({ label: "Ungroup", action: function () { ungroupBtn.click(); } });
+      items.push("separator");
+      items.push({ label: "Delete", danger: true, action: deleteSelection });
+      showContextMenu(items, e.clientX, e.clientY);
+    } else if (edgeEl) {
+      selectEdgeOnly(edgeEl.dataset.id);
+      showContextMenu([{ label: "Delete", danger: true, action: deleteSelection }], e.clientX, e.clientY);
+    } else {
+      hideContextMenu();
+    }
+  });
+  document.addEventListener("pointerdown", function (e) {
+    if (!contextMenu.hidden && !contextMenu.contains(e.target)) hideContextMenu();
+  });
+  wrap.addEventListener("wheel", hideContextMenu, { passive: true });
+
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+  function updateFullscreenLabel() {
+    fullscreenBtn.textContent = isFullscreen() ? "Exit Fullscreen" : "Fullscreen";
+  }
+  fullscreenBtn.addEventListener("click", function () {
+    if (isFullscreen()) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else if (dgRoot.requestFullscreen) {
+      dgRoot.requestFullscreen();
+    } else if (dgRoot.webkitRequestFullscreen) {
+      dgRoot.webkitRequestFullscreen();
+    }
+  });
+  document.addEventListener("fullscreenchange", updateFullscreenLabel);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenLabel);
 
   load();
   renderNodes();
