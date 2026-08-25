@@ -3,10 +3,14 @@
 // This project doesn't use React or Tailwind, so the port is a rewrite onto
 // plain Astro markup + vanilla JS + this site's own CSS tokens, following the
 // same "retheme the chrome, keep the math untouched" approach used for the
-// SLAM and Hybrid A* Parking sims. Only the Traffic section is built for now.
-// The source has 13 sections total (Storage, Bandwidth, Cache, Compute,
-// Database, Queue, Latency, Availability, Cost, Toolbox, Cheat sheet, Summary);
-// more get added a couple at a time. No preset scenarios, by request.
+// SLAM and Hybrid A* Parking sims. Traffic and Diagram are the two tabs built
+// so far. The source calculator has 13 sections total (Storage, Bandwidth,
+// Cache, Compute, Database, Queue, Latency, Availability, Cost, Toolbox,
+// Cheat sheet, Summary); more get added a couple at a time as their own tabs.
+// The Diagram tab is a small original addition, not from the source file: a
+// vanilla-JS canvas for sketching an architecture (drag boxes, connect them,
+// label, pan/zoom), autosaved to localStorage with a JSON export. No preset
+// scenarios anywhere in this tool, by request.
 ---
 
 <div class="boe-root">
@@ -17,91 +21,132 @@
     <button type="button" id="boeReset" class="boe-reset">Reset</button>
   </div>
 
-  <div class="boe-grid">
-    <div>
-      <div class="boe-panel">
-        <h3 class="boe-panel-title">Inputs</h3>
-        <label class="boe-field">
-          <span class="boe-label">Daily active users<span class="boe-unit">DAU</span></span>
-          <input class="boe-inp" type="number" min="0" step="any" id="dau" value="10000000">
-          <span class="boe-hint">People who hit the system in a day.</span>
-        </label>
-        <label class="boe-field">
-          <span class="boe-label">Requests per user per day<span class="boe-unit">req</span></span>
-          <input class="boe-inp" type="number" min="0" step="any" id="rpu" value="20">
-          <span class="boe-hint">Count API calls, not screens.</span>
-        </label>
-        <label class="boe-field">
-          <span class="boe-label-row">
-            <span class="boe-label-text">Peak-to-average factor</span>
-            <span class="boe-slide-val"><span id="peakVal">3</span>×</span>
-          </span>
-          <input class="boe-range" type="range" min="1" max="20" step="0.5" id="peak" value="3">
-          <span class="boe-hint">Traffic is never flat. 2–4× for global apps, 10×+ for sales and live events.</span>
-        </label>
-        <label class="boe-field">
-          <span class="boe-label">Reads per write<span class="boe-unit">: 1</span></span>
-          <input class="boe-inp" type="number" min="0" step="any" id="rw" value="100">
-          <span class="boe-hint">100 means 100 reads for every write.</span>
-        </label>
+  <div class="boe-tabs">
+    <button type="button" class="boe-tabbtn active" data-tab="traffic">Traffic</button>
+    <button type="button" class="boe-tabbtn" data-tab="diagram">Diagram</button>
+  </div>
+
+  <div class="boe-tab" data-tab="traffic">
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-field">
+            <span class="boe-label">Daily active users<span class="boe-unit">DAU</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dau" value="10000000">
+            <span class="boe-hint">People who hit the system in a day.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Requests per user per day<span class="boe-unit">req</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="rpu" value="20">
+            <span class="boe-hint">Count API calls, not screens.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Peak-to-average factor</span>
+              <span class="boe-slide-val"><span id="peakVal">3</span>×</span>
+            </span>
+            <input class="boe-range" type="range" min="1" max="20" step="0.5" id="peak" value="3">
+            <span class="boe-hint">Traffic is never flat. 2–4× for global apps, 10×+ for sales and live events.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Reads per write<span class="boe-unit">: 1</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="rw" value="100">
+            <span class="boe-hint">100 means 100 reads for every write.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Everything downstream hangs off peak RPS, so get it first. The only constant you need is <strong>86,400 seconds in a day</strong>, round it to 100,000 and your numbers land within 15%, which is well inside the error bars of every other guess you are making.</p>
+          <p>Size for <strong>peak</strong>, not average. A system sized for the mean is down every evening.</p>
+        </div>
       </div>
 
-      <div class="boe-learn">
-        <div class="boe-learn-label">Why it works</div>
-        <p>Everything downstream hangs off peak RPS, so get it first. The only constant you need is <strong>86,400 seconds in a day</strong>, round it to 100,000 and your numbers land within 15%, which is well inside the error bars of every other guess you are making.</p>
-        <p>Size for <strong>peak</strong>, not average. A system sized for the mean is down every evening.</p>
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Derived load</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Peak requests per second</span><span class="boe-out-val" id="out-peakRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">peak = DAU × req/user ÷ 86,400 × peak factor</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Average RPS</span><span class="boe-out-val" id="out-rps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">DAU × req/user ÷ 86,400</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Requests per day</span><span class="boe-out-val" id="out-reqDay">—</span></div>
+            <div class="boe-formula">DAU × req/user</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Requests per month</span><span class="boe-out-val" id="out-reqMonth">—</span></div>
+            <div class="boe-formula">× 30</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Read / write split</h3>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Peak read RPS</span><span class="boe-out-val" id="out-peakReadRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula" id="out-rShare">—</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Peak write RPS</span><span class="boe-out-val" id="out-peakWriteRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula" id="out-wShare">—</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Writes per day</span><span class="boe-out-val" id="out-writesDay">—</span></div>
+            <div class="boe-sub">Feeds the storage tab, once it's built</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Reads per day</span><span class="boe-out-val" id="out-readsDay">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-scale">
+          Above ~100k RPS you are past what a single region and a single primary database will do comfortably. Expect sharding, regional partitioning and an edge tier in your design.
+        </div>
+        <div class="boe-flag boe-flag-ok" id="flag-readheavy">
+          Read-heavy. This is a caching and read-replica problem. Writes are almost a rounding error, so spend your design budget on the read path.
+        </div>
+        <div class="boe-flag" id="flag-writeheavy">
+          Write-heavy. Caching will not save you. Look at LSM-tree stores, batching, and a log in front of the database.
+        </div>
       </div>
     </div>
+  </div>
 
-    <div>
-      <div class="boe-panel">
-        <h3 class="boe-panel-title">Derived load</h3>
-        <div class="boe-out boe-out-big">
-          <div class="boe-out-row"><span>Peak requests per second</span><span class="boe-out-val" id="out-peakRps">—<span class="boe-out-unit">RPS</span></span></div>
-          <div class="boe-formula">peak = DAU × req/user ÷ 86,400 × peak factor</div>
+  <div class="boe-tab" data-tab="diagram" hidden>
+    <div class="dg-root">
+      <div class="dg-toolbar">
+        <div class="dg-chip" id="dgAddBox" draggable="true" title="Drag onto the canvas, or click to add">+ Box</div>
+        <div class="dg-tool-group">
+          <button type="button" class="dg-btn" id="dgZoomOut" aria-label="Zoom out">−</button>
+          <span class="dg-zoom-val" id="dgZoomVal">100%</span>
+          <button type="button" class="dg-btn" id="dgZoomIn" aria-label="Zoom in">+</button>
         </div>
-        <div class="boe-out">
-          <div class="boe-out-row"><span>Average RPS</span><span class="boe-out-val" id="out-rps">—<span class="boe-out-unit">RPS</span></span></div>
-          <div class="boe-formula">DAU × req/user ÷ 86,400</div>
-        </div>
-        <div class="boe-out">
-          <div class="boe-out-row"><span>Requests per day</span><span class="boe-out-val" id="out-reqDay">—</span></div>
-          <div class="boe-formula">DAU × req/user</div>
-        </div>
-        <div class="boe-out">
-          <div class="boe-out-row"><span>Requests per month</span><span class="boe-out-val" id="out-reqMonth">—</span></div>
-          <div class="boe-formula">× 30</div>
-        </div>
+        <button type="button" class="dg-btn" id="dgZoomReset">Reset view</button>
+        <span class="dg-toolbar-spacer"></span>
+        <button type="button" class="dg-btn" id="dgExport">Export JSON</button>
+        <button type="button" class="dg-btn dg-btn-danger" id="dgClear">Clear</button>
       </div>
 
-      <div class="boe-panel">
-        <h3 class="boe-panel-title">Read / write split</h3>
-        <div class="boe-out">
-          <div class="boe-out-row"><span>Peak read RPS</span><span class="boe-out-val" id="out-peakReadRps">—<span class="boe-out-unit">RPS</span></span></div>
-          <div class="boe-formula" id="out-rShare">—</div>
+      <div class="dg-canvas-wrap" id="dgCanvasWrap">
+        <div class="dg-viewport" id="dgViewport">
+          <svg class="dg-svg" id="dgSvg">
+            <defs>
+              <marker id="dgArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z"></path>
+              </marker>
+            </defs>
+            <g id="dgEdgeLayer"></g>
+          </svg>
+          <div id="dgNodeLayer"></div>
         </div>
-        <div class="boe-out">
-          <div class="boe-out-row"><span>Peak write RPS</span><span class="boe-out-val" id="out-peakWriteRps">—<span class="boe-out-unit">RPS</span></span></div>
-          <div class="boe-formula" id="out-wShare">—</div>
-        </div>
-        <div class="boe-out">
-          <div class="boe-out-row"><span>Writes per day</span><span class="boe-out-val" id="out-writesDay">—</span></div>
-          <div class="boe-sub">Feeds the storage tab, once it's built</div>
-        </div>
-        <div class="boe-out">
-          <div class="boe-out-row"><span>Reads per day</span><span class="boe-out-val" id="out-readsDay">—</span></div>
-        </div>
+        <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
       </div>
 
-      <div class="boe-flag" id="flag-scale">
-        Above ~100k RPS you are past what a single region and a single primary database will do comfortably. Expect sharding, regional partitioning and an edge tier in your design.
-      </div>
-      <div class="boe-flag boe-flag-ok" id="flag-readheavy">
-        Read-heavy. This is a caching and read-replica problem. Writes are almost a rounding error, so spend your design budget on the read path.
-      </div>
-      <div class="boe-flag" id="flag-writeheavy">
-        Write-heavy. Caching will not save you. Look at LSM-tree stores, batching, and a log in front of the database.
-      </div>
+      <p class="boe-hint dg-hint">Drag "+ Box" onto the canvas to add a component, or click it. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
     </div>
   </div>
 </div>
@@ -117,6 +162,16 @@
   padding: 6px 12px; cursor: pointer; flex-shrink: 0; transition: border-color .4s ease;
 }
 .boe-reset:hover { border-color: var(--tone-bad); }
+
+.boe-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); }
+.boe-tabbtn {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--card-desc); background: transparent; border: 0; border-bottom: 2px solid transparent;
+  padding: 8px 4px; margin-bottom: -1px; cursor: pointer; transition: color .3s ease, border-color .3s ease;
+}
+.boe-tabbtn + .boe-tabbtn { margin-left: 18px; }
+.boe-tabbtn:hover { color: var(--headline-color); }
+.boe-tabbtn.active { color: var(--card-label); border-bottom-color: var(--card-label); }
 
 .boe-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
 @media (min-width: 860px) { .boe-grid { grid-template-columns: 1fr 1fr; align-items: start; } }
@@ -171,7 +226,91 @@
 }
 .boe-flag.on { display: block; }
 .boe-flag-ok { color: var(--tone-ok); border-color: var(--tone-ok); }
+
+/* ---- Diagram tab ---- */
+.dg-root { margin-top: 4px; }
+.dg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.dg-chip {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-label); border: 1px dashed var(--card-label); padding: 7px 12px;
+  cursor: grab; user-select: none; background: transparent;
+}
+.dg-chip:active { cursor: grabbing; }
+.dg-tool-group { display: flex; align-items: center; gap: 6px; }
+.dg-zoom-val { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); min-width: 34px; text-align: center; }
+.dg-btn {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-desc); background: transparent; border: 1px solid var(--card-border);
+  padding: 6px 10px; cursor: pointer; transition: border-color .3s ease, color .3s ease;
+}
+.dg-btn:hover { border-color: var(--card-label); color: var(--headline-color); }
+.dg-btn-danger { color: var(--tone-bad); }
+.dg-btn-danger:hover { border-color: var(--tone-bad); color: var(--tone-bad); }
+.dg-toolbar-spacer { flex: 1 1 auto; }
+
+.dg-canvas-wrap {
+  position: relative; height: 460px; border: 1px solid var(--card-border); background: var(--card-bg);
+  overflow: hidden; cursor: grab;
+  background-image: radial-gradient(color-mix(in srgb, var(--card-border) 70%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.dg-canvas-wrap.panning { cursor: grabbing; }
+.dg-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.dg-svg { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.dg-svg #dgArrow path { fill: var(--card-desc); }
+
+.dg-node {
+  position: absolute; display: flex; align-items: center; justify-content: center; text-align: center;
+  background: var(--card-bg); border: 1px solid var(--card-border); padding: 6px 10px; box-sizing: border-box;
+  font-family: var(--font-body); font-size: 13px; color: var(--headline-color); cursor: grab; user-select: none;
+}
+.dg-node:active { cursor: grabbing; }
+.dg-node.selected { border-color: var(--card-label); border-width: 2px; }
+.dg-node-label { outline: none; width: 100%; overflow-wrap: break-word; }
+.dg-node-label[contenteditable="true"] { cursor: text; background: color-mix(in srgb, var(--card-label) 8%, transparent); }
+
+.dg-port {
+  position: absolute; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0; transition: opacity .2s ease;
+  cursor: crosshair;
+}
+.dg-node:hover .dg-port, .dg-node.selected .dg-port { opacity: 1; }
+.dg-port-n { top: -5px; left: 50%; margin-left: -5px; }
+.dg-port-s { bottom: -5px; left: 50%; margin-left: -5px; }
+.dg-port-e { right: -5px; top: 50%; margin-top: -5px; }
+.dg-port-w { left: -5px; top: 50%; margin-top: -5px; }
+
+.dg-edge-hit { stroke: transparent; stroke-width: 14; fill: none; pointer-events: stroke; cursor: pointer; }
+.dg-edge-line { stroke: var(--card-desc); stroke-width: 1.5; fill: none; pointer-events: none; }
+.dg-edge.selected .dg-edge-line { stroke: var(--card-label); stroke-width: 2; }
+.dg-edge-temp { stroke: var(--card-label); stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; pointer-events: none; }
+.dg-edge-label-bg { fill: var(--card-bg); pointer-events: none; }
+.dg-edge-label { font-family: var(--font-mono); font-size: 10px; fill: var(--card-desc); pointer-events: none; }
+
+.dg-edge-input {
+  position: absolute; transform: translate(-50%, -50%); z-index: 5;
+  font-family: var(--font-mono); font-size: 11px; color: var(--card-label);
+  background: var(--card-bg); border: 1px solid var(--card-label); padding: 3px 6px; outline: none; width: 120px;
+}
+
+.dg-hint { margin-top: 10px; }
 </style>
+
+<script is:inline>
+(function () {
+  var tabs = document.querySelectorAll(".boe-tabbtn");
+  var panels = document.querySelectorAll(".boe-tab");
+  var resetBtn = document.getElementById("boeReset");
+  tabs.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var target = btn.dataset.tab;
+      tabs.forEach(function (b) { b.classList.toggle("active", b === btn); });
+      panels.forEach(function (p) { p.hidden = p.dataset.tab !== target; });
+      if (resetBtn) resetBtn.hidden = target !== "traffic";
+    });
+  });
+})();
+</script>
 
 <script is:inline>
 (function () {
@@ -265,5 +404,494 @@
   });
 
   render();
+})();
+</script>
+
+<script is:inline>
+(function () {
+  var wrap = document.getElementById("dgCanvasWrap");
+  if (!wrap) return;
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var STORAGE_KEY = "boe-diagram-v1";
+
+  var viewport = document.getElementById("dgViewport");
+  var svg = document.getElementById("dgSvg");
+  var edgeLayer = document.getElementById("dgEdgeLayer");
+  var nodeLayer = document.getElementById("dgNodeLayer");
+  var addChip = document.getElementById("dgAddBox");
+  var zoomInBtn = document.getElementById("dgZoomIn");
+  var zoomOutBtn = document.getElementById("dgZoomOut");
+  var zoomResetBtn = document.getElementById("dgZoomReset");
+  var zoomVal = document.getElementById("dgZoomVal");
+  var exportBtn = document.getElementById("dgExport");
+  var clearBtn = document.getElementById("dgClear");
+  var edgeInput = document.getElementById("dgEdgeLabelInput");
+
+  var view = { panX: 40, panY: 40, zoom: 1 };
+  var nodes = [];
+  var edges = [];
+  var nextId = 1;
+  var selected = null;
+
+  function uid() { return "b" + (nextId++); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      nodes = Array.isArray(data.nodes) ? data.nodes : [];
+      edges = Array.isArray(data.edges) ? data.edges : [];
+      nextId = data.nextId || nodes.length + edges.length + 1;
+      if (data.view) view = data.view;
+    } catch (e) {}
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: nodes, edges: edges, nextId: nextId, view: view }));
+    } catch (e) {}
+  }
+
+  function applyView() {
+    viewport.style.transform = "translate(" + view.panX + "px," + view.panY + "px) scale(" + view.zoom + ")";
+    zoomVal.textContent = Math.round(view.zoom * 100) + "%";
+  }
+
+  function nodeById(id) {
+    for (var i = 0; i < nodes.length; i++) if (nodes[i].id === id) return nodes[i];
+    return null;
+  }
+
+  function deselect() {
+    if (!selected) return;
+    var layer = selected.type === "node" ? nodeLayer : edgeLayer;
+    var el = layer.querySelector('[data-id="' + selected.id + '"]');
+    if (el) el.classList.remove("selected");
+    selected = null;
+  }
+
+  function selectItem(type, id) {
+    deselect();
+    selected = { type: type, id: id };
+    var layer = type === "node" ? nodeLayer : edgeLayer;
+    var el = layer.querySelector('[data-id="' + id + '"]');
+    if (el) el.classList.add("selected");
+  }
+
+  function startEditLabel(label, node) {
+    label.setAttribute("contenteditable", "true");
+    label.focus();
+    var range = document.createRange();
+    range.selectNodeContents(label);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    var committed = false;
+    function commit() {
+      if (committed) return;
+      committed = true;
+      label.removeAttribute("contenteditable");
+      var text = label.textContent.trim();
+      node.label = text || "Component";
+      label.textContent = node.label;
+      label.removeEventListener("blur", commit);
+      label.removeEventListener("keydown", onKeydown);
+      save();
+    }
+    function onKeydown(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        label.blur();
+      } else if (e.key === "Escape") {
+        committed = true;
+        label.textContent = node.label;
+        label.removeAttribute("contenteditable");
+        label.removeEventListener("blur", commit);
+        label.removeEventListener("keydown", onKeydown);
+      }
+    }
+    label.addEventListener("blur", commit);
+    label.addEventListener("keydown", onKeydown);
+  }
+
+  function screenToCanvas(clientX, clientY) {
+    var rect = wrap.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left - view.panX) / view.zoom,
+      y: (clientY - rect.top - view.panY) / view.zoom
+    };
+  }
+
+  function startConnectDrag(fromNode, e) {
+    var tempLine = document.createElementNS(SVGNS, "line");
+    tempLine.setAttribute("class", "dg-edge-temp");
+    edgeLayer.appendChild(tempLine);
+
+    var port = e.target;
+    port.setPointerCapture(e.pointerId);
+    var acx = fromNode.x + fromNode.w / 2, acy = fromNode.y + fromNode.h / 2;
+
+    function onMove(ev) {
+      var pt = screenToCanvas(ev.clientX, ev.clientY);
+      tempLine.setAttribute("x1", acx);
+      tempLine.setAttribute("y1", acy);
+      tempLine.setAttribute("x2", pt.x);
+      tempLine.setAttribute("y2", pt.y);
+    }
+    function onUp(ev) {
+      port.removeEventListener("pointermove", onMove);
+      port.removeEventListener("pointerup", onUp);
+      tempLine.remove();
+      var targetEl = document.elementFromPoint(ev.clientX, ev.clientY);
+      var targetNodeEl = targetEl && targetEl.closest && targetEl.closest(".dg-node");
+      if (targetNodeEl) {
+        var targetId = targetNodeEl.dataset.id;
+        if (targetId !== fromNode.id) {
+          edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "" });
+          renderEdges();
+          save();
+        }
+      }
+    }
+    port.addEventListener("pointermove", onMove);
+    port.addEventListener("pointerup", onUp);
+  }
+
+  function wireNodeEvents(el, node, label) {
+    label.addEventListener("dblclick", function (e) {
+      e.stopPropagation();
+      if (!label.isContentEditable) startEditLabel(label, node);
+    });
+
+    el.addEventListener("pointerdown", function (e) {
+      if (e.target.classList.contains("dg-port")) return;
+      if (label.isContentEditable) return;
+      e.stopPropagation();
+      e.preventDefault();
+      var startX = e.clientX, startY = e.clientY;
+      var origX = node.x, origY = node.y;
+      var moved = false;
+      el.setPointerCapture(e.pointerId);
+
+      function onMove(ev) {
+        var dx = (ev.clientX - startX) / view.zoom;
+        var dy = (ev.clientY - startY) / view.zoom;
+        if (!moved && (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) moved = true;
+        node.x = origX + dx;
+        node.y = origY + dy;
+        el.style.left = node.x + "px";
+        el.style.top = node.y + "px";
+        renderEdges();
+      }
+      function onUp() {
+        el.removeEventListener("pointermove", onMove);
+        el.removeEventListener("pointerup", onUp);
+        if (!moved) selectItem("node", node.id);
+        else save();
+      }
+      el.addEventListener("pointermove", onMove);
+      el.addEventListener("pointerup", onUp);
+    });
+
+    ["n", "e", "s", "w"].forEach(function (side) {
+      var port = el.querySelector(".dg-port-" + side);
+      port.addEventListener("pointerdown", function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        startConnectDrag(node, e);
+      });
+    });
+  }
+
+  function createNodeEl(node) {
+    var el = document.createElement("div");
+    el.className = "dg-node";
+    el.dataset.id = node.id;
+    el.style.left = node.x + "px";
+    el.style.top = node.y + "px";
+    el.style.width = node.w + "px";
+    el.style.height = node.h + "px";
+
+    var label = document.createElement("div");
+    label.className = "dg-node-label";
+    label.textContent = node.label;
+    label.spellcheck = false;
+    el.appendChild(label);
+
+    ["n", "e", "s", "w"].forEach(function (side) {
+      var port = document.createElement("div");
+      port.className = "dg-port dg-port-" + side;
+      el.appendChild(port);
+    });
+
+    nodeLayer.appendChild(el);
+    wireNodeEvents(el, node, label);
+    return el;
+  }
+
+  function renderNodes() {
+    nodeLayer.innerHTML = "";
+    nodes.forEach(createNodeEl);
+    if (selected && selected.type === "node") {
+      var el = nodeLayer.querySelector('[data-id="' + selected.id + '"]');
+      if (el) el.classList.add("selected");
+    }
+  }
+
+  function clipPoint(cx, cy, w, h, dx, dy) {
+    if (dx === 0 && dy === 0) return { x: cx, y: cy };
+    var halfW = w / 2, halfH = h / 2;
+    var scaleX = dx !== 0 ? halfW / Math.abs(dx) : Infinity;
+    var scaleY = dy !== 0 ? halfH / Math.abs(dy) : Infinity;
+    var s = Math.min(scaleX, scaleY);
+    return { x: cx + dx * s, y: cy + dy * s };
+  }
+
+  function wireEdgeEvents(g, edge) {
+    g.addEventListener("pointerdown", function (e) {
+      e.stopPropagation();
+      selectItem("edge", edge.id);
+    });
+    g.addEventListener("dblclick", function (e) {
+      e.stopPropagation();
+      openEdgeLabelEditor(edge);
+    });
+  }
+
+  function renderEdges() {
+    edgeLayer.innerHTML = "";
+    edges.forEach(function (edge) {
+      var a = nodeById(edge.from), b = nodeById(edge.to);
+      if (!a || !b) return;
+      var acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+      var bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+      var dx = bcx - acx, dy = bcy - acy;
+      var p1 = clipPoint(acx, acy, a.w, a.h, dx, dy);
+      var p2 = clipPoint(bcx, bcy, b.w, b.h, -dx, -dy);
+      edge._mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+      var g = document.createElementNS(SVGNS, "g");
+      g.setAttribute("data-id", edge.id);
+      g.setAttribute("class", "dg-edge" + (selected && selected.type === "edge" && selected.id === edge.id ? " selected" : ""));
+
+      var hit = document.createElementNS(SVGNS, "line");
+      hit.setAttribute("class", "dg-edge-hit");
+      hit.setAttribute("x1", p1.x); hit.setAttribute("y1", p1.y);
+      hit.setAttribute("x2", p2.x); hit.setAttribute("y2", p2.y);
+
+      var line = document.createElementNS(SVGNS, "line");
+      line.setAttribute("class", "dg-edge-line");
+      line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+      line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+      line.setAttribute("marker-end", "url(#dgArrow)");
+
+      g.appendChild(hit);
+      g.appendChild(line);
+
+      if (edge.label) {
+        var w = Math.max(20, edge.label.length * 6 + 10);
+        var rect = document.createElementNS(SVGNS, "rect");
+        rect.setAttribute("class", "dg-edge-label-bg");
+        rect.setAttribute("x", edge._mid.x - w / 2);
+        rect.setAttribute("y", edge._mid.y - 8);
+        rect.setAttribute("width", w);
+        rect.setAttribute("height", 16);
+
+        var text = document.createElementNS(SVGNS, "text");
+        text.setAttribute("class", "dg-edge-label");
+        text.setAttribute("x", edge._mid.x);
+        text.setAttribute("y", edge._mid.y + 3.5);
+        text.setAttribute("text-anchor", "middle");
+        text.textContent = edge.label;
+
+        g.appendChild(rect);
+        g.appendChild(text);
+      }
+
+      wireEdgeEvents(g, edge);
+      edgeLayer.appendChild(g);
+    });
+  }
+
+  function openEdgeLabelEditor(edge) {
+    var mid = edge._mid || { x: 0, y: 0 };
+    edgeInput.style.left = (view.panX + view.zoom * mid.x) + "px";
+    edgeInput.style.top = (view.panY + view.zoom * mid.y) + "px";
+    edgeInput.value = edge.label || "";
+    edgeInput.hidden = false;
+    edgeInput.focus();
+    edgeInput.select();
+
+    function commit() {
+      edge.label = edgeInput.value.trim();
+      edgeInput.hidden = true;
+      edgeInput.removeEventListener("blur", commit);
+      edgeInput.removeEventListener("keydown", onKeydown);
+      renderEdges();
+      save();
+    }
+    function onKeydown(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        edgeInput.blur();
+      } else if (e.key === "Escape") {
+        edgeInput.hidden = true;
+        edgeInput.removeEventListener("blur", commit);
+        edgeInput.removeEventListener("keydown", onKeydown);
+      }
+    }
+    edgeInput.addEventListener("blur", commit);
+    edgeInput.addEventListener("keydown", onKeydown);
+  }
+
+  function addNode(x, y) {
+    var node = { id: uid(), x: x, y: y, w: 140, h: 56, label: "Component" };
+    nodes.push(node);
+    renderNodes();
+    renderEdges();
+    save();
+    selectItem("node", node.id);
+    var el = nodeLayer.querySelector('[data-id="' + node.id + '"]');
+    var label = el.querySelector(".dg-node-label");
+    startEditLabel(label, node);
+  }
+
+  wrap.addEventListener("pointerdown", function (e) {
+    if (e.target.closest(".dg-node") || e.target.closest(".dg-edge")) return;
+    var startX = e.clientX, startY = e.clientY;
+    var origPanX = view.panX, origPanY = view.panY;
+    wrap.setPointerCapture(e.pointerId);
+    wrap.classList.add("panning");
+    deselect();
+
+    function onMove(ev) {
+      view.panX = origPanX + (ev.clientX - startX);
+      view.panY = origPanY + (ev.clientY - startY);
+      applyView();
+    }
+    function onUp() {
+      wrap.removeEventListener("pointermove", onMove);
+      wrap.removeEventListener("pointerup", onUp);
+      wrap.classList.remove("panning");
+      save();
+    }
+    wrap.addEventListener("pointermove", onMove);
+    wrap.addEventListener("pointerup", onUp);
+  });
+
+  wrap.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var rect = wrap.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    var canvasX = (mx - view.panX) / view.zoom;
+    var canvasY = (my - view.panY) / view.zoom;
+    var factor = e.deltaY < 0 ? 1.1 : 0.9;
+    var newZoom = clamp(view.zoom * factor, 0.4, 2.5);
+    view.panX = mx - canvasX * newZoom;
+    view.panY = my - canvasY * newZoom;
+    view.zoom = newZoom;
+    applyView();
+    save();
+  }, { passive: false });
+
+  wrap.addEventListener("dragover", function (e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+  wrap.addEventListener("drop", function (e) {
+    e.preventDefault();
+    var rect = wrap.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    var canvasX = (mx - view.panX) / view.zoom;
+    var canvasY = (my - view.panY) / view.zoom;
+    addNode(canvasX - 70, canvasY - 28);
+  });
+
+  addChip.addEventListener("dragstart", function (e) {
+    e.dataTransfer.setData("text/plain", "box");
+    e.dataTransfer.effectAllowed = "copy";
+  });
+  addChip.addEventListener("click", function () {
+    var rect = wrap.getBoundingClientRect();
+    var cx = (rect.width / 2 - view.panX) / view.zoom;
+    var cy = (rect.height / 2 - view.panY) / view.zoom;
+    addNode(cx - 70, cy - 28);
+  });
+
+  function zoomBy(factor) {
+    var rect = wrap.getBoundingClientRect();
+    var cx = rect.width / 2, cy = rect.height / 2;
+    var canvasX = (cx - view.panX) / view.zoom;
+    var canvasY = (cy - view.panY) / view.zoom;
+    var newZoom = clamp(view.zoom * factor, 0.4, 2.5);
+    view.panX = cx - canvasX * newZoom;
+    view.panY = cy - canvasY * newZoom;
+    view.zoom = newZoom;
+    applyView();
+    save();
+  }
+  zoomInBtn.addEventListener("click", function () { zoomBy(1.2); });
+  zoomOutBtn.addEventListener("click", function () { zoomBy(1 / 1.2); });
+  zoomResetBtn.addEventListener("click", function () {
+    view = { panX: 40, panY: 40, zoom: 1 };
+    applyView();
+    save();
+  });
+
+  exportBtn.addEventListener("click", function () {
+    var data = JSON.stringify({ nodes: nodes, edges: edges }, null, 2);
+    var blob = new Blob([data], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "system-diagram.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  clearBtn.addEventListener("click", function () {
+    if (!nodes.length && !edges.length) return;
+    if (!confirm("Clear the diagram? This can't be undone.")) return;
+    nodes = [];
+    edges = [];
+    selected = null;
+    renderNodes();
+    renderEdges();
+    save();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (!selected) return;
+    var panel = wrap.closest(".boe-tab");
+    if (panel && panel.hidden) return;
+    var active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      if (selected.type === "node") {
+        var removedId = selected.id;
+        nodes = nodes.filter(function (nd) { return nd.id !== removedId; });
+        edges = edges.filter(function (ed) { return ed.from !== removedId && ed.to !== removedId; });
+      } else {
+        var removedEdgeId = selected.id;
+        edges = edges.filter(function (ed) { return ed.id !== removedEdgeId; });
+      }
+      selected = null;
+      renderNodes();
+      renderEdges();
+      save();
+    }
+  });
+
+  load();
+  renderNodes();
+  renderEdges();
+  applyView();
 })();
 </script>
