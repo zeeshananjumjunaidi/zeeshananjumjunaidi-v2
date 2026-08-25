@@ -155,7 +155,7 @@
         <div id="dgContextMenu" class="dg-context-menu" hidden></div>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box or connection for more actions. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box or connection for more actions, including a color for the box. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
     </div>
   </div>
 </div>
@@ -286,6 +286,18 @@
   touch-action: none;
 }
 .dg-node:active { cursor: grabbing; }
+
+/* Each color is a single cool, muted hue blended into the theme's own card
+   tokens via color-mix, so the tint stays soft and adapts to dark/light
+   automatically instead of needing separate hardcoded values per theme.
+   Placed before .selected/.drop-target below so those still win the border. */
+.dg-node[data-color="slate"] { background: color-mix(in srgb, #7c8aa5 16%, var(--card-bg)); border-color: color-mix(in srgb, #7c8aa5 55%, var(--card-border)); }
+.dg-node[data-color="blue"] { background: color-mix(in srgb, #5b8def 16%, var(--card-bg)); border-color: color-mix(in srgb, #5b8def 55%, var(--card-border)); }
+.dg-node[data-color="teal"] { background: color-mix(in srgb, #2fb8a6 16%, var(--card-bg)); border-color: color-mix(in srgb, #2fb8a6 55%, var(--card-border)); }
+.dg-node[data-color="green"] { background: color-mix(in srgb, #5fae6a 16%, var(--card-bg)); border-color: color-mix(in srgb, #5fae6a 55%, var(--card-border)); }
+.dg-node[data-color="purple"] { background: color-mix(in srgb, #9b7cd6 16%, var(--card-bg)); border-color: color-mix(in srgb, #9b7cd6 55%, var(--card-border)); }
+.dg-node[data-color="rose"] { background: color-mix(in srgb, #d97b93 16%, var(--card-bg)); border-color: color-mix(in srgb, #d97b93 55%, var(--card-border)); }
+
 .dg-node.selected { border-color: var(--card-label); border-width: 2px; }
 .dg-node.drop-target { border-color: var(--card-label); box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-label) 30%, transparent); }
 .dg-node-label { outline: none; width: 100%; overflow-wrap: break-word; }
@@ -358,6 +370,18 @@
 .dg-context-menu button.danger { color: var(--tone-bad); }
 .dg-context-menu button.danger:hover { background: color-mix(in srgb, var(--tone-bad) 12%, transparent); }
 .dg-context-menu hr { width: 100%; border: 0; border-top: 1px solid var(--card-border); margin: 4px 0; }
+
+.dg-color-row { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; }
+.dg-context-menu .dg-swatch {
+  width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--card-border);
+  cursor: pointer; background: transparent; transition: transform .12s ease;
+}
+.dg-context-menu .dg-swatch:hover { transform: scale(1.2); }
+.dg-context-menu .dg-swatch-none { position: relative; background: var(--card-bg); }
+.dg-context-menu .dg-swatch-none::after {
+  content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 1px;
+  background: var(--tone-bad); transform: rotate(45deg);
+}
 
 .dg-root:fullscreen { background: var(--page-bg); padding: 18px 22px; }
 .dg-root:fullscreen .dg-canvas-wrap { height: calc(100vh - 130px); }
@@ -523,6 +547,15 @@
 
   var GRID = 22; // matches .dg-canvas-wrap's dotted background-size, so snapped positions land on visible dots
   function snap(v) { return Math.round(v / GRID) * GRID; }
+
+  var NODE_COLORS = [
+    { key: "slate", hex: "#7c8aa5" },
+    { key: "blue", hex: "#5b8def" },
+    { key: "teal", hex: "#2fb8a6" },
+    { key: "green", hex: "#5fae6a" },
+    { key: "purple", hex: "#9b7cd6" },
+    { key: "rose", hex: "#d97b93" }
+  ];
 
   function snapshotState() {
     return JSON.parse(JSON.stringify({ nodes: nodes, edges: edges }));
@@ -937,6 +970,7 @@
     var el = document.createElement("div");
     el.className = "dg-node" + (node.type === "container" ? " container" : "");
     el.dataset.id = node.id;
+    if (node.color) el.dataset.color = node.color;
     el.style.left = node.x + "px";
     el.style.top = node.y + "px";
     el.style.width = node.w + "px";
@@ -1090,7 +1124,8 @@
       h: isContainer ? 220 : 56,
       label: isContainer ? "Container" : "Component",
       type: isContainer ? "container" : "box",
-      parentId: null
+      parentId: null,
+      color: null
     };
     if (!isContainer) {
       var c = containerAt(x + node.w / 2, y + node.h / 2, null);
@@ -1283,7 +1318,7 @@
       }
       return {
         id: newId, x: snap(n.x + offset), y: snap(n.y + offset), w: n.w, h: n.h,
-        label: n.label, type: n.type, groupId: newGroupId, parentId: null
+        label: n.label, type: n.type, groupId: newGroupId, parentId: null, color: n.color || null
       };
     });
     newNodes.forEach(function (nn, i) {
@@ -1362,11 +1397,43 @@
     contextMenu.innerHTML = "";
   }
 
+  function setSelectionColor(colorKey) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.color = colorKey;
+    });
+    renderNodes();
+    save();
+  }
+
   function showContextMenu(items, clientX, clientY) {
     contextMenu.innerHTML = "";
     items.forEach(function (item) {
       if (item === "separator") {
         contextMenu.appendChild(document.createElement("hr"));
+        return;
+      }
+      if (item.swatches) {
+        var row = document.createElement("div");
+        row.className = "dg-color-row";
+        var noneBtn = document.createElement("button");
+        noneBtn.type = "button";
+        noneBtn.className = "dg-swatch dg-swatch-none";
+        noneBtn.title = "No color";
+        noneBtn.addEventListener("click", function () { hideContextMenu(); item.onPick(null); });
+        row.appendChild(noneBtn);
+        NODE_COLORS.forEach(function (c) {
+          var sw = document.createElement("button");
+          sw.type = "button";
+          sw.className = "dg-swatch";
+          sw.style.background = c.hex;
+          sw.title = c.key;
+          sw.addEventListener("click", function () { hideContextMenu(); item.onPick(c.key); });
+          row.appendChild(sw);
+        });
+        contextMenu.appendChild(row);
         return;
       }
       var btn = document.createElement("button");
@@ -1399,6 +1466,10 @@
         { label: "To Front", action: function () { reorderSelected(true); } },
         { label: "To Back", action: function () { reorderSelected(false); } }
       ];
+      if (node.type !== "container") {
+        items.push("separator");
+        items.push({ swatches: true, onPick: setSelectionColor });
+      }
       if (selectedNodeIds.size >= 2) items.push({ label: "Group", action: function () { groupBtn.click(); } });
       if (node.groupId) items.push({ label: "Ungroup", action: function () { ungroupBtn.click(); } });
       items.push("separator");
