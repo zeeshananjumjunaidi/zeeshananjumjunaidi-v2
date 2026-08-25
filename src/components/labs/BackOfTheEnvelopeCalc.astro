@@ -126,6 +126,8 @@
           <button type="button" class="dg-btn" id="dgZoomIn" aria-label="Zoom in">+</button>
         </div>
         <button type="button" class="dg-btn" id="dgZoomReset">Reset view</button>
+        <button type="button" class="dg-btn" id="dgGroup" disabled>Group</button>
+        <button type="button" class="dg-btn" id="dgUngroup" disabled>Ungroup</button>
         <span class="dg-toolbar-spacer"></span>
         <button type="button" class="dg-btn" id="dgExport">Export JSON</button>
         <button type="button" class="dg-btn dg-btn-danger" id="dgClear">Clear</button>
@@ -146,7 +148,7 @@
         <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box" onto the canvas to add a component, or click it. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box" onto the canvas to add a component, or click it. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
     </div>
   </div>
 </div>
@@ -254,6 +256,7 @@
   padding: 6px 10px; cursor: pointer; transition: border-color .3s ease, color .3s ease;
 }
 .dg-btn:hover { border-color: var(--card-label); color: var(--headline-color); }
+.dg-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .dg-btn-danger { color: var(--tone-bad); }
 .dg-btn-danger:hover { border-color: var(--tone-bad); color: var(--tone-bad); }
 .dg-toolbar-spacer { flex: 1 1 auto; }
@@ -300,6 +303,8 @@
 }
 .dg-node:hover .dg-resize-handle, .dg-node.selected .dg-resize-handle { opacity: 1; }
 .dg-resize-handle:hover { background: var(--card-label); border-color: var(--card-label); }
+
+.dg-group-box { fill: none; stroke: var(--card-desc); stroke-width: 1; stroke-dasharray: 5 4; pointer-events: none; }
 
 .dg-edge-hit { stroke: transparent; stroke-width: 14; fill: none; pointer-events: stroke; cursor: pointer; }
 .dg-edge-line { stroke: var(--card-desc); stroke-width: 1.5; fill: none; pointer-events: none; }
@@ -448,14 +453,17 @@
   var exportBtn = document.getElementById("dgExport");
   var clearBtn = document.getElementById("dgClear");
   var edgeInput = document.getElementById("dgEdgeLabelInput");
+  var groupBtn = document.getElementById("dgGroup");
+  var ungroupBtn = document.getElementById("dgUngroup");
 
   var view = { panX: 40, panY: 40, zoom: 1 };
   var nodes = [];
   var edges = [];
   var nextId = 1;
-  var selected = null;
+  var selectedNodeIds = new Set();
+  var selectedEdgeId = null;
 
-  function uid() { return "b" + (nextId++); }
+  function uid(prefix) { return (prefix || "b") + (nextId++); }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
   var GRID = 22; // matches .dg-canvas-wrap's dotted background-size, so snapped positions land on visible dots
@@ -504,20 +512,87 @@
     return null;
   }
 
-  function deselect() {
-    if (!selected) return;
-    var layer = selected.type === "node" ? nodeLayer : edgeLayer;
-    var el = layer.querySelector('[data-id="' + selected.id + '"]');
-    if (el) el.classList.remove("selected");
-    selected = null;
+  function groupMembers(groupId) {
+    return nodes.filter(function (n) { return n.groupId === groupId; }).map(function (n) { return n.id; });
   }
 
-  function selectItem(type, id) {
-    deselect();
-    selected = { type: type, id: id };
-    var layer = type === "node" ? nodeLayer : edgeLayer;
-    var el = layer.querySelector('[data-id="' + id + '"]');
-    if (el) el.classList.add("selected");
+  function applyNodeSelectionClasses() {
+    nodeLayer.querySelectorAll(".dg-node").forEach(function (el) {
+      el.classList.toggle("selected", selectedNodeIds.has(el.dataset.id));
+    });
+  }
+
+  function applyEdgeSelectionClasses() {
+    edgeLayer.querySelectorAll(".dg-edge").forEach(function (el) {
+      el.classList.toggle("selected", el.dataset.id === selectedEdgeId);
+    });
+  }
+
+  function updateGroupButtons() {
+    var ids = Array.from(selectedNodeIds);
+    groupBtn.disabled = ids.length < 2;
+    ungroupBtn.disabled = !ids.some(function (id) {
+      var n = nodeById(id);
+      return n && n.groupId;
+    });
+  }
+
+  function renderGroupOverlay() {
+    var existing = edgeLayer.querySelector(".dg-group-box");
+    if (existing) existing.remove();
+    if (selectedNodeIds.size < 2) return;
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (!n) return;
+      minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h);
+    });
+    if (!isFinite(minX)) return;
+    var pad = 12;
+    var rect = document.createElementNS(SVGNS, "rect");
+    rect.setAttribute("class", "dg-group-box");
+    rect.setAttribute("x", minX - pad);
+    rect.setAttribute("y", minY - pad);
+    rect.setAttribute("width", (maxX - minX) + pad * 2);
+    rect.setAttribute("height", (maxY - minY) + pad * 2);
+    edgeLayer.insertBefore(rect, edgeLayer.firstChild);
+  }
+
+  function refreshSelectionUI() {
+    applyNodeSelectionClasses();
+    applyEdgeSelectionClasses();
+    renderGroupOverlay();
+    updateGroupButtons();
+  }
+
+  function clearSelection() {
+    selectedNodeIds = new Set();
+    selectedEdgeId = null;
+    refreshSelectionUI();
+  }
+
+  function selectNodesOnly(ids) {
+    selectedNodeIds = new Set(ids);
+    selectedEdgeId = null;
+    refreshSelectionUI();
+  }
+
+  function selectEdgeOnly(id) {
+    selectedNodeIds = new Set();
+    selectedEdgeId = id;
+    refreshSelectionUI();
+  }
+
+  function toggleNodeInSelection(id) {
+    var node = nodeById(id);
+    var ids = node && node.groupId ? groupMembers(node.groupId) : [id];
+    var allIn = ids.every(function (i) { return selectedNodeIds.has(i); });
+    ids.forEach(function (i) {
+      if (allIn) selectedNodeIds.delete(i); else selectedNodeIds.add(i);
+    });
+    selectedEdgeId = null;
+    refreshSelectionUI();
   }
 
   function startEditLabel(label, node) {
@@ -650,8 +725,31 @@
       if (isHandle(e.target)) return;
       if (label.isContentEditable) return;
       e.stopPropagation();
+
+      if (e.shiftKey) {
+        toggleNodeInSelection(node.id);
+        return;
+      }
+
+      var dragIds;
+      var isGroup = !!node.groupId;
+      if (isGroup) {
+        var members = groupMembers(node.groupId);
+        var alreadyExact = members.length === selectedNodeIds.size && members.every(function (id) { return selectedNodeIds.has(id); });
+        if (!alreadyExact) selectNodesOnly(members);
+        dragIds = members;
+      } else if (selectedNodeIds.has(node.id) && selectedNodeIds.size > 1) {
+        dragIds = Array.from(selectedNodeIds);
+      } else {
+        selectNodesOnly([node.id]);
+        dragIds = [node.id];
+      }
+
       var startX = e.clientX, startY = e.clientY;
-      var origX = node.x, origY = node.y;
+      var origins = dragIds.map(function (id) {
+        var n = nodeById(id);
+        return { id: id, x: n.x, y: n.y };
+      });
       var moved = false;
       el.setPointerCapture(e.pointerId);
 
@@ -659,17 +757,24 @@
         var dx = (ev.clientX - startX) / view.zoom;
         var dy = (ev.clientY - startY) / view.zoom;
         if (!moved && (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) moved = true;
-        node.x = snap(origX + dx);
-        node.y = snap(origY + dy);
-        el.style.left = node.x + "px";
-        el.style.top = node.y + "px";
+        origins.forEach(function (o) {
+          var n = nodeById(o.id);
+          if (!n) return;
+          n.x = snap(o.x + dx);
+          n.y = snap(o.y + dy);
+          var elN = nodeLayer.querySelector('[data-id="' + o.id + '"]');
+          if (elN) { elN.style.left = n.x + "px"; elN.style.top = n.y + "px"; }
+        });
         renderEdges();
       }
       function onUp() {
         el.removeEventListener("pointermove", onMove);
         el.removeEventListener("pointerup", onUp);
-        if (!moved) selectItem("node", node.id);
-        else save();
+        if (!moved) {
+          if (dragIds.length > 1 && !isGroup) selectNodesOnly([node.id]);
+        } else {
+          save();
+        }
       }
       el.addEventListener("pointermove", onMove);
       el.addEventListener("pointerup", onUp);
@@ -741,10 +846,7 @@
   function renderNodes() {
     nodeLayer.innerHTML = "";
     nodes.forEach(createNodeEl);
-    if (selected && selected.type === "node") {
-      var el = nodeLayer.querySelector('[data-id="' + selected.id + '"]');
-      if (el) el.classList.add("selected");
-    }
+    applyNodeSelectionClasses();
   }
 
   function clipPoint(cx, cy, w, h, dx, dy) {
@@ -759,7 +861,7 @@
   function wireEdgeEvents(g, edge) {
     g.addEventListener("pointerdown", function (e) {
       e.stopPropagation();
-      selectItem("edge", edge.id);
+      selectEdgeOnly(edge.id);
     });
     g.addEventListener("dblclick", function (e) {
       e.stopPropagation();
@@ -781,7 +883,7 @@
 
       var g = document.createElementNS(SVGNS, "g");
       g.setAttribute("data-id", edge.id);
-      g.setAttribute("class", "dg-edge" + (selected && selected.type === "edge" && selected.id === edge.id ? " selected" : ""));
+      g.setAttribute("class", "dg-edge" + (edge.id === selectedEdgeId ? " selected" : ""));
 
       var hit = document.createElementNS(SVGNS, "line");
       hit.setAttribute("class", "dg-edge-hit");
@@ -820,6 +922,7 @@
       wireEdgeEvents(g, edge);
       edgeLayer.appendChild(g);
     });
+    renderGroupOverlay();
   }
 
   function openEdgeLabelEditor(edge) {
@@ -859,7 +962,7 @@
     renderNodes();
     renderEdges();
     save();
-    selectItem("node", node.id);
+    selectNodesOnly([node.id]);
     var el = nodeLayer.querySelector('[data-id="' + node.id + '"]');
     var label = el.querySelector(".dg-node-label");
     startEditLabel(label, node);
@@ -871,7 +974,7 @@
     var origPanX = view.panX, origPanY = view.panY;
     wrap.setPointerCapture(e.pointerId);
     wrap.classList.add("panning");
-    deselect();
+    clearSelection();
 
     function onMove(ev) {
       view.panX = origPanX + (ev.clientX - startX);
@@ -965,29 +1068,49 @@
     if (!confirm("Clear the diagram? This can't be undone.")) return;
     nodes = [];
     edges = [];
-    selected = null;
+    clearSelection();
     renderNodes();
     renderEdges();
     save();
   });
 
+  groupBtn.addEventListener("click", function () {
+    if (selectedNodeIds.size < 2) return;
+    var gid = uid("g");
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n) n.groupId = gid;
+    });
+    updateGroupButtons();
+    save();
+  });
+
+  ungroupBtn.addEventListener("click", function () {
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n) n.groupId = null;
+    });
+    updateGroupButtons();
+    save();
+  });
+
   document.addEventListener("keydown", function (e) {
-    if (!selected) return;
+    if (selectedNodeIds.size === 0 && !selectedEdgeId) return;
     var panel = wrap.closest(".boe-tab");
     if (panel && panel.hidden) return;
     var active = document.activeElement;
     if (active && (active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
     if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
-      if (selected.type === "node") {
-        var removedId = selected.id;
-        nodes = nodes.filter(function (nd) { return nd.id !== removedId; });
-        edges = edges.filter(function (ed) { return ed.from !== removedId && ed.to !== removedId; });
-      } else {
-        var removedEdgeId = selected.id;
+      if (selectedNodeIds.size > 0) {
+        var removedIds = selectedNodeIds;
+        nodes = nodes.filter(function (nd) { return !removedIds.has(nd.id); });
+        edges = edges.filter(function (ed) { return !removedIds.has(ed.from) && !removedIds.has(ed.to); });
+      } else if (selectedEdgeId) {
+        var removedEdgeId = selectedEdgeId;
         edges = edges.filter(function (ed) { return ed.id !== removedEdgeId; });
       }
-      selected = null;
+      clearSelection();
       renderNodes();
       renderEdges();
       save();
@@ -998,5 +1121,6 @@
   renderNodes();
   renderEdges();
   applyView();
+  updateGroupButtons();
 })();
 </script>
