@@ -321,7 +321,7 @@
 
 .dg-port {
   position: absolute; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0.55;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0;
   transform: scale(1); transition: opacity .2s ease, background .2s ease, transform .15s ease;
   cursor: crosshair; touch-action: none;
 }
@@ -334,7 +334,7 @@
 
 .dg-resize-handle {
   position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px;
-  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0.55; transition: opacity .2s ease, background .2s ease;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0; transition: opacity .2s ease, background .2s ease;
   cursor: nwse-resize; touch-action: none;
 }
 .dg-node:hover .dg-resize-handle, .dg-node.selected .dg-resize-handle { opacity: 1; }
@@ -351,9 +351,12 @@
 
 @keyframes dg-marching-ants { to { stroke-dashoffset: -20; } }
 .dg-edge-line.dg-flow-dash { animation: dg-marching-ants 0.6s linear infinite; }
+/* Same keyframes, just replayed forward-then-backward each cycle for a back-and-forth feel. */
+.dg-edge-line.dg-flow-dash.dg-flow-alt { animation-direction: alternate; }
 
 @keyframes dg-flow-move { from { offset-distance: 0%; } to { offset-distance: 100%; } }
 .dg-edge-flow-dot { fill: var(--card-label); pointer-events: none; animation: dg-flow-move 1.6s linear infinite; }
+.dg-edge-flow-dot.dg-flow-alt { animation-direction: alternate; }
 
 @media (prefers-reduced-motion: reduce) {
   .dg-edge-line.dg-flow-dash, .dg-edge-flow-dot { animation: none; }
@@ -871,7 +874,7 @@
       var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
       if (targetId) {
         pushUndo();
-        edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "", lineStyle: "solid", arrowStyle: "one", flow: "none" });
+        edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "", lineStyle: "solid", arrowStyle: "one", flow: "none", flowDirection: "forward" });
         renderEdges();
         save();
       }
@@ -1095,11 +1098,12 @@
 
       // "dashed" is a static line style; "dash" flow reuses the same dash
       // pattern but animates its offset (marching ants) to read as motion.
+      var flowAlt = edge.flowDirection === "alternate";
       var lineClass = "dg-edge-line";
       var dash = edge.lineStyle === "dashed" ? "6 4" : null;
       if (edge.flow === "dash") {
         dash = dash || "6 4";
-        lineClass += " dg-flow-dash";
+        lineClass += " dg-flow-dash" + (flowAlt ? " dg-flow-alt" : "");
       }
       if (dash) line.setAttribute("stroke-dasharray", dash);
       line.setAttribute("class", lineClass);
@@ -1110,7 +1114,7 @@
       if (edge.flow === "dot") {
         var dot = document.createElementNS(SVGNS, "circle");
         dot.setAttribute("r", "3");
-        dot.setAttribute("class", "dg-edge-flow-dot");
+        dot.setAttribute("class", "dg-edge-flow-dot" + (flowAlt ? " dg-flow-alt" : ""));
         dot.style.offsetPath = "path('M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y + "')";
         g.appendChild(dot);
       }
@@ -1389,7 +1393,7 @@
     var newEdges = [];
     edges.forEach(function (ed) {
       if (idMap[ed.from] && idMap[ed.to]) {
-        newEdges.push({ id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label, lineStyle: ed.lineStyle, arrowStyle: ed.arrowStyle, flow: ed.flow });
+        newEdges.push({ id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label, lineStyle: ed.lineStyle, arrowStyle: ed.arrowStyle, flow: ed.flow, flowDirection: ed.flowDirection });
       }
     });
     newNodes.forEach(function (nn) {
@@ -1561,7 +1565,7 @@
       selectEdgeOnly(eid);
       var edge = edgeById(eid);
       if (!edge) { hideContextMenu(); return; }
-      showContextMenu([
+      var edgeItems = [
         {
           optionRow: true, rowLabel: "Line", current: edge.lineStyle || "solid",
           options: [{ key: "solid", label: "Solid" }, { key: "dashed", label: "Dashed" }],
@@ -1569,17 +1573,25 @@
         },
         {
           optionRow: true, rowLabel: "Arrow", current: edge.arrowStyle || "one",
-          options: [{ key: "one", label: "One-way" }, { key: "both", label: "Both ways" }],
+          options: [{ key: "one", label: "One-way" }, { key: "both", label: "Both ways" }, { key: "none", label: "No arrow" }],
           onPick: function (key) { setEdgeProp(eid, "arrowStyle", key); }
         },
         {
           optionRow: true, rowLabel: "Flow", current: edge.flow || "none",
           options: [{ key: "none", label: "Off" }, { key: "dot", label: "Dot" }, { key: "dash", label: "Dash" }],
           onPick: function (key) { setEdgeProp(eid, "flow", key); }
-        },
-        "separator",
-        { label: "Delete", danger: true, action: deleteSelection }
-      ], e.clientX, e.clientY);
+        }
+      ];
+      if ((edge.flow || "none") !== "none") {
+        edgeItems.push({
+          optionRow: true, rowLabel: "Direction", current: edge.flowDirection || "forward",
+          options: [{ key: "forward", label: "Forward" }, { key: "alternate", label: "Back and forth" }],
+          onPick: function (key) { setEdgeProp(eid, "flowDirection", key); }
+        });
+      }
+      edgeItems.push("separator");
+      edgeItems.push({ label: "Delete", danger: true, action: deleteSelection });
+      showContextMenu(edgeItems, e.clientX, e.clientY);
     } else {
       hideContextMenu();
     }
