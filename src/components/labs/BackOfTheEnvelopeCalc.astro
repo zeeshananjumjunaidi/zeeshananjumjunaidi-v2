@@ -277,6 +277,7 @@
 }
 .dg-node:active { cursor: grabbing; }
 .dg-node.selected { border-color: var(--card-label); border-width: 2px; }
+.dg-node.drop-target { border-color: var(--card-label); box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-label) 30%, transparent); }
 .dg-node-label { outline: none; width: 100%; overflow-wrap: break-word; }
 .dg-node-label[contenteditable="true"] { cursor: text; background: color-mix(in srgb, var(--card-label) 8%, transparent); }
 
@@ -457,6 +458,24 @@
   function uid() { return "b" + (nextId++); }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+  var GRID = 22; // matches .dg-canvas-wrap's dotted background-size, so snapped positions land on visible dots
+  function snap(v) { return Math.round(v / GRID) * GRID; }
+
+  function nearestPort(node, px, py) {
+    var candidates = [
+      { x: node.x + node.w / 2, y: node.y },
+      { x: node.x + node.w / 2, y: node.y + node.h },
+      { x: node.x + node.w, y: node.y + node.h / 2 },
+      { x: node.x, y: node.y + node.h / 2 }
+    ];
+    var best = candidates[0], bestDist = Infinity;
+    candidates.forEach(function (p) {
+      var d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+      if (d < bestDist) { bestDist = d; best = p; }
+    });
+    return best;
+  }
+
   function load() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -554,27 +573,58 @@
     var port = e.target;
     port.setPointerCapture(e.pointerId);
     var acx = fromNode.x + fromNode.w / 2, acy = fromNode.y + fromNode.h / 2;
+    var hoverTargetId = null;
+
+    function setHoverTarget(id) {
+      if (id === hoverTargetId) return;
+      if (hoverTargetId) {
+        var prevEl = nodeLayer.querySelector('[data-id="' + hoverTargetId + '"]');
+        if (prevEl) prevEl.classList.remove("drop-target");
+      }
+      if (id) {
+        var nextEl = nodeLayer.querySelector('[data-id="' + id + '"]');
+        if (nextEl) nextEl.classList.add("drop-target");
+      }
+      hoverTargetId = id;
+    }
+
+    function targetNodeIdAt(clientX, clientY) {
+      var targetEl = document.elementFromPoint(clientX, clientY);
+      var targetNodeEl = targetEl && targetEl.closest && targetEl.closest(".dg-node");
+      if (!targetNodeEl) return null;
+      var id = targetNodeEl.dataset.id;
+      return id !== fromNode.id ? id : null;
+    }
 
     function onMove(ev) {
       var pt = screenToCanvas(ev.clientX, ev.clientY);
+      var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
+      setHoverTarget(targetId);
+
+      var endX = pt.x, endY = pt.y;
+      if (targetId) {
+        var targetNode = nodeById(targetId);
+        if (targetNode) {
+          var snapped = nearestPort(targetNode, pt.x, pt.y);
+          endX = snapped.x;
+          endY = snapped.y;
+        }
+      }
       tempLine.setAttribute("x1", acx);
       tempLine.setAttribute("y1", acy);
-      tempLine.setAttribute("x2", pt.x);
-      tempLine.setAttribute("y2", pt.y);
+      tempLine.setAttribute("x2", endX);
+      tempLine.setAttribute("y2", endY);
     }
     function onUp(ev) {
       port.removeEventListener("pointermove", onMove);
       port.removeEventListener("pointerup", onUp);
       tempLine.remove();
-      var targetEl = document.elementFromPoint(ev.clientX, ev.clientY);
-      var targetNodeEl = targetEl && targetEl.closest && targetEl.closest(".dg-node");
-      if (targetNodeEl) {
-        var targetId = targetNodeEl.dataset.id;
-        if (targetId !== fromNode.id) {
-          edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "" });
-          renderEdges();
-          save();
-        }
+      setHoverTarget(null);
+      var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
+      if (targetId) {
+        edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "" });
+        renderEdges();
+        save();
       }
     }
     port.addEventListener("pointermove", onMove);
@@ -609,8 +659,8 @@
         var dx = (ev.clientX - startX) / view.zoom;
         var dy = (ev.clientY - startY) / view.zoom;
         if (!moved && (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) moved = true;
-        node.x = origX + dx;
-        node.y = origY + dy;
+        node.x = snap(origX + dx);
+        node.y = snap(origY + dy);
         el.style.left = node.x + "px";
         el.style.top = node.y + "px";
         renderEdges();
@@ -642,8 +692,8 @@
       function onMove(ev) {
         var dx = (ev.clientX - startX) / view.zoom;
         var dy = (ev.clientY - startY) / view.zoom;
-        node.w = clamp(origW + dx, 60, 480);
-        node.h = clamp(origH + dy, 36, 320);
+        node.w = clamp(snap(origW + dx), 60, 480);
+        node.h = clamp(snap(origH + dy), 36, 320);
         el.style.width = node.w + "px";
         el.style.height = node.h + "px";
         renderEdges();
