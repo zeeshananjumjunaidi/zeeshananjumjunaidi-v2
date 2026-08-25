@@ -227,19 +227,42 @@
           <span class="dg-zoom-val" id="dgZoomVal">100%</span>
           <button type="button" class="dg-btn" id="dgZoomIn" aria-label="Zoom in">+</button>
         </div>
-        <button type="button" class="dg-btn" id="dgZoomReset">Reset view</button>
-        <button type="button" class="dg-btn" id="dgGroup" disabled>Group</button>
-        <button type="button" class="dg-btn" id="dgUngroup" disabled>Ungroup</button>
-        <button type="button" class="dg-btn" id="dgToFront" disabled>To Front</button>
-        <button type="button" class="dg-btn" id="dgToBack" disabled>To Back</button>
-        <button type="button" class="dg-btn" id="dgDuplicate" disabled>Duplicate</button>
-        <button type="button" class="dg-btn" id="dgUndo" disabled>Undo</button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgZoomReset" title="Reset view" aria-label="Reset view">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 1 1.8 4.3"/><path d="M4 14v-4h4"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgGroup" disabled title="Group" aria-label="Group">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="1.2"/><rect x="3" y="3" width="10" height="10" rx="1.2" stroke-dasharray="2 2"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgUngroup" disabled title="Ungroup" aria-label="Ungroup">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="10" y="10" width="7" height="7" rx="1"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgToFront" disabled title="Bring to front" aria-label="Bring to front">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 11l5-5 5 5"/><path d="M5 16l5-5 5 5"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgToBack" disabled title="Send to back" aria-label="Send to back">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4l5 5 5-5"/><path d="M5 9l5 5 5-5"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgDuplicate" disabled title="Duplicate" aria-label="Duplicate">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="10" height="10" rx="1.2"/><rect x="7" y="2" width="10" height="10" rx="1.2"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgUndo" disabled title="Undo" aria-label="Undo">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 5 3 8l3 3"/><path d="M3 8h8a5 5 0 0 1 0 10h-2"/></svg>
+        </button>
         <span class="dg-toolbar-spacer"></span>
-        <button type="button" class="dg-btn" id="dgFullscreen">Fullscreen</button>
-        <button type="button" class="dg-btn" id="dgExport">Export JSON</button>
-        <button type="button" class="dg-btn" id="dgImport">Import JSON</button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgFullscreen" title="Fullscreen" aria-label="Fullscreen">
+          <svg class="dg-icon dg-icon-enter" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5"/><path d="M17 8V3h-5"/><path d="M3 12v5h5"/><path d="M17 12v5h-5"/></svg>
+          <svg class="dg-icon dg-icon-exit" viewBox="0 0 20 20" aria-hidden="true" hidden><path d="M8 3v5H3"/><path d="M12 3v5h5"/><path d="M8 17v-5H3"/><path d="M12 17v-5h5"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgExport" title="Export JSON" aria-label="Export JSON">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9"/><path d="M6 8l4 4 4-4"/><path d="M3 15v2h14v-2"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgImport" title="Import JSON" aria-label="Import JSON">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V4"/><path d="M6 8l4-4 4 4"/><path d="M3 15v2h14v-2"/></svg>
+        </button>
         <input type="file" id="dgImportInput" accept="application/json,.json" hidden>
-        <button type="button" class="dg-btn dg-btn-danger" id="dgClear">Clear</button>
+        <button type="button" class="dg-btn dg-btn-icon dg-btn-danger" id="dgClear" title="Clear" aria-label="Clear">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12"/><path d="M8 6V4h4v2"/><path d="M6 6l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><path d="M8.5 9v4"/><path d="M11.5 9v4"/></svg>
+        </button>
       </div>
 
       <div class="dg-canvas-wrap" id="dgCanvasWrap">
@@ -393,6 +416,12 @@
 .dg-btn-danger { color: var(--tone-bad); }
 .dg-btn-danger:hover { border-color: var(--tone-bad); color: var(--tone-bad); }
 .dg-toolbar-spacer { flex: 1 1 auto; }
+
+.dg-btn-icon { display: inline-flex; align-items: center; justify-content: center; padding: 6px; }
+.dg-icon {
+  width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+}
 
 .dg-canvas-wrap {
   position: relative; height: 460px; border: 1px solid var(--card-border); background: var(--card-bg);
@@ -1897,8 +1926,15 @@
   function isFullscreen() {
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
+  var fullscreenEnterIcon = fullscreenBtn.querySelector(".dg-icon-enter");
+  var fullscreenExitIcon = fullscreenBtn.querySelector(".dg-icon-exit");
   function updateFullscreenLabel() {
-    fullscreenBtn.textContent = isFullscreen() ? "Exit Fullscreen" : "Fullscreen";
+    var fs = isFullscreen();
+    var label = fs ? "Exit fullscreen" : "Fullscreen";
+    fullscreenBtn.title = label;
+    fullscreenBtn.setAttribute("aria-label", label);
+    fullscreenEnterIcon.hidden = fs;
+    fullscreenExitIcon.hidden = !fs;
   }
   fullscreenBtn.addEventListener("click", function () {
     if (isFullscreen()) {
