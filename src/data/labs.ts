@@ -4,6 +4,8 @@ export interface Lab {
   tagline: string;
   tags: string[];
   writeup: string[];
+  /** Collapse the writeup behind a disclosure so a tool with several tabs isn't pushed down the page. */
+  collapsibleWriteup?: boolean;
 }
 
 export const labs: Lab[] = [
@@ -34,9 +36,10 @@ export const labs: Lab[] = [
     title: 'Back of the Envelope',
     tagline: 'Capacity math for system design',
     tags: ['capacity planning', 'estimation'],
+    collapsibleWriteup: true,
     writeup: [
       "Start from daily active users and requests per user, and everything else, peak load, storage, cache size, server count, cost, falls out as a straightforward calculation. Change one assumption and the numbers move through the rest.",
-      "Right now it covers traffic: daily users, requests per user, a peak-to-average factor, and read/write ratio, deriving peak RPS and the read/write split. More sections (storage, cache, compute, database, cost, and the rest) get added a couple at a time.",
+      "It currently covers traffic and storage, plus a diagram tool for sketching the architecture itself: drag components onto a canvas, connect them, group and color them, animate the data flow between them. More calculator sections (cache, compute, database, cost, and the rest) get added a couple at a time.",
       "Every number here is an order-of-magnitude estimate. The value is in the ratios and the binding constraint, not the digits, if a result changes your architecture, verify it with a measurement before you build on it.",
     ],
   },

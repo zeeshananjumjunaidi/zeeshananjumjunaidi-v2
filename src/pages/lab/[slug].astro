@@ -34,9 +34,18 @@ const SimComponent = SIM_COMPONENTS[lab.slug];
       </div>
     </div>
 
-    <div class="writing-block" style="margin-top:24px;">
-      {lab.writeup.map((para) => <p set:html={para} />)}
-    </div>
+    {lab.collapsibleWriteup ? (
+      <details class="writing-collapse" style="margin-top:24px;">
+        <summary>About this tool</summary>
+        <div class="writing-block">
+          {lab.writeup.map((para) => <p set:html={para} />)}
+        </div>
+      </details>
+    ) : (
+      <div class="writing-block" style="margin-top:24px;">
+        {lab.writeup.map((para) => <p set:html={para} />)}
+      </div>
+    )}
 
     <div class="sim-frame">
       {SimComponent && <SimComponent />}
@@ -60,5 +69,30 @@ const SimComponent = SIM_COMPONENTS[lab.slug];
   }
   .back-link:hover, .back-link:focus-visible { color: var(--card-label); }
   .lab-page-head { display: flex; flex-direction: column; gap: 14px; margin-bottom: 8px; }
+
+  .writing-collapse summary {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--card-desc);
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color .3s ease;
+  }
+  .writing-collapse summary::-webkit-details-marker { display: none; }
+  .writing-collapse summary::before {
+    content: "+";
+    display: inline-block;
+    width: 1em;
+    text-align: center;
+  }
+  .writing-collapse[open] summary::before { content: "−"; }
+  .writing-collapse summary:hover { color: var(--card-label); }
+  .writing-collapse .writing-block { margin-top: 14px; }
+
   .sim-frame { margin: 32px 0 64px; }
 </style>

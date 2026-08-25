@@ -16,13 +16,14 @@
 <div class="boe-root">
   <div class="boe-head">
     <div>
-      <p class="boe-blurb">Capacity math for system design. Change one assumption and watch it move through the numbers below.</p>
+      <p class="boe-blurb" id="boeBlurb">Capacity math for system design. Change one assumption and watch it move through the numbers below.</p>
     </div>
     <button type="button" id="boeReset" class="boe-reset">Reset</button>
   </div>
 
   <div class="boe-tabs">
     <button type="button" class="boe-tabbtn active" data-tab="traffic">Traffic</button>
+    <button type="button" class="boe-tabbtn" data-tab="storage">Storage</button>
     <button type="button" class="boe-tabbtn" data-tab="diagram">Diagram</button>
   </div>
 
@@ -96,7 +97,7 @@
           </div>
           <div class="boe-out">
             <div class="boe-out-row"><span>Writes per day</span><span class="boe-out-val" id="out-writesDay">—</span></div>
-            <div class="boe-sub">Feeds the storage tab, once it's built</div>
+            <div class="boe-sub">Feeds the storage tab</div>
           </div>
           <div class="boe-out">
             <div class="boe-out-row"><span>Reads per day</span><span class="boe-out-val" id="out-readsDay">—</span></div>
@@ -111,6 +112,106 @@
         </div>
         <div class="boe-flag" id="flag-writeheavy">
           Write-heavy. Caching will not save you. Look at LSM-tree stores, batching, and a log in front of the database.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="boe-tab" data-tab="storage" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="stLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use writes/day from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="stLinkedNote">Currently <span id="stLinkedValue">—</span> writes per day, linked from Traffic.</div>
+          <label class="boe-field" id="stWritesField" hidden>
+            <span class="boe-label">Writes per day<span class="boe-unit">obj</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="stWrites" value="2000000">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Bytes per object<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="wbytes" value="1024">
+            <span class="boe-hint">Payload plus row overhead. A tweet is around 300 B; a photo is around 2 MB.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Compression ratio<span class="boe-unit">: 1</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="comp" value="2">
+            <span class="boe-hint">Text compresses 2–5×, JSON 4–10×, already-compressed media around 1×.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Index &amp; metadata overhead</span>
+              <span class="boe-slide-val"><span id="idxPctVal">25</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="200" step="5" id="idxPct" value="25">
+            <span class="boe-hint">Secondary indexes often cost more than the rows themselves.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Replication factor<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="repl" value="3">
+            <span class="boe-hint">3 is the default for durability across availability zones.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Retention<span class="boe-unit">years</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="years" value="5">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Yearly growth</span>
+              <span class="boe-slide-val"><span id="growthVal">30</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="200" step="5" id="growth" value="30">
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Storage is a <strong>flow</strong> problem, not a stock problem: bytes per day, times days. The two multipliers people forget sit on either side of that: compression divides the size, while indexes and replication multiply it back up.</p>
+          <p>With growth <em>g</em>, cumulative years form a geometric series, not a straight multiply: <code>Y1 × ((1+g)^N − 1) / g</code>. At 30% growth, five years comes out to 9.0 first-years, not 5.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Provisioned storage</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Total after <span id="stYearsLabel">5</span> years</span><span class="boe-out-val" id="out-physical">—</span></div>
+            <div class="boe-formula">logical × replication</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Logical (one copy)</span><span class="boe-out-val" id="out-logical">—</span></div>
+            <div class="boe-formula">Y1 × ((1+g)^N − 1) / g</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>First-year footprint</span><span class="boe-out-val" id="out-y1">—</span></div>
+            <div class="boe-formula">daily × 365</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per day (raw)</span><span class="boe-out-val" id="out-rawDay">—</span></div>
+            <div class="boe-formula">writes/day × bytes</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per day (stored, all copies)</span><span class="boe-out-val" id="out-physDay">—</span></div>
+            <div class="boe-formula">raw ÷ compression × (1+index) × replicas</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per month (stored)</span><span class="boe-out-val" id="out-physMonth">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Objects stored</span><span class="boe-out-val" id="out-objects">—</span></div>
+            <div class="boe-sub">Row and key count matters as much as bytes for index design</div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-petabyte">
+          Petabyte scale. Object storage with a metadata index beats a general-purpose database here, and cold tiering will dominate your cost conversation.
+        </div>
+        <div class="boe-flag" id="flag-billionrows">
+          Over 100 billion rows. No single index fits in memory, so plan for partitioned indexes or key-value access patterns only.
         </div>
       </div>
     </div>
@@ -136,6 +237,8 @@
         <span class="dg-toolbar-spacer"></span>
         <button type="button" class="dg-btn" id="dgFullscreen">Fullscreen</button>
         <button type="button" class="dg-btn" id="dgExport">Export JSON</button>
+        <button type="button" class="dg-btn" id="dgImport">Import JSON</button>
+        <input type="file" id="dgImportInput" accept="application/json,.json" hidden>
         <button type="button" class="dg-btn dg-btn-danger" id="dgClear">Clear</button>
       </div>
 
@@ -155,7 +258,7 @@
         <div id="dgContextMenu" class="dg-context-menu" hidden></div>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
     </div>
   </div>
 </div>
@@ -235,6 +338,29 @@
 }
 .boe-flag.on { display: block; }
 .boe-flag-ok { color: var(--tone-ok); border-color: var(--tone-ok); }
+
+.boe-toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; cursor: pointer; width: fit-content; }
+.boe-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.boe-toggle-track {
+  width: 30px; height: 16px; border: 1px solid var(--card-border); border-radius: 8px;
+  position: relative; flex-shrink: 0; transition: background .15s ease, border-color .15s ease;
+}
+.boe-toggle-thumb {
+  position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--card-desc); transition: transform .15s ease, background .15s ease;
+}
+.boe-toggle input:checked + .boe-toggle-track { border-color: var(--card-label); background: color-mix(in srgb, var(--card-label) 15%, transparent); }
+.boe-toggle input:checked + .boe-toggle-track .boe-toggle-thumb { transform: translateX(12px); background: var(--card-label); }
+.boe-toggle-label {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--card-desc);
+}
+.boe-toggle input:checked ~ .boe-toggle-label { color: var(--headline-color); }
+
+.boe-linked-note {
+  font-family: var(--font-mono); font-size: 12px; color: var(--card-label);
+  background: color-mix(in srgb, var(--card-label) 8%, transparent); border-left: 2px solid var(--card-label);
+  padding: 8px 10px; margin-bottom: 14px;
+}
 </style>
 
 <!--
@@ -422,12 +548,16 @@
   var tabs = document.querySelectorAll(".boe-tabbtn");
   var panels = document.querySelectorAll(".boe-tab");
   var resetBtn = document.getElementById("boeReset");
+  var blurbEl = document.getElementById("boeBlurb");
   tabs.forEach(function (btn) {
     btn.addEventListener("click", function () {
       var target = btn.dataset.tab;
       tabs.forEach(function (b) { b.classList.toggle("active", b === btn); });
       panels.forEach(function (p) { p.hidden = p.dataset.tab !== target; });
-      if (resetBtn) resetBtn.hidden = target !== "traffic";
+      // The blurb and Reset apply to the numeric calculator tabs (Traffic, Storage,
+      // more later); Diagram is a different kind of tool and doesn't fit that framing.
+      if (resetBtn) resetBtn.hidden = target === "diagram";
+      if (blurbEl) blurbEl.hidden = target === "diagram";
     });
   });
 })();
@@ -455,8 +585,19 @@
     if (!isFinite(x)) return "—";
     return Math.round(x).toLocaleString("en-US");
   }
+  var BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
+  function bytes(b) {
+    if (!isFinite(b) || b === 0) return "0 B";
+    var i = 0;
+    var x = Math.abs(b);
+    while (x >= 1024 && i < BYTE_UNITS.length - 1) {
+      x /= 1024;
+      i++;
+    }
+    return (x >= 100 ? x.toFixed(0) : x.toFixed(2)) + " " + BYTE_UNITS[i];
+  }
 
-  function derive(s) {
+  function deriveTraffic(s) {
     var d = {};
     d.dau = n(s.dau);
     d.reqDay = d.dau * n(s.rpu);
@@ -474,20 +615,44 @@
     return d;
   }
 
-  var DEFAULTS = { dau: "10000000", rpu: "20", peak: "3", rw: "100" };
-  var ids = ["dau", "rpu", "peak", "rw"];
-  var els = {};
-  ids.forEach(function (id) { els[id] = document.getElementById(id); });
+  // Storage optionally reads writesDay off Traffic (the "linked" toggle), so it
+  // takes Traffic's derived numbers as an input rather than deriving them itself.
+  function deriveStorage(s, trafficD) {
+    var d = {};
+    d.stWrites = s.stLink ? trafficD.writesDay : n(s.stWrites);
+    d.rawDay = d.stWrites * n(s.wbytes);
+    d.effDay = (d.rawDay / Math.max(n(s.comp), 1)) * (1 + n(s.idxPct) / 100);
+    d.y1 = d.effDay * 365;
+    var g = n(s.growth) / 100;
+    var Y = Math.max(n(s.years), 0);
+    d.logical = g > 0 ? d.y1 * ((Math.pow(1 + g, Y) - 1) / g) : d.y1 * Y;
+    var repl = Math.max(n(s.repl), 1);
+    d.physical = d.logical * repl;
+    d.physDay = d.effDay * repl;
+    d.physMonth = d.physDay * 30;
+    d.objects = d.stWrites * 365 * Y;
+    return d;
+  }
 
-  function state() {
+  function toggle(id, on) {
+    var el = document.getElementById(id);
+    el.classList.toggle("on", on);
+  }
+
+  var TRAFFIC_DEFAULTS = { dau: "10000000", rpu: "20", peak: "3", rw: "100" };
+  var trafficIds = ["dau", "rpu", "peak", "rw"];
+  var trafficEls = {};
+  trafficIds.forEach(function (id) { trafficEls[id] = document.getElementById(id); });
+
+  function trafficState() {
     var s = {};
-    ids.forEach(function (id) { s[id] = els[id].value; });
+    trafficIds.forEach(function (id) { s[id] = trafficEls[id].value; });
     return s;
   }
 
-  function render() {
-    var s = state();
-    var d = derive(s);
+  function renderTraffic() {
+    var s = trafficState();
+    var d = deriveTraffic(s);
 
     document.getElementById("peakVal").textContent = s.peak;
 
@@ -507,24 +672,67 @@
     toggle("flag-scale", d.peakRps > 100000);
     toggle("flag-readheavy", rw >= 50);
     toggle("flag-writeheavy", rw < 1 && rw >= 0);
+
+    renderStorage(); // Storage's "linked" writes/day depends on Traffic's current numbers.
   }
 
-  function toggle(id, on) {
-    var el = document.getElementById(id);
-    el.classList.toggle("on", on);
+  var STORAGE_DEFAULTS = { stWrites: "2000000", wbytes: "1024", comp: "2", idxPct: "25", repl: "3", years: "5", growth: "30" };
+  var storageIds = ["stWrites", "wbytes", "comp", "idxPct", "repl", "years", "growth"];
+  var storageEls = {};
+  storageIds.forEach(function (id) { storageEls[id] = document.getElementById(id); });
+  var stLinkEl = document.getElementById("stLink");
+  var stWritesField = document.getElementById("stWritesField");
+  var stLinkedNote = document.getElementById("stLinkedNote");
+
+  function storageState() {
+    var s = {};
+    storageIds.forEach(function (id) { s[id] = storageEls[id].value; });
+    s.stLink = stLinkEl.checked;
+    return s;
   }
 
-  ids.forEach(function (id) {
-    var evt = els[id].type === "range" ? "input" : "input";
-    els[id].addEventListener(evt, render);
+  function renderStorage() {
+    var trafficD = deriveTraffic(trafficState());
+    var s = storageState();
+    var d = deriveStorage(s, trafficD);
+
+    document.getElementById("stLinkedValue").textContent = fmt(trafficD.writesDay);
+    document.getElementById("idxPctVal").textContent = s.idxPct;
+    document.getElementById("growthVal").textContent = s.growth;
+    document.getElementById("stYearsLabel").textContent = n(s.years);
+
+    document.getElementById("out-physical").textContent = bytes(d.physical);
+    document.getElementById("out-logical").textContent = bytes(d.logical);
+    document.getElementById("out-y1").textContent = bytes(d.y1);
+    document.getElementById("out-rawDay").textContent = bytes(d.rawDay);
+    document.getElementById("out-physDay").textContent = bytes(d.physDay);
+    document.getElementById("out-physMonth").textContent = bytes(d.physMonth);
+    document.getElementById("out-objects").textContent = fmt(d.objects);
+
+    toggle("flag-petabyte", d.physical > 1e15);
+    toggle("flag-billionrows", d.objects > 1e11);
+  }
+
+  trafficIds.forEach(function (id) { trafficEls[id].addEventListener("input", renderTraffic); });
+  storageIds.forEach(function (id) { storageEls[id].addEventListener("input", renderStorage); });
+  stLinkEl.addEventListener("change", function () {
+    stWritesField.hidden = stLinkEl.checked;
+    stLinkedNote.hidden = !stLinkEl.checked;
+    renderStorage();
   });
+  stWritesField.hidden = stLinkEl.checked;
+  stLinkedNote.hidden = !stLinkEl.checked;
 
   document.getElementById("boeReset").addEventListener("click", function () {
-    ids.forEach(function (id) { els[id].value = DEFAULTS[id]; });
-    render();
+    trafficIds.forEach(function (id) { trafficEls[id].value = TRAFFIC_DEFAULTS[id]; });
+    storageIds.forEach(function (id) { storageEls[id].value = STORAGE_DEFAULTS[id]; });
+    stLinkEl.checked = true;
+    stWritesField.hidden = true;
+    stLinkedNote.hidden = false;
+    renderTraffic();
   });
 
-  render();
+  renderTraffic();
 })();
 </script>
 
@@ -547,6 +755,8 @@
   var zoomResetBtn = document.getElementById("dgZoomReset");
   var zoomVal = document.getElementById("dgZoomVal");
   var exportBtn = document.getElementById("dgExport");
+  var importBtn = document.getElementById("dgImport");
+  var importInput = document.getElementById("dgImportInput");
   var clearBtn = document.getElementById("dgClear");
   var edgeInput = document.getElementById("dgEdgeLabelInput");
   var groupBtn = document.getElementById("dgGroup");
@@ -1317,6 +1527,89 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  });
+
+  function recomputeNextIdFrom(items) {
+    var max = nextId - 1;
+    items.forEach(function (item) {
+      var match = /(\d+)$/.exec(String(item.id || ""));
+      if (match) max = Math.max(max, parseInt(match[1], 10));
+    });
+    return max + 1;
+  }
+
+  importBtn.addEventListener("click", function () {
+    importInput.value = "";
+    importInput.click();
+  });
+
+  importInput.addEventListener("change", function () {
+    var file = importInput.files && importInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data;
+      try {
+        data = JSON.parse(String(reader.result));
+      } catch (e) {
+        alert("That file isn't valid JSON.");
+        return;
+      }
+      if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+        alert('That file doesn\'t look like a diagram export (expected "nodes" and "edges" arrays).');
+        return;
+      }
+      if ((nodes.length || edges.length) && !confirm("Import will replace the current diagram. Continue?")) {
+        return;
+      }
+      pushUndo();
+
+      // Normalize defensively: imported nodes/edges keep their own ids (so internal
+      // from/to references stay valid), missing fields fall back to safe defaults.
+      // This also tolerates an export from before colors/containers/edge styles existed.
+      var importedNodes = data.nodes.map(function (nd) {
+        return {
+          id: nd && nd.id ? String(nd.id) : uid(),
+          x: nd && typeof nd.x === "number" ? nd.x : 0,
+          y: nd && typeof nd.y === "number" ? nd.y : 0,
+          w: nd && typeof nd.w === "number" ? nd.w : 140,
+          h: nd && typeof nd.h === "number" ? nd.h : 56,
+          label: nd && typeof nd.label === "string" ? nd.label : "Component",
+          type: nd && nd.type === "container" ? "container" : "box",
+          parentId: (nd && nd.parentId) || null,
+          groupId: (nd && nd.groupId) || null,
+          color: (nd && nd.color) || null
+        };
+      });
+      var validIds = {};
+      importedNodes.forEach(function (nd) { validIds[nd.id] = true; });
+      var importedEdges = data.edges
+        .filter(function (ed) { return ed && validIds[ed.from] && validIds[ed.to]; })
+        .map(function (ed) {
+          return {
+            id: ed.id ? String(ed.id) : uid(),
+            from: ed.from,
+            to: ed.to,
+            label: typeof ed.label === "string" ? ed.label : "",
+            lineStyle: ed.lineStyle === "dashed" ? "dashed" : "solid",
+            arrowStyle: (ed.arrowStyle === "both" || ed.arrowStyle === "none") ? ed.arrowStyle : "one",
+            flow: (ed.flow === "dot" || ed.flow === "dash") ? ed.flow : "none",
+            flowDirection: ed.flowDirection === "alternate" ? "alternate" : "forward"
+          };
+        });
+
+      nodes = importedNodes;
+      edges = importedEdges;
+      nextId = recomputeNextIdFrom(nodes.concat(edges));
+      clearSelection();
+      renderNodes();
+      renderEdges();
+      save();
+    };
+    reader.onerror = function () {
+      alert("Couldn't read that file.");
+    };
+    reader.readAsText(file);
   });
 
   clearBtn.addEventListener("click", function () {
