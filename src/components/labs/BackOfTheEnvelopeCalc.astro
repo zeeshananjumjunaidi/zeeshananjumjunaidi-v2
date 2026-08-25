@@ -155,7 +155,7 @@
         <div id="dgContextMenu" class="dg-context-menu" hidden></div>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box or connection for more actions, including a color for the box. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically.</p>
     </div>
   </div>
 </div>
@@ -297,6 +297,9 @@
 .dg-node[data-color="green"] { background: color-mix(in srgb, #5fae6a 16%, var(--card-bg)); border-color: color-mix(in srgb, #5fae6a 55%, var(--card-border)); }
 .dg-node[data-color="purple"] { background: color-mix(in srgb, #9b7cd6 16%, var(--card-bg)); border-color: color-mix(in srgb, #9b7cd6 55%, var(--card-border)); }
 .dg-node[data-color="rose"] { background: color-mix(in srgb, #d97b93 16%, var(--card-bg)); border-color: color-mix(in srgb, #d97b93 55%, var(--card-border)); }
+.dg-node[data-color="aws"] { background: color-mix(in srgb, #FF9900 16%, var(--card-bg)); border-color: color-mix(in srgb, #FF9900 55%, var(--card-border)); }
+.dg-node[data-color="gcp"] { background: color-mix(in srgb, #4285F4 16%, var(--card-bg)); border-color: color-mix(in srgb, #4285F4 55%, var(--card-border)); }
+.dg-node[data-color="azure"] { background: color-mix(in srgb, #0078D4 16%, var(--card-bg)); border-color: color-mix(in srgb, #0078D4 55%, var(--card-border)); }
 
 .dg-node.selected { border-color: var(--card-label); border-width: 2px; }
 .dg-node.drop-target { border-color: var(--card-label); box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-label) 30%, transparent); }
@@ -346,6 +349,16 @@
 .dg-edge-label-bg { fill: var(--card-bg); pointer-events: none; }
 .dg-edge-label { font-family: var(--font-mono); font-size: 10px; fill: var(--card-desc); pointer-events: none; }
 
+@keyframes dg-marching-ants { to { stroke-dashoffset: -20; } }
+.dg-edge-line.dg-flow-dash { animation: dg-marching-ants 0.6s linear infinite; }
+
+@keyframes dg-flow-move { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+.dg-edge-flow-dot { fill: var(--card-label); pointer-events: none; animation: dg-flow-move 1.6s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-edge-line.dg-flow-dash, .dg-edge-flow-dot { animation: none; }
+}
+
 .dg-edge-input {
   position: absolute; transform: translate(-50%, -50%); z-index: 5;
   font-family: var(--font-mono); font-size: 11px; color: var(--card-label);
@@ -382,6 +395,16 @@
   content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 1px;
   background: var(--tone-bad); transform: rotate(45deg);
 }
+
+.dg-style-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--card-desc); opacity: 0.7; padding: 6px 10px 0; }
+.dg-style-row { display: flex; gap: 4px; padding: 4px 10px 6px; flex-wrap: wrap; }
+.dg-context-menu .dg-style-btn {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--card-desc); background: transparent; border: 1px solid var(--card-border);
+  padding: 4px 8px; cursor: pointer;
+}
+.dg-context-menu .dg-style-btn:hover { border-color: var(--card-label); color: var(--headline-color); }
+.dg-context-menu .dg-style-btn.active { border-color: var(--card-label); color: var(--card-label); }
 
 .dg-root:fullscreen { background: var(--page-bg); padding: 18px 22px; }
 .dg-root:fullscreen .dg-canvas-wrap { height: calc(100vh - 130px); }
@@ -549,12 +572,15 @@
   function snap(v) { return Math.round(v / GRID) * GRID; }
 
   var NODE_COLORS = [
-    { key: "slate", hex: "#7c8aa5" },
-    { key: "blue", hex: "#5b8def" },
-    { key: "teal", hex: "#2fb8a6" },
-    { key: "green", hex: "#5fae6a" },
-    { key: "purple", hex: "#9b7cd6" },
-    { key: "rose", hex: "#d97b93" }
+    { key: "slate", label: "Slate", hex: "#7c8aa5" },
+    { key: "blue", label: "Blue", hex: "#5b8def" },
+    { key: "teal", label: "Teal", hex: "#2fb8a6" },
+    { key: "green", label: "Green", hex: "#5fae6a" },
+    { key: "purple", label: "Purple", hex: "#9b7cd6" },
+    { key: "rose", label: "Rose", hex: "#d97b93" },
+    { key: "aws", label: "AWS", hex: "#FF9900" },
+    { key: "gcp", label: "GCP", hex: "#4285F4" },
+    { key: "azure", label: "Azure", hex: "#0078D4" }
   ];
 
   function snapshotState() {
@@ -621,6 +647,20 @@
   function nodeById(id) {
     for (var i = 0; i < nodes.length; i++) if (nodes[i].id === id) return nodes[i];
     return null;
+  }
+
+  function edgeById(id) {
+    for (var i = 0; i < edges.length; i++) if (edges[i].id === id) return edges[i];
+    return null;
+  }
+
+  function setEdgeProp(id, key, value) {
+    var edge = edgeById(id);
+    if (!edge) return;
+    pushUndo();
+    edge[key] = value;
+    renderEdges();
+    save();
   }
 
   function groupMembers(groupId) {
@@ -831,7 +871,7 @@
       var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
       if (targetId) {
         pushUndo();
-        edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "" });
+        edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "", lineStyle: "solid", arrowStyle: "one", flow: "none" });
         renderEdges();
         save();
       }
@@ -1046,13 +1086,34 @@
       hit.setAttribute("x2", p2.x); hit.setAttribute("y2", p2.y);
 
       var line = document.createElementNS(SVGNS, "line");
-      line.setAttribute("class", "dg-edge-line");
       line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
       line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
-      line.setAttribute("marker-end", "url(#dgArrow)");
+
+      var arrowStyle = edge.arrowStyle || "one";
+      if (arrowStyle !== "none") line.setAttribute("marker-end", "url(#dgArrow)");
+      if (arrowStyle === "both") line.setAttribute("marker-start", "url(#dgArrow)");
+
+      // "dashed" is a static line style; "dash" flow reuses the same dash
+      // pattern but animates its offset (marching ants) to read as motion.
+      var lineClass = "dg-edge-line";
+      var dash = edge.lineStyle === "dashed" ? "6 4" : null;
+      if (edge.flow === "dash") {
+        dash = dash || "6 4";
+        lineClass += " dg-flow-dash";
+      }
+      if (dash) line.setAttribute("stroke-dasharray", dash);
+      line.setAttribute("class", lineClass);
 
       g.appendChild(hit);
       g.appendChild(line);
+
+      if (edge.flow === "dot") {
+        var dot = document.createElementNS(SVGNS, "circle");
+        dot.setAttribute("r", "3");
+        dot.setAttribute("class", "dg-edge-flow-dot");
+        dot.style.offsetPath = "path('M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y + "')";
+        g.appendChild(dot);
+      }
 
       if (edge.label) {
         var w = Math.max(20, edge.label.length * 6 + 10);
@@ -1328,7 +1389,7 @@
     var newEdges = [];
     edges.forEach(function (ed) {
       if (idMap[ed.from] && idMap[ed.to]) {
-        newEdges.push({ id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label });
+        newEdges.push({ id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label, lineStyle: ed.lineStyle, arrowStyle: ed.arrowStyle, flow: ed.flow });
       }
     });
     newNodes.forEach(function (nn) {
@@ -1429,11 +1490,31 @@
           sw.type = "button";
           sw.className = "dg-swatch";
           sw.style.background = c.hex;
-          sw.title = c.key;
+          sw.title = c.label;
           sw.addEventListener("click", function () { hideContextMenu(); item.onPick(c.key); });
           row.appendChild(sw);
         });
         contextMenu.appendChild(row);
+        return;
+      }
+      if (item.optionRow) {
+        if (item.rowLabel) {
+          var lbl = document.createElement("div");
+          lbl.className = "dg-style-label";
+          lbl.textContent = item.rowLabel;
+          contextMenu.appendChild(lbl);
+        }
+        var row2 = document.createElement("div");
+        row2.className = "dg-style-row";
+        item.options.forEach(function (opt) {
+          var ob = document.createElement("button");
+          ob.type = "button";
+          ob.className = "dg-style-btn" + (opt.key === item.current ? " active" : "");
+          ob.textContent = opt.label;
+          ob.addEventListener("click", function () { hideContextMenu(); item.onPick(opt.key); });
+          row2.appendChild(ob);
+        });
+        contextMenu.appendChild(row2);
         return;
       }
       var btn = document.createElement("button");
@@ -1476,8 +1557,29 @@
       items.push({ label: "Delete", danger: true, action: deleteSelection });
       showContextMenu(items, e.clientX, e.clientY);
     } else if (edgeEl) {
-      selectEdgeOnly(edgeEl.dataset.id);
-      showContextMenu([{ label: "Delete", danger: true, action: deleteSelection }], e.clientX, e.clientY);
+      var eid = edgeEl.dataset.id;
+      selectEdgeOnly(eid);
+      var edge = edgeById(eid);
+      if (!edge) { hideContextMenu(); return; }
+      showContextMenu([
+        {
+          optionRow: true, rowLabel: "Line", current: edge.lineStyle || "solid",
+          options: [{ key: "solid", label: "Solid" }, { key: "dashed", label: "Dashed" }],
+          onPick: function (key) { setEdgeProp(eid, "lineStyle", key); }
+        },
+        {
+          optionRow: true, rowLabel: "Arrow", current: edge.arrowStyle || "one",
+          options: [{ key: "one", label: "One-way" }, { key: "both", label: "Both ways" }],
+          onPick: function (key) { setEdgeProp(eid, "arrowStyle", key); }
+        },
+        {
+          optionRow: true, rowLabel: "Flow", current: edge.flow || "none",
+          options: [{ key: "none", label: "Off" }, { key: "dot", label: "Dot" }, { key: "dash", label: "Dash" }],
+          onPick: function (key) { setEdgeProp(eid, "flow", key); }
+        },
+        "separator",
+        { label: "Delete", danger: true, action: deleteSelection }
+      ], e.clientX, e.clientY);
     } else {
       hideContextMenu();
     }
