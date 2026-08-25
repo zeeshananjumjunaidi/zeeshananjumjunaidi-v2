@@ -226,8 +226,18 @@
 }
 .boe-flag.on { display: block; }
 .boe-flag-ok { color: var(--tone-ok); border-color: var(--tone-ok); }
+</style>
 
-/* ---- Diagram tab ---- */
+<!--
+  Diagram tab styling lives in a separate `is:global` block on purpose.
+  Astro scopes component <style> blocks by rewriting selectors to
+  `.foo[data-astro-cid-xxxx]` and stamping that attribute onto elements
+  the template renders. Every node/port/handle/edge below is created at
+  runtime via document.createElement/createElementNS, so it never gets
+  that attribute — under a scoped block, none of these rules would ever
+  match, which is why nothing was actually positioned or visible.
+-->
+<style is:global>
 .dg-root { margin-top: 4px; }
 .dg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
 .dg-chip {
@@ -250,7 +260,7 @@
 
 .dg-canvas-wrap {
   position: relative; height: 460px; border: 1px solid var(--card-border); background: var(--card-bg);
-  overflow: hidden; cursor: grab;
+  overflow: hidden; cursor: grab; touch-action: none;
   background-image: radial-gradient(color-mix(in srgb, var(--card-border) 70%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
 }
@@ -263,6 +273,7 @@
   position: absolute; display: flex; align-items: center; justify-content: center; text-align: center;
   background: var(--card-bg); border: 1px solid var(--card-border); padding: 6px 10px; box-sizing: border-box;
   font-family: var(--font-body); font-size: 13px; color: var(--headline-color); cursor: grab; user-select: none;
+  touch-action: none;
 }
 .dg-node:active { cursor: grabbing; }
 .dg-node.selected { border-color: var(--card-label); border-width: 2px; }
@@ -270,15 +281,24 @@
 .dg-node-label[contenteditable="true"] { cursor: text; background: color-mix(in srgb, var(--card-label) 8%, transparent); }
 
 .dg-port {
-  position: absolute; width: 9px; height: 9px; border-radius: 50%;
-  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0; transition: opacity .2s ease;
-  cursor: crosshair;
+  position: absolute; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0.55; transition: opacity .2s ease, background .2s ease;
+  cursor: crosshair; touch-action: none;
 }
 .dg-node:hover .dg-port, .dg-node.selected .dg-port { opacity: 1; }
-.dg-port-n { top: -5px; left: 50%; margin-left: -5px; }
-.dg-port-s { bottom: -5px; left: 50%; margin-left: -5px; }
-.dg-port-e { right: -5px; top: 50%; margin-top: -5px; }
-.dg-port-w { left: -5px; top: 50%; margin-top: -5px; }
+.dg-port:hover { background: var(--card-label); border-color: var(--card-label); }
+.dg-port-n { top: -6px; left: 50%; margin-left: -6px; }
+.dg-port-s { bottom: -6px; left: 50%; margin-left: -6px; }
+.dg-port-e { right: -6px; top: 50%; margin-top: -6px; }
+.dg-port-w { left: -6px; top: 50%; margin-top: -6px; }
+
+.dg-resize-handle {
+  position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0.55; transition: opacity .2s ease, background .2s ease;
+  cursor: nwse-resize; touch-action: none;
+}
+.dg-node:hover .dg-resize-handle, .dg-node.selected .dg-resize-handle { opacity: 1; }
+.dg-resize-handle:hover { background: var(--card-label); border-color: var(--card-label); }
 
 .dg-edge-hit { stroke: transparent; stroke-width: 14; fill: none; pointer-events: stroke; cursor: pointer; }
 .dg-edge-line { stroke: var(--card-desc); stroke-width: 1.5; fill: none; pointer-events: none; }
@@ -561,17 +581,25 @@
     port.addEventListener("pointerup", onUp);
   }
 
-  function wireNodeEvents(el, node, label) {
-    label.addEventListener("dblclick", function (e) {
+  function isHandle(target) {
+    return target.classList.contains("dg-port") || target.classList.contains("dg-resize-handle");
+  }
+
+  function wireNodeEvents(el, node, label, handle) {
+    // Note: pointerdown handlers below deliberately never call preventDefault().
+    // Doing so suppresses the browser's derived mouse events (click, dblclick) for
+    // the whole interaction, which silently broke double-click-to-rename before.
+    // touch-action: none (in CSS) handles touch-scroll suppression instead.
+    el.addEventListener("dblclick", function (e) {
+      if (isHandle(e.target)) return;
       e.stopPropagation();
       if (!label.isContentEditable) startEditLabel(label, node);
     });
 
     el.addEventListener("pointerdown", function (e) {
-      if (e.target.classList.contains("dg-port")) return;
+      if (isHandle(e.target)) return;
       if (label.isContentEditable) return;
       e.stopPropagation();
-      e.preventDefault();
       var startX = e.clientX, startY = e.clientY;
       var origX = node.x, origY = node.y;
       var moved = false;
@@ -601,9 +629,32 @@
       var port = el.querySelector(".dg-port-" + side);
       port.addEventListener("pointerdown", function (e) {
         e.stopPropagation();
-        e.preventDefault();
         startConnectDrag(node, e);
       });
+    });
+
+    handle.addEventListener("pointerdown", function (e) {
+      e.stopPropagation();
+      var startX = e.clientX, startY = e.clientY;
+      var origW = node.w, origH = node.h;
+      handle.setPointerCapture(e.pointerId);
+
+      function onMove(ev) {
+        var dx = (ev.clientX - startX) / view.zoom;
+        var dy = (ev.clientY - startY) / view.zoom;
+        node.w = clamp(origW + dx, 60, 480);
+        node.h = clamp(origH + dy, 36, 320);
+        el.style.width = node.w + "px";
+        el.style.height = node.h + "px";
+        renderEdges();
+      }
+      function onUp() {
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        save();
+      }
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
     });
   }
 
@@ -628,8 +679,12 @@
       el.appendChild(port);
     });
 
+    var handle = document.createElement("div");
+    handle.className = "dg-resize-handle";
+    el.appendChild(handle);
+
     nodeLayer.appendChild(el);
-    wireNodeEvents(el, node, label);
+    wireNodeEvents(el, node, label, handle);
     return el;
   }
 
