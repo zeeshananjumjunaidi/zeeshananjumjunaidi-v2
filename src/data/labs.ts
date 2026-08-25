@@ -41,6 +41,7 @@ export const labs: Lab[] = [
       "Start from daily active users and requests per user, and everything else, peak load, storage, cache size, server count, cost, falls out as a straightforward calculation. Change one assumption and the numbers move through the rest.",
       "It currently covers traffic and storage, plus a diagram tool for sketching the architecture itself: drag components onto a canvas, connect them, group and color them, animate the data flow between them. More calculator sections (cache, compute, database, cost, and the rest) get added a couple at a time.",
       "Every number here is an order-of-magnitude estimate. The value is in the ratios and the binding constraint, not the digits, if a result changes your architecture, verify it with a measurement before you build on it.",
+      'For background on the technique itself, ByteByteGo has a <a href="https://bytebytego.com/courses/system-design-interview/back-of-the-envelope-estimation" target="_blank" rel="noopener">lesson on back-of-the-envelope estimation</a>.',
     ],
   },
 ];

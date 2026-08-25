@@ -621,6 +621,12 @@ img { max-width: 100%; display: block; }
   font-family: var(--font-body); font-weight: 300; font-size: 16px; line-height: 1.85;
   color: var(--subhead-color); margin: 0;
 }
+.writing-block a {
+  color: var(--card-label); text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--card-label) 40%, transparent);
+  text-underline-offset: 3px; transition: text-decoration-color .3s ease;
+}
+.writing-block a:hover, .writing-block a:focus-visible { text-decoration-color: var(--card-label); }
 kbd {
   font-family: var(--font-mono); font-size: 0.85em; font-style: normal;
   padding: 2px 7px; border: 1px solid var(--card-border); border-radius: 5px;
