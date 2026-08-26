@@ -1,0 +1,111 @@
+  <div class="boe-tab" data-tab="availability" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Target</h3>
+          <label class="boe-field">
+            <span class="boe-label">Availability SLO<span class="boe-unit">%</span></span>
+            <input class="boe-inp" type="number" min="0" max="100" step="0.001" id="slo" value="99.9">
+            <span class="boe-hint">99.9% is three nines. Each extra nine costs roughly an order of magnitude more engineering.</span>
+          </label>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Downtime per year</span><span class="boe-out-val" id="out-downYear">—</span></div>
+            <div class="boe-formula">(1 − SLO) × 31.5M s</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per month</span><span class="boe-out-val" id="out-downMonth">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per week</span><span class="boe-out-val" id="out-downWeek">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per day</span><span class="boe-out-val" id="out-downDay">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Error budget per month</span><span class="boe-out-val" id="out-budgetReq">—<span class="boe-out-unit">req</span></span></div>
+            <div class="boe-formula">monthly requests × (1 − SLO)</div>
+            <div class="boe-sub">Spend it on deploys and experiments, or lose it to incidents</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Reference</h3>
+          <div class="boe-table-wrap">
+            <table class="boe-table">
+              <thead>
+                <tr><th>SLO</th><th>Per year</th><th>Per month</th><th>Per day</th></tr>
+              </thead>
+              <tbody id="availRefBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Composing components</h3>
+          <label class="boe-field">
+            <span class="boe-label">Components in series<span class="boe-unit">parts</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="compCount" value="5">
+            <span class="boe-hint">Every dependency on the critical path.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Availability of each<span class="boe-unit">%</span></span>
+            <input class="boe-inp" type="number" min="0" max="100" step="0.001" id="compAvail" value="99.95">
+          </label>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Availability in series</span><span class="boe-out-val" id="out-series">—<span class="boe-out-unit">%</span></span></div>
+            <div class="boe-formula">A^n — dependencies multiply</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Downtime per year</span><span class="boe-out-val" id="out-seriesDownYear">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Meets your SLO?</span><span class="boe-out-val" id="out-slomet">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Redundancy</h3>
+          <label class="boe-field">
+            <span class="boe-label">Parallel copies<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="redundancy" value="2">
+            <span class="boe-hint">Independent replicas, any one of which can serve.</span>
+          </label>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Availability in parallel</span><span class="boe-out-val tone-ok" id="out-parallel">—<span class="boe-out-unit">%</span></span></div>
+            <div class="boe-formula">1 − (1 − A)^k — redundancy multiplies the failure, not the success</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Downtime per year</span><span class="boe-out-val" id="out-parallelDownYear">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">From MTBF and MTTR</h3>
+          <label class="boe-field">
+            <span class="boe-label">Mean time between failures<span class="boe-unit">hours</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="mtbf" value="2000">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Mean time to recover<span class="boe-unit">hours</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="mttr" value="2">
+          </label>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Resulting availability</span><span class="boe-out-val" id="out-mtbfA">—<span class="boe-out-unit">%</span></span></div>
+            <div class="boe-formula">MTBF ÷ (MTBF + MTTR)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Downtime per year</span><span class="boe-out-val" id="out-mtbfDownYear">—</span></div>
+            <div class="boe-sub">Halving recovery time buys the same availability as doubling reliability, and is usually far cheaper</div>
+          </div>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Availability composes in two directions. Dependencies in series <strong>multiply</strong>: five services at 99.95% each give you 99.75%, worse than any single part. Redundant copies in parallel multiply the <strong>failure</strong> probability instead, which is why two 99% replicas give 99.99%.</p>
+          <p>The catch is independence. Two replicas sharing a power feed, a deploy pipeline or a config store fail together, and the arithmetic quietly stops applying.</p>
+        </div>
+      </div>
+    </div>
+  </div>

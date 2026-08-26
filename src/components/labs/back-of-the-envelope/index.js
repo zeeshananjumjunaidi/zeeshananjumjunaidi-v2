@@ -10,6 +10,7 @@ import { initCompute } from "./compute.js";
 import { initDatabase } from "./database.js";
 import { initQueue } from "./queue.js";
 import { initLatency } from "./latency.js";
+import { initAvailability } from "./availability.js";
 import { initExport } from "./export.js";
 
 initTabs();
@@ -20,9 +21,10 @@ var storage = initStorage(traffic.state, function () { cache.render(); });
 var cache = initCache(traffic.state, storage.state, function () { bandwidth.render(); });
 var bandwidth = initBandwidth(traffic.state, function () { compute.render(); });
 var compute = initCompute(traffic.state, function () { database.render(); });
-var database = initDatabase(traffic.state, storage.state, function () { queue.render(); });
+var database = initDatabase(traffic.state, storage.state, function () { queue.render(); availability.render(); });
 var queue = initQueue(traffic.state, function () {});
 var latency = initLatency(function () {});
+var availability = initAvailability(traffic.state, function () {});
 
 var resetBtn = document.getElementById("boeReset");
 if (resetBtn) {
@@ -35,6 +37,7 @@ if (resetBtn) {
     database.reset();
     queue.reset();
     latency.reset();
+    availability.reset();
     traffic.render();
   });
 }

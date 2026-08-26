@@ -28,6 +28,7 @@ import ComputeTab from "./back-of-the-envelope/ComputeTab.astro";
 import DatabaseTab from "./back-of-the-envelope/DatabaseTab.astro";
 import QueueTab from "./back-of-the-envelope/QueueTab.astro";
 import LatencyTab from "./back-of-the-envelope/LatencyTab.astro";
+import AvailabilityTab from "./back-of-the-envelope/AvailabilityTab.astro";
 import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
 import ExportDialog from "./back-of-the-envelope/ExportDialog.astro";
 ---
@@ -52,6 +53,7 @@ import ExportDialog from "./back-of-the-envelope/ExportDialog.astro";
     <button type="button" class="boe-tabbtn" data-tab="database">Database</button>
     <button type="button" class="boe-tabbtn" data-tab="queue">Queue</button>
     <button type="button" class="boe-tabbtn" data-tab="latency">Latency</button>
+    <button type="button" class="boe-tabbtn" data-tab="availability">Availability</button>
     <button type="button" class="boe-tabbtn" data-tab="diagram">Diagram</button>
   </div>
 
@@ -63,6 +65,7 @@ import ExportDialog from "./back-of-the-envelope/ExportDialog.astro";
   <DatabaseTab />
   <QueueTab />
   <LatencyTab />
+  <AvailabilityTab />
   <DiagramTab />
   <ExportDialog />
 </div>
