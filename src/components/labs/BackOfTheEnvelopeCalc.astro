@@ -27,6 +27,7 @@ import BandwidthTab from "./back-of-the-envelope/BandwidthTab.astro";
 import ComputeTab from "./back-of-the-envelope/ComputeTab.astro";
 import DatabaseTab from "./back-of-the-envelope/DatabaseTab.astro";
 import QueueTab from "./back-of-the-envelope/QueueTab.astro";
+import LatencyTab from "./back-of-the-envelope/LatencyTab.astro";
 import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
 ---
 
@@ -46,6 +47,7 @@ import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
     <button type="button" class="boe-tabbtn" data-tab="compute">Compute</button>
     <button type="button" class="boe-tabbtn" data-tab="database">Database</button>
     <button type="button" class="boe-tabbtn" data-tab="queue">Queue</button>
+    <button type="button" class="boe-tabbtn" data-tab="latency">Latency</button>
     <button type="button" class="boe-tabbtn" data-tab="diagram">Diagram</button>
   </div>
 
@@ -56,6 +58,7 @@ import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
   <ComputeTab />
   <DatabaseTab />
   <QueueTab />
+  <LatencyTab />
   <DiagramTab />
 </div>
 
@@ -196,6 +199,31 @@ import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
   background: color-mix(in srgb, var(--card-label) 8%, transparent); border-left: 2px solid var(--card-label);
   padding: 8px 10px; margin-bottom: 14px;
 }
+
+/* Latency tab's hop list -- the only tab with a dynamic (add/remove) row
+   set rather than fixed fields. */
+.boe-hop-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--card-border); transition: opacity .2s ease; }
+.boe-hop-row.off { opacity: 0.4; }
+.boe-hop-check { accent-color: var(--card-label); flex-shrink: 0; }
+.boe-hop-name, .boe-hop-num {
+  background: transparent; border: 0; border-bottom: 1px solid var(--card-border); color: var(--card-label);
+  padding: 3px 2px; outline: none; border-radius: 0;
+}
+.boe-hop-name:focus, .boe-hop-num:focus { border-bottom-color: var(--card-label); }
+.boe-hop-name { flex: 1 1 auto; min-width: 0; font-family: var(--font-body); font-size: 12.5px; }
+.boe-hop-num { width: 48px; flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; text-align: right; }
+.boe-hop-x, .boe-hop-unit { font-family: var(--font-mono); font-size: 10.5px; color: var(--card-desc); flex-shrink: 0; }
+.boe-hop-del {
+  flex-shrink: 0; background: transparent; border: 0; color: var(--tone-bad);
+  font-family: var(--font-mono); font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 4px;
+}
+.boe-hop-del:hover { opacity: 0.7; }
+.boe-hop-add {
+  display: block; width: 100%; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-label); background: transparent; border: 1px dashed var(--card-border);
+  padding: 7px 10px; margin: 10px 0 14px; cursor: pointer; transition: border-color .2s ease;
+}
+.boe-hop-add:hover { border-color: var(--card-label); }
 </style>
 
 <script>

@@ -9,6 +9,7 @@ import { initBandwidth } from "./bandwidth.js";
 import { initCompute } from "./compute.js";
 import { initDatabase } from "./database.js";
 import { initQueue } from "./queue.js";
+import { initLatency } from "./latency.js";
 
 initTabs();
 
@@ -19,6 +20,7 @@ var bandwidth = initBandwidth(traffic.state, function () { compute.render(); });
 var compute = initCompute(traffic.state, function () { database.render(); });
 var database = initDatabase(traffic.state, storage.state, function () { queue.render(); });
 var queue = initQueue(traffic.state, function () {});
+var latency = initLatency(function () {});
 
 var resetBtn = document.getElementById("boeReset");
 if (resetBtn) {
@@ -30,6 +32,7 @@ if (resetBtn) {
     compute.reset();
     database.reset();
     queue.reset();
+    latency.reset();
     traffic.render();
   });
 }

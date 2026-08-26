@@ -1,0 +1,72 @@
+  <div class="boe-tab" data-tab="latency" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Latency budget</h3>
+          <div id="hopsList"></div>
+          <button type="button" class="boe-hop-add" id="latencyAddHop">+ hop</button>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Serial total</span><span class="boe-out-val" id="out-latencyTotal">—<span class="boe-out-unit">ms</span></span></div>
+            <div class="boe-formula">Σ count × latency for enabled hops</div>
+          </div>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Latency does not average, it accumulates on the critical path and then gets amplified at the tail.</p>
+          <p>The single biggest lever is <strong>round trips</strong>, not milliseconds of compute. Three sequential database queries at 15 ms cost more than every line of your application code. Parallelise what you can, batch the rest, and count the hops before you optimise a loop.</p>
+          <p>Physics sets a floor you cannot code around: light in fibre travels about 200 km/ms, so a round trip across the Atlantic is ~70 ms no matter what runs at either end.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Tail amplification</h3>
+          <label class="boe-field">
+            <span class="boe-label">Services called per request<span class="boe-unit">fan-out</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="fanout" value="50">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Chance one call is slow<span class="boe-unit">%</span></span>
+            <input class="boe-inp" type="number" min="0" max="100" step="any" id="p99" value="1">
+            <span class="boe-hint">1% means each call is above its p99 one time in a hundred.</span>
+          </label>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Chance the request is slow</span><span class="boe-out-val" id="out-tailP">—<span class="boe-out-unit">%</span></span></div>
+            <div class="boe-formula">1 − (1 − p)^fan-out</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Requests unaffected</span><span class="boe-out-val" id="out-tailOk">—<span class="boe-out-unit">%</span></span></div>
+          </div>
+          <p class="boe-sub">With 100 backend calls, a per-call p99 of 1% means <strong>63%</strong> of user requests hit at least one slow dependency. Your service p99 is built from your dependencies' p99, and fan-out is the multiplier.</p>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Orders of magnitude</h3>
+          <div class="boe-table-wrap">
+            <table class="boe-table">
+              <thead>
+                <tr><th>Operation</th><th>Time</th><th>Scaled to 1 s = 1 ns</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>L1 cache reference</td><td>1 ns</td><td>1 s</td></tr>
+                <tr><td>Branch mispredict</td><td>3 ns</td><td>3 s</td></tr>
+                <tr><td>L2 cache reference</td><td>4 ns</td><td>4 s</td></tr>
+                <tr><td>Mutex lock / unlock</td><td>17 ns</td><td>17 s</td></tr>
+                <tr><td>Main memory reference</td><td>100 ns</td><td>2 min</td></tr>
+                <tr><td>Compress 1 KB</td><td>2 µs</td><td>33 min</td></tr>
+                <tr><td>SSD random read (4 KB)</td><td>~16 µs</td><td>4.4 h</td></tr>
+                <tr><td>Read 1 MB from memory</td><td>~50 µs</td><td>14 h</td></tr>
+                <tr><td>Read 1 MB from NVMe SSD</td><td>~200 µs</td><td>2.3 d</td></tr>
+                <tr><td>Round trip in same datacentre</td><td>500 µs</td><td>5.8 d</td></tr>
+                <tr><td>HDD seek</td><td>10 ms</td><td>4 months</td></tr>
+                <tr><td>Round trip within continent</td><td>~40 ms</td><td>1.3 y</td></tr>
+                <tr><td>Round trip CA → Europe</td><td>~150 ms</td><td>4.8 y</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="boe-hint">Order-of-magnitude figures for current hardware. Memory is ~100× slower than L1, disk ~100× slower than memory, and the network is whatever geography says it is.</div>
+        </div>
+      </div>
+    </div>
+  </div>
