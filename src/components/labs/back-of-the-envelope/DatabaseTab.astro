@@ -1,0 +1,116 @@
+  <div class="boe-tab" data-tab="database" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Dataset</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="dbRecordsLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use record count from Storage</span>
+          </label>
+          <div class="boe-linked-note" id="dbRecordsLinkedNote">Currently <span id="dbRecordsLinkedValue">—</span> objects stored, linked from Storage.</div>
+          <label class="boe-field" id="dbRecordsField" hidden>
+            <span class="boe-label">Total records<span class="boe-unit">rows</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dbRecords" value="20000000000">
+            <span class="boe-num-preview" id="dbRecordsPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Bytes per record<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="recBytes" value="512">
+            <span class="boe-num-preview" id="recBytesPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Index overhead</span>
+              <span class="boe-slide-val"><span id="dbIdxVal">30</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="200" step="5" id="dbIdx" value="30">
+          </label>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Shard limits</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="dbQpsLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="dbQpsLinkedNote">Currently <span id="dbQpsLinkedValue">—</span> peak RPS, linked from Traffic.</div>
+          <label class="boe-field" id="dbQpsField" hidden>
+            <span class="boe-label">Peak queries/sec<span class="boe-unit">QPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dbQps" value="7000">
+            <span class="boe-num-preview" id="dbQpsPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Storage per shard<span class="boe-unit">GB</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="shardCapGB" value="2000">
+            <span class="boe-hint">Keep it small enough to rebuild, back up and rebalance in reasonable time. 1–2 TB is a common ceiling.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">QPS per shard<span class="boe-unit">QPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="shardQps" value="20000">
+            <span class="boe-num-preview" id="shardQpsPreview"></span>
+            <span class="boe-hint">Postgres primary ~10–20k simple queries/s; Cassandra node ~10k writes/s.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Replicas per shard<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dbRepl" value="2">
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Shard count is the <strong>maximum</strong> of two independent constraints: how much data fits, and how much traffic a node takes. Sizing on storage alone is how you end up with fat, idle shards that still fall over.</p>
+          <p>Averages lie about shards. A uniform split assumes uniform keys, and real keys are Zipfian, one celebrity, one popular product, one busy tenant. Estimate your hottest shard at several times the mean and check that number instead.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Sharding</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Shards</span><span class="boe-out-val" id="out-shards">—</span></div>
+            <div class="boe-formula">max(storage-bound, QPS-bound)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Storage-bound shards</span><span class="boe-out-val" id="out-shardsStorage">—</span></div>
+            <div class="boe-formula">dataset ÷ per-shard capacity</div>
+            <div class="boe-sub" id="out-shardsStorageSub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>QPS-bound shards</span><span class="boe-out-val" id="out-shardsQps">—</span></div>
+            <div class="boe-formula">peak QPS ÷ per-shard QPS</div>
+            <div class="boe-sub" id="out-shardsQpsSub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Total nodes with replicas</span><span class="boe-out-val" id="out-dbNodes">—</span></div>
+            <div class="boe-formula" id="out-dbNodesFormula">—</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Per shard</h3>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Data per shard</span><span class="boe-out-val" id="out-perShardBytes">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Rows per shard</span><span class="boe-out-val" id="out-perShardRows">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>QPS per shard, uniform</span><span class="boe-out-val" id="out-perShardQps">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Hottest shard at 5× skew</span><span class="boe-out-val" id="out-hotShardQps">—</span></div>
+            <div class="boe-sub" id="out-hotShardQpsSub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Total dataset with indexes</span><span class="boe-out-val" id="out-dataset">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-database-shards">
+          Over a thousand shards means rebalancing, schema migrations and cross-shard queries are now their own engineering programme. Consider a bigger per-shard budget first.
+        </div>
+      </div>
+    </div>
+  </div>

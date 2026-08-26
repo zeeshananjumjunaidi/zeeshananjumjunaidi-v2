@@ -1,0 +1,104 @@
+  <div class="boe-tab" data-tab="compute" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="cpLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="cpLinkedNote">Currently <span id="cpLinkedValue">—</span> peak RPS, linked from Traffic.</div>
+          <label class="boe-field" id="cpReqField" hidden>
+            <span class="boe-label">Peak requests/sec<span class="boe-unit">RPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cpReq" value="7000">
+            <span class="boe-num-preview" id="cpReqPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">CPU time per request<span class="boe-unit">ms</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cpuMs" value="20">
+            <span class="boe-hint">Actual processor work, excluding time spent waiting on I/O.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">End-to-end service time<span class="boe-unit">ms</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="svcMs" value="80">
+            <span class="boe-hint">Wall clock inside your service, including downstream waits. Drives concurrency.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Cores per server<span class="boe-unit">vCPU</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="cores" value="8">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Target CPU utilisation</span>
+              <span class="boe-slide-val"><span id="utilVal">60</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="10" max="95" step="5" id="util" value="60">
+            <span class="boe-hint">Above ~70% queueing delay starts to dominate tail latency.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Availability zones<span class="boe-unit">AZ</span></span>
+            <input class="boe-inp" type="number" min="1" step="1" id="az" value="3">
+            <span class="boe-hint">Provision so the loss of one zone still carries peak.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Two different laws, two different answers, and mixing them up is the classic mistake. <strong>Throughput</strong> is bounded by CPU work: a core does 1000 ÷ cpu-ms requests per second. <strong>Concurrency</strong> is Little's Law, <code>L = λ × W</code>, a request waiting 200ms on a database still occupies a thread even though it burns no CPU. That's why an I/O-heavy service needs many more threads than cores.</p>
+          <p>Utilisation is where queueing theory bites. For an M/M/1 queue, latency scales as <code>1 / (1 − ρ)</code>. At 50% load you wait 2× service time; at 90% you wait 10×; at 99% you wait 100×. Nothing changed about the server, only how full it is.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Fleet size</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Servers to provision</span><span class="boe-out-val" id="out-serversAz">—</span></div>
+            <div class="boe-formula">minimum × AZ ÷ (AZ − 1), for zone loss</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Servers to serve peak</span><span class="boe-out-val" id="out-servers">—</span></div>
+            <div class="boe-formula">peak RPS ÷ (cores × 1000/cpu-ms × utilisation)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Throughput per server</span><span class="boe-out-val" id="out-perServer">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula" id="out-perServerFormula">—</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Fleet headroom at peak</span><span class="boe-out-val" id="out-headroom">—<span class="boe-out-unit">RPS</span></span></div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Concurrency (Little's Law)</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>In-flight requests at peak</span><span class="boe-out-val" id="out-concurrency">—</span></div>
+            <div class="boe-formula">L = peak RPS × service time</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Threads or connections per server</span><span class="boe-out-val" id="out-threadsPerServer">—</span></div>
+            <div class="boe-sub">Set your pool at least this high, or you queue before you even start work</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Latency multiplier at target load</span><span class="boe-out-val" id="out-qMult">—</span></div>
+            <div class="boe-formula">1 / (1 − ρ)</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Utilisation vs latency</h3>
+          <div class="boe-table-wrap">
+            <table class="boe-table">
+              <thead><tr><th>Utilisation</th><th>Latency ×</th><th>Servers needed</th></tr></thead>
+              <tbody id="utilRefBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-compute-util">
+          Running above 80% leaves nothing for a deploy, a GC pause or a retry storm. The servers you save show up as p99 latency.
+        </div>
+      </div>
+    </div>
+  </div>

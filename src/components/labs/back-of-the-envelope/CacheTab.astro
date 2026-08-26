@@ -1,0 +1,122 @@
+  <div class="boe-tab" data-tab="cache" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="cacheLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak read RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="cacheLinkedNote">Currently <span id="cacheLinkedValue">—</span> peak read RPS, linked from Traffic.</div>
+          <label class="boe-field" id="cacheReadsField" hidden>
+            <span class="boe-label">Peak read requests/sec<span class="boe-unit">RPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheReads" value="5000">
+            <span class="boe-num-preview" id="cacheReadsPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Cache hit ratio</span>
+              <span class="boe-slide-val"><span id="hitRatioVal">80</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="100" step="1" id="hitRatio" value="80">
+            <span class="boe-hint">Share of reads the cache answers without touching the database.</span>
+          </label>
+
+          <label class="boe-toggle">
+            <input type="checkbox" id="cacheDataLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use total data size from Storage</span>
+          </label>
+          <div class="boe-linked-note" id="cacheDataLinkedNote">Currently <span id="cacheDataLinkedValue">—</span> of data, linked from Storage.</div>
+          <label class="boe-field" id="cacheDataField" hidden>
+            <span class="boe-label">Total data size<span class="boe-unit">GB</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheDataManual" value="500">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Working set, % of total data</span>
+              <span class="boe-slide-val"><span id="workingPctVal">20</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="100" step="1" id="workingPct" value="20">
+            <span class="boe-hint">Real access patterns are skewed: a small hot slice serves most reads. That slice, not your whole dataset, is what has to fit in memory.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Average cached item size<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheItemBytes" value="2048">
+            <span class="boe-num-preview" id="cacheItemBytesPreview"></span>
+            <span class="boe-hint">Usually bigger than a raw row: a cache entry is often a rendered or joined response.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Memory overhead<span class="boe-unit">: 1</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="cacheOverhead" value="1.3">
+            <span class="boe-hint">Key overhead, hash table structure, fragmentation. Redis alone runs 1.2–1.5×.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Replicas per shard<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="cacheRepl" value="2">
+            <span class="boe-hint">At least one replica for failover; more if reads need to scale past a single node.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Usable memory per node<span class="boe-unit">GB</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheNodeGB" value="24">
+            <span class="boe-hint">Leave headroom below the instance's advertised RAM. A 32 GB box is not 32 GB of usable cache.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>A cache only ever helps the <strong>read</strong> path, and only for data that gets read again before it changes. It doesn't reduce how much data exists, it reduces how often you have to go get it, which is why the two numbers that matter are the hit ratio (how much traffic it absorbs) and the working set (how much of the data has to stay hot to earn that hit ratio).</p>
+          <p>Real traffic is skewed, not uniform: a small slice of keys usually accounts for most reads. That's what makes caching cheap, you're not memory-provisioning for the whole dataset, just its hot tail. Get the working-set estimate wrong, low, and you'll see a hit ratio that never reaches what you sized for.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Cache traffic</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Reads served by cache</span><span class="boe-out-val" id="out-cacheHitRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">peak read RPS × hit ratio</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Reads that still reach the database</span><span class="boe-out-val" id="out-cacheMissRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">peak read RPS × (1 − hit ratio)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Backend load</span><span class="boe-out-val" id="out-cacheReduction">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Cache sizing</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Cache nodes needed</span><span class="boe-out-val" id="out-cacheNodes">—</span></div>
+            <div class="boe-formula">memory needed ÷ usable memory per node</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Memory needed, with replicas</span><span class="boe-out-val" id="out-cacheMemTotal">—</span></div>
+            <div class="boe-formula">raw × replicas</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Memory needed, raw</span><span class="boe-out-val" id="out-cacheMemRaw">—</span></div>
+            <div class="boe-formula">working set × overhead</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Working set</span><span class="boe-out-val" id="out-workingSet">—</span></div>
+            <div class="boe-formula">total data × working-set %</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Cached items (keys)</span><span class="boe-out-val" id="out-cacheItems">—</span></div>
+            <div class="boe-sub">Roughly how many keys you're managing, not just bytes</div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-cache-lowhit">
+          Under 50% hit ratio, the cache is barely earning its keep. Check the eviction policy and TTLs, or whether this access pattern is cacheable at all, before adding nodes to fix what might be a modeling problem.
+        </div>
+        <div class="boe-flag" id="flag-cache-fleet">
+          That's a large fleet for one logical cache. Look at a managed cluster mode that shards across nodes, and double check whether the whole working set really needs to be hot at once.
+        </div>
+      </div>
+    </div>
+  </div>

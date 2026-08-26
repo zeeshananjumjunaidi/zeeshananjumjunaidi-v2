@@ -1,0 +1,1679 @@
+  <div class="boe-tab" data-tab="diagram" hidden>
+    <div class="dg-root">
+      <div class="dg-toolbar">
+        <div class="dg-chip" id="dgAddBox" draggable="true" title="Drag onto the canvas, or click to add">+ Box</div>
+        <div class="dg-chip" id="dgAddContainer" draggable="true" title="Drag onto the canvas, or click to add">+ Container</div>
+        <div class="dg-chip" id="dgAddText" draggable="true" title="Drag onto the canvas, or click to add">+ Text</div>
+        <button type="button" class="dg-chip dg-chip-btn" id="dgAddComponent" title="Pick a labeled component">+ Component ▾</button>
+        <div class="dg-tool-group">
+          <button type="button" class="dg-btn" id="dgZoomOut" aria-label="Zoom out">−</button>
+          <span class="dg-zoom-val" id="dgZoomVal">100%</span>
+          <button type="button" class="dg-btn" id="dgZoomIn" aria-label="Zoom in">+</button>
+        </div>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgZoomReset" title="Reset view" aria-label="Reset view">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 1 1.8 4.3"/><path d="M4 14v-4h4"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgGroup" disabled title="Group" aria-label="Group">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="10" height="10" rx="1.2"/><rect x="3" y="3" width="10" height="10" rx="1.2" stroke-dasharray="2 2"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgUngroup" disabled title="Ungroup" aria-label="Ungroup">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="10" y="10" width="7" height="7" rx="1"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgToFront" disabled title="Bring to front" aria-label="Bring to front">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 11l5-5 5 5"/><path d="M5 16l5-5 5 5"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgToBack" disabled title="Send to back" aria-label="Send to back">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 4l5 5 5-5"/><path d="M5 9l5 5 5-5"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgDuplicate" disabled title="Duplicate" aria-label="Duplicate">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="10" height="10" rx="1.2"/><rect x="7" y="2" width="10" height="10" rx="1.2"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgUndo" disabled title="Undo" aria-label="Undo">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 5 3 8l3 3"/><path d="M3 8h8a5 5 0 0 1 0 10h-2"/></svg>
+        </button>
+        <span class="dg-toolbar-spacer"></span>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgFullscreen" title="Fullscreen" aria-label="Fullscreen">
+          <svg class="dg-icon dg-icon-enter" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5"/><path d="M17 8V3h-5"/><path d="M3 12v5h5"/><path d="M17 12v5h-5"/></svg>
+          <svg class="dg-icon dg-icon-exit" viewBox="0 0 20 20" aria-hidden="true" hidden><path d="M8 3v5H3"/><path d="M12 3v5h5"/><path d="M8 17v-5H3"/><path d="M12 17v-5h5"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgExport" title="Export JSON" aria-label="Export JSON">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v9"/><path d="M6 8l4 4 4-4"/><path d="M3 15v2h14v-2"/></svg>
+        </button>
+        <button type="button" class="dg-btn dg-btn-icon" id="dgImport" title="Import JSON" aria-label="Import JSON">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V4"/><path d="M6 8l4-4 4 4"/><path d="M3 15v2h14v-2"/></svg>
+        </button>
+        <input type="file" id="dgImportInput" accept="application/json,.json" hidden>
+        <button type="button" class="dg-btn dg-btn-icon dg-btn-danger" id="dgClear" title="Clear" aria-label="Clear">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12"/><path d="M8 6V4h4v2"/><path d="M6 6l1 10a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l1-10"/><path d="M8.5 9v4"/><path d="M11.5 9v4"/></svg>
+        </button>
+      </div>
+
+      <div class="dg-canvas-wrap" id="dgCanvasWrap">
+        <div class="dg-viewport" id="dgViewport">
+          <svg class="dg-svg" id="dgSvg">
+            <defs>
+              <marker id="dgArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z"></path>
+              </marker>
+            </defs>
+            <g id="dgEdgeLayer"></g>
+          </svg>
+          <div id="dgNodeLayer"></div>
+        </div>
+        <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
+        <div id="dgContextMenu" class="dg-context-menu" hidden></div>
+      </div>
+
+      <p class="boe-hint dg-hint">Drag "+ Box", "+ Container", or "+ Text" onto the canvas, or click any of them to add. "+ Component" drops a pre-labeled icon: client and identity, compute, data, messaging and network, or AI. A container is a large frame: drop boxes (or other containers, nested as deep as you like) inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including its shape (rect, rounded, diamond, or borderless text), an icon, and a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
+    </div>
+  </div>
+
+<style is:global>
+.dg-root { margin-top: 4px; }
+.dg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.dg-chip {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-label); border: 1px dashed var(--card-label); padding: 7px 12px;
+  cursor: grab; user-select: none; background: transparent;
+}
+.dg-chip:active { cursor: grabbing; }
+.dg-chip-btn { cursor: pointer; font: inherit; }
+.dg-tool-group { display: flex; align-items: center; gap: 6px; }
+.dg-zoom-val { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); min-width: 34px; text-align: center; }
+.dg-btn {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-desc); background: transparent; border: 1px solid var(--card-border);
+  padding: 6px 10px; cursor: pointer; transition: border-color .3s ease, color .3s ease;
+}
+.dg-btn:hover { border-color: var(--card-label); color: var(--headline-color); }
+.dg-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.dg-btn-danger { color: var(--tone-bad); }
+.dg-btn-danger:hover { border-color: var(--tone-bad); color: var(--tone-bad); }
+.dg-toolbar-spacer { flex: 1 1 auto; }
+
+.dg-btn-icon { display: inline-flex; align-items: center; justify-content: center; padding: 6px; }
+.dg-icon {
+  width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+}
+/* Browsers don't apply the UA [hidden] { display: none } rule to inline
+   <svg> elements at all (it's scoped to the HTML namespace), so the
+   fullscreen button's enter/exit icon swap needs its own explicit rule --
+   without this, both icons render side by side regardless of the hidden
+   attribute's state. */
+.dg-icon[hidden] { display: none; }
+
+.dg-canvas-wrap {
+  position: relative; height: 460px; border: 1px solid var(--card-border); background: var(--card-bg);
+  overflow: hidden; cursor: grab; touch-action: none;
+  background-image: radial-gradient(color-mix(in srgb, var(--card-border) 70%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.dg-canvas-wrap.panning { cursor: grabbing; }
+.dg-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.dg-svg { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.dg-svg #dgArrow path { fill: var(--card-desc); }
+
+.dg-node {
+  position: absolute; display: flex; align-items: center; justify-content: center; text-align: center;
+  background: var(--card-bg); border: 1px solid var(--card-border); padding: 6px 10px; box-sizing: border-box;
+  font-family: var(--font-body); font-size: 13px; color: var(--headline-color); cursor: grab; user-select: none;
+  touch-action: none;
+}
+.dg-node:active { cursor: grabbing; }
+
+/* Each color is a single cool, muted hue blended into the theme's own card
+   tokens via color-mix, so the tint stays soft and adapts to dark/light
+   automatically instead of needing separate hardcoded values per theme.
+   Placed before .selected/.drop-target below so those still win the border. */
+.dg-node[data-color="slate"] { background: color-mix(in srgb, #7c8aa5 16%, var(--card-bg)); border-color: color-mix(in srgb, #7c8aa5 55%, var(--card-border)); }
+.dg-node[data-color="blue"] { background: color-mix(in srgb, #5b8def 16%, var(--card-bg)); border-color: color-mix(in srgb, #5b8def 55%, var(--card-border)); }
+.dg-node[data-color="teal"] { background: color-mix(in srgb, #2fb8a6 16%, var(--card-bg)); border-color: color-mix(in srgb, #2fb8a6 55%, var(--card-border)); }
+.dg-node[data-color="green"] { background: color-mix(in srgb, #5fae6a 16%, var(--card-bg)); border-color: color-mix(in srgb, #5fae6a 55%, var(--card-border)); }
+.dg-node[data-color="purple"] { background: color-mix(in srgb, #9b7cd6 16%, var(--card-bg)); border-color: color-mix(in srgb, #9b7cd6 55%, var(--card-border)); }
+.dg-node[data-color="rose"] { background: color-mix(in srgb, #d97b93 16%, var(--card-bg)); border-color: color-mix(in srgb, #d97b93 55%, var(--card-border)); }
+.dg-node[data-color="aws"] { background: color-mix(in srgb, #FF9900 16%, var(--card-bg)); border-color: color-mix(in srgb, #FF9900 55%, var(--card-border)); }
+.dg-node[data-color="gcp"] { background: color-mix(in srgb, #4285F4 16%, var(--card-bg)); border-color: color-mix(in srgb, #4285F4 55%, var(--card-border)); }
+.dg-node[data-color="azure"] { background: color-mix(in srgb, #0078D4 16%, var(--card-bg)); border-color: color-mix(in srgb, #0078D4 55%, var(--card-border)); }
+
+.dg-node.selected { border-color: var(--card-label); border-width: 2px; }
+.dg-node.drop-target { border-color: var(--card-label); box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-label) 30%, transparent); }
+.dg-node-label { outline: none; width: 100%; overflow-wrap: break-word; }
+.dg-node-label[contenteditable="true"] { cursor: text; background: color-mix(in srgb, var(--card-label) 8%, transparent); }
+
+.dg-node.container {
+  background: color-mix(in srgb, var(--card-bg) 35%, transparent);
+  border-style: dashed;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 8px 10px;
+}
+.dg-node.container .dg-node-label {
+  width: auto;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--card-desc);
+}
+
+/* Shape variants -- outline only, ports still sit at the bounding box's N/S/E/W
+   midpoints regardless of shape (those happen to land exactly on a diamond's
+   own vertices, so connectors need no special-casing there). */
+.dg-node[data-shape="rounded"] { border-radius: 12px; }
+.dg-node[data-shape="diamond"] { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+.dg-node[data-shape="text"] {
+  background: transparent; border-color: transparent; padding: 4px 6px;
+}
+.dg-node[data-shape="text"]:hover, .dg-node[data-shape="text"].selected, .dg-node[data-shape="text"].drop-target {
+  border-color: var(--card-border); border-style: dashed;
+}
+
+.dg-node.has-icon { flex-direction: column; gap: 5px; }
+.dg-node-icon-svg {
+  width: 22px; height: 22px; flex-shrink: 0; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; color: var(--card-desc);
+}
+
+.dg-port {
+  position: absolute; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0;
+  transform: scale(1); transition: opacity .2s ease, background .2s ease, transform .15s ease;
+  cursor: crosshair; touch-action: none;
+}
+.dg-node:hover .dg-port, .dg-node.selected .dg-port { opacity: 1; }
+.dg-port:hover { background: var(--card-label); border-color: var(--card-label); transform: scale(1.6); }
+.dg-port-n { top: -4px; left: 50%; margin-left: -4px; }
+.dg-port-s { bottom: -4px; left: 50%; margin-left: -4px; }
+.dg-port-e { right: -4px; top: 50%; margin-top: -4px; }
+.dg-port-w { left: -4px; top: 50%; margin-top: -4px; }
+
+.dg-resize-handle {
+  position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0; transition: opacity .2s ease, background .2s ease;
+  cursor: nwse-resize; touch-action: none;
+}
+.dg-node:hover .dg-resize-handle, .dg-node.selected .dg-resize-handle { opacity: 1; }
+.dg-resize-handle:hover { background: var(--card-label); border-color: var(--card-label); }
+
+.dg-group-box { fill: none; stroke: var(--card-desc); stroke-width: 1; stroke-dasharray: 5 4; pointer-events: none; }
+
+.dg-edge-hit { stroke: transparent; stroke-width: 14; fill: none; pointer-events: stroke; cursor: pointer; }
+.dg-edge-line { stroke: var(--card-desc); stroke-width: 1.5; fill: none; pointer-events: none; }
+.dg-edge.selected .dg-edge-line { stroke: var(--card-label); stroke-width: 2; }
+.dg-edge-temp { stroke: var(--card-label); stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; pointer-events: none; }
+.dg-edge-label-bg { fill: var(--card-bg); pointer-events: none; }
+.dg-edge-label { font-family: var(--font-mono); font-size: 10px; fill: var(--card-desc); pointer-events: none; }
+
+@keyframes dg-marching-ants { to { stroke-dashoffset: -20; } }
+.dg-edge-line.dg-flow-dash { animation: dg-marching-ants 0.6s linear infinite; }
+/* Same keyframes, just replayed forward-then-backward each cycle for a back-and-forth feel. */
+.dg-edge-line.dg-flow-dash.dg-flow-alt { animation-direction: alternate; }
+
+@keyframes dg-flow-move { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+.dg-edge-flow-dot { fill: var(--card-label); pointer-events: none; animation: dg-flow-move 1.6s linear infinite; }
+.dg-edge-flow-dot.dg-flow-alt { animation-direction: alternate; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-edge-line.dg-flow-dash, .dg-edge-flow-dot { animation: none; }
+}
+
+.dg-edge-input {
+  position: absolute; transform: translate(-50%, -50%); z-index: 5;
+  font-family: var(--font-mono); font-size: 11px; color: var(--card-label);
+  background: var(--card-bg); border: 1px solid var(--card-label); padding: 3px 6px; outline: none; width: 120px;
+}
+
+.dg-context-menu {
+  position: absolute; z-index: 10; min-width: 140px;
+  background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: 0 4px 16px color-mix(in srgb, #000 30%, transparent);
+  padding: 4px; flex-direction: column;
+}
+/* [hidden] and .dg-context-menu are equal specificity, so the plain class rule above
+   must not set display itself (it would win the cascade tie and stay visible even
+   when the hidden attribute is set). Gate display on :not([hidden]) instead. */
+.dg-context-menu:not([hidden]) { display: flex; }
+.dg-context-menu button {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--headline-color); background: transparent; border: 0; text-align: left;
+  padding: 7px 10px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+}
+.dg-menu-icon-svg { width: 14px; height: 14px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.dg-context-menu button:hover { background: color-mix(in srgb, var(--card-label) 12%, transparent); color: var(--card-label); }
+.dg-context-menu button.danger { color: var(--tone-bad); }
+.dg-context-menu button.danger:hover { background: color-mix(in srgb, var(--tone-bad) 12%, transparent); }
+.dg-context-menu hr { width: 100%; border: 0; border-top: 1px solid var(--card-border); margin: 4px 0; }
+
+.dg-color-row { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; }
+.dg-context-menu .dg-swatch {
+  width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid var(--card-border);
+  cursor: pointer; background: transparent; transition: transform .12s ease;
+}
+.dg-context-menu .dg-swatch:hover { transform: scale(1.2); }
+.dg-context-menu .dg-swatch-none { position: relative; background: var(--card-bg); }
+.dg-context-menu .dg-swatch-none::after {
+  content: ""; position: absolute; left: 3px; right: 3px; top: 50%; height: 1px;
+  background: var(--tone-bad); transform: rotate(45deg);
+}
+
+.dg-style-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--card-desc); opacity: 0.7; padding: 6px 10px 0; }
+.dg-style-row { display: flex; gap: 4px; padding: 4px 10px 6px; flex-wrap: wrap; }
+.dg-context-menu .dg-style-btn {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--card-desc); background: transparent; border: 1px solid var(--card-border);
+  padding: 4px 8px; cursor: pointer;
+}
+.dg-context-menu .dg-style-btn:hover { border-color: var(--card-label); color: var(--headline-color); }
+.dg-context-menu .dg-style-btn.active { border-color: var(--card-label); color: var(--card-label); }
+
+.dg-root:fullscreen { background: var(--page-bg); padding: 18px 22px; }
+.dg-root:fullscreen .dg-canvas-wrap { height: calc(100vh - 130px); }
+.dg-root:-webkit-full-screen { background: var(--page-bg); padding: 18px 22px; }
+.dg-root:-webkit-full-screen .dg-canvas-wrap { height: calc(100vh - 130px); }
+
+.dg-hint { margin-top: 10px; }
+</style>
+
+<script>
+(function () {
+  var wrap = document.getElementById("dgCanvasWrap");
+  if (!wrap) return;
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var STORAGE_KEY = "boe-diagram-v1";
+
+  var viewport = document.getElementById("dgViewport");
+  var svg = document.getElementById("dgSvg");
+  var edgeLayer = document.getElementById("dgEdgeLayer");
+  var nodeLayer = document.getElementById("dgNodeLayer");
+  var addChip = document.getElementById("dgAddBox");
+  var addContainerChip = document.getElementById("dgAddContainer");
+  var addTextChip = document.getElementById("dgAddText");
+  var addComponentBtn = document.getElementById("dgAddComponent");
+  var zoomInBtn = document.getElementById("dgZoomIn");
+  var zoomOutBtn = document.getElementById("dgZoomOut");
+  var zoomResetBtn = document.getElementById("dgZoomReset");
+  var zoomVal = document.getElementById("dgZoomVal");
+  var exportBtn = document.getElementById("dgExport");
+  var importBtn = document.getElementById("dgImport");
+  var importInput = document.getElementById("dgImportInput");
+  var clearBtn = document.getElementById("dgClear");
+  var edgeInput = document.getElementById("dgEdgeLabelInput");
+  var groupBtn = document.getElementById("dgGroup");
+  var ungroupBtn = document.getElementById("dgUngroup");
+  var toFrontBtn = document.getElementById("dgToFront");
+  var toBackBtn = document.getElementById("dgToBack");
+  var duplicateBtn = document.getElementById("dgDuplicate");
+  var undoBtn = document.getElementById("dgUndo");
+  var fullscreenBtn = document.getElementById("dgFullscreen");
+  var contextMenu = document.getElementById("dgContextMenu");
+  var dgRoot = wrap.closest(".dg-root");
+
+  var view = { panX: 40, panY: 40, zoom: 1 };
+  var nodes = [];
+  var edges = [];
+  var nextId = 1;
+  var selectedNodeIds = new Set();
+  var selectedEdgeId = null;
+  var undoStack = [];
+  var UNDO_LIMIT = 50;
+
+  function uid(prefix) { return (prefix || "b") + (nextId++); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  var GRID = 22; // matches .dg-canvas-wrap's dotted background-size, so snapped positions land on visible dots
+  function snap(v) { return Math.round(v / GRID) * GRID; }
+
+  var NODE_COLORS = [
+    { key: "slate", label: "Slate", hex: "#7c8aa5" },
+    { key: "blue", label: "Blue", hex: "#5b8def" },
+    { key: "teal", label: "Teal", hex: "#2fb8a6" },
+    { key: "green", label: "Green", hex: "#5fae6a" },
+    { key: "purple", label: "Purple", hex: "#9b7cd6" },
+    { key: "rose", label: "Rose", hex: "#d97b93" },
+    { key: "aws", label: "AWS", hex: "#FF9900" },
+    { key: "gcp", label: "GCP", hex: "#4285F4" },
+    { key: "azure", label: "Azure", hex: "#0078D4" }
+  ];
+
+  // Line-art paths for the component icon set, same stroke-and-fill:none
+  // language as the toolbar icons above. Rendered inside nodes (larger) and
+  // inside context-menu buttons (smaller) via iconSvg() below.
+  var NODE_ICONS = {
+    db: '<ellipse cx="10" cy="5" rx="7" ry="3"/><path d="M3 5v10a7 3 0 0 0 14 0V5"/><path d="M3 10a7 3 0 0 0 14 0"/>',
+    user: '<circle cx="10" cy="6.5" r="3.5"/><path d="M3 17c0-4.2 3.1-7 7-7s7 2.8 7 7"/>',
+    cache: '<path d="M11 2 4 12h5l-1 6 8-11h-5l1-5z"/>',
+    server: '<rect x="3" y="3" width="14" height="5" rx="1"/><rect x="3" y="12" width="14" height="5" rx="1"/><circle cx="6.2" cy="5.5" r="0.7" fill="currentColor" stroke="none"/><circle cx="6.2" cy="14.5" r="0.7" fill="currentColor" stroke="none"/>',
+    gateway: '<rect x="7" y="2" width="6" height="4" rx="1"/><path d="M10 6v3"/><path d="M4 13h12"/><path d="M4 13v4M10 13v4M16 13v4"/>',
+    queue: '<rect x="3" y="4" width="10" height="3" rx="0.5"/><rect x="3" y="9" width="10" height="3" rx="0.5"/><rect x="3" y="14" width="10" height="3" rx="0.5"/><path d="M15.5 9.5h1.5M17 9.5l-1.8-1.8M17 9.5l-1.8 1.8"/>',
+    cloud: '<path d="M6.5 15a3.5 3.5 0 0 1-.5-6.9 4.5 4.5 0 0 1 8.6-1.6A3.3 3.3 0 0 1 14.5 15z"/>',
+    external: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14"/><path d="M10 3a11 11 0 0 1 0 14"/><path d="M10 3a11 11 0 0 0 0 14"/>',
+    vm: '<path d="M10 2 17 6v8l-7 4-7-4V6z"/><circle cx="10" cy="10" r="2"/>',
+    function: '<path d="M6 3c2.2 0 3.3.6 3.6 2C10.2 8 12 12 14 17"/><path d="M10.5 9 6 17"/>',
+    bucket: '<path d="M4 4h12l-1.4 12.2a1 1 0 0 1-1 .8H6.4a1 1 0 0 1-1-.8z"/><path d="M4 4l1-2h10l1 2"/>',
+    eventbus: '<circle cx="6" cy="14" r="1.5" fill="currentColor" stroke="none"/><path d="M9 11a4 4 0 0 1 0 6"/><path d="M12 8a8 8 0 0 1 0 12"/>',
+    firewall: '<rect x="3" y="4" width="14" height="12" rx="1"/><path d="M3 8h14M3 12h14M7 4v4M13 8v4M7 12v4"/>',
+    aiagent: '<rect x="5" y="7" width="10" height="8" rx="2"/><path d="M10 7V4"/><circle cx="10" cy="3" r="1" fill="currentColor" stroke="none"/><circle cx="7.8" cy="11" r="0.9" fill="currentColor" stroke="none"/><circle cx="12.2" cy="11" r="0.9" fill="currentColor" stroke="none"/><path d="M8 14h4"/>'
+  };
+  // Grouped for the "+ Component" palette; flattened for the node context
+  // menu's Icon row, where grouping doesn't matter since it's icon-only.
+  var COMPONENT_GROUPS = [
+    { heading: "Client & identity", items: [
+      { icon: "user", label: "User" },
+      { icon: "external", label: "External" }
+    ] },
+    { heading: "Compute", items: [
+      { icon: "server", label: "Server" },
+      { icon: "vm", label: "VM / Pod" },
+      { icon: "function", label: "Function" }
+    ] },
+    { heading: "Data", items: [
+      { icon: "db", label: "Database" },
+      { icon: "cache", label: "Cache" },
+      { icon: "bucket", label: "Object storage" }
+    ] },
+    { heading: "Messaging & network", items: [
+      { icon: "queue", label: "Queue" },
+      { icon: "eventbus", label: "Event bus" },
+      { icon: "gateway", label: "Gateway" },
+      { icon: "firewall", label: "Firewall" },
+      { icon: "cloud", label: "CDN" }
+    ] },
+    { heading: "AI", items: [
+      { icon: "aiagent", label: "AI Agent" }
+    ] }
+  ];
+  var COMPONENT_PRESETS = [].concat.apply([], COMPONENT_GROUPS.map(function (g) { return g.items; }));
+  function iconSvg(key, cls) {
+    var d = NODE_ICONS[key];
+    if (!d) return "";
+    return '<svg class="' + cls + '" viewBox="0 0 20 20" aria-hidden="true">' + d + "</svg>";
+  }
+
+  function snapshotState() {
+    return JSON.parse(JSON.stringify({ nodes: nodes, edges: edges }));
+  }
+  function commitUndo(preSnapshot) {
+    undoStack.push(preSnapshot);
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    undoBtn.disabled = false;
+  }
+  function pushUndo() {
+    commitUndo(snapshotState());
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    var prev = undoStack.pop();
+    nodes = prev.nodes;
+    edges = prev.edges;
+    clearSelection();
+    renderNodes();
+    renderEdges();
+    save();
+    undoBtn.disabled = undoStack.length === 0;
+  }
+
+  function nearestPort(node, px, py) {
+    var candidates = [
+      { x: node.x + node.w / 2, y: node.y },
+      { x: node.x + node.w / 2, y: node.y + node.h },
+      { x: node.x + node.w, y: node.y + node.h / 2 },
+      { x: node.x, y: node.y + node.h / 2 }
+    ];
+    var best = candidates[0], bestDist = Infinity;
+    candidates.forEach(function (p) {
+      var d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
+      if (d < bestDist) { bestDist = d; best = p; }
+    });
+    return best;
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var data = JSON.parse(raw);
+      nodes = Array.isArray(data.nodes) ? data.nodes : [];
+      edges = Array.isArray(data.edges) ? data.edges : [];
+      nextId = data.nextId || nodes.length + edges.length + 1;
+      if (data.view) view = data.view;
+    } catch (e) {}
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: nodes, edges: edges, nextId: nextId, view: view }));
+    } catch (e) {}
+  }
+
+  function applyView() {
+    viewport.style.transform = "translate(" + view.panX + "px," + view.panY + "px) scale(" + view.zoom + ")";
+    zoomVal.textContent = Math.round(view.zoom * 100) + "%";
+  }
+
+  function nodeById(id) {
+    for (var i = 0; i < nodes.length; i++) if (nodes[i].id === id) return nodes[i];
+    return null;
+  }
+
+  function edgeById(id) {
+    for (var i = 0; i < edges.length; i++) if (edges[i].id === id) return edges[i];
+    return null;
+  }
+
+  function setEdgeProp(id, key, value) {
+    var edge = edgeById(id);
+    if (!edge) return;
+    pushUndo();
+    edge[key] = value;
+    renderEdges();
+    save();
+  }
+
+  function groupMembers(groupId) {
+    return nodes.filter(function (n) { return n.groupId === groupId; }).map(function (n) { return n.id; });
+  }
+
+  // Recursive: a container's "children" includes anything nested inside a
+  // child container too, so dragging the outermost container (say a VPC)
+  // carries a Subnet inside it, and everything inside that Subnet, together.
+  function containerChildren(containerId) {
+    var direct = nodes.filter(function (n) { return n.parentId === containerId; });
+    var ids = direct.map(function (n) { return n.id; });
+    direct.forEach(function (n) {
+      if (n.type === "container") ids = ids.concat(containerChildren(n.id));
+    });
+    return ids;
+  }
+
+  // Topmost container (by array/paint order) whose bounds contain the given canvas-space
+  // point. Containers are kept ordered so a nested child always paints after its parent
+  // (see reorderContainerRelativeToParent), so when a point falls inside both an outer and
+  // inner container, the later match here is correctly the innermost one.
+  function containerAt(x, y, excludeIds) {
+    var exclude = excludeIds == null ? null : new Set([].concat(excludeIds));
+    var found = null;
+    nodes.forEach(function (n) {
+      if (n.type !== "container" || (exclude && exclude.has(n.id))) return;
+      if (x >= n.x && x <= n.x + n.w && y >= n.y && y <= n.y + n.h) found = n;
+    });
+    return found;
+  }
+
+  // Keeps a container immediately after its parent in paint order (or sent to
+  // the back if it has none), so nested containers reliably render on top of
+  // -- and stay clickable over -- whatever they're nested inside.
+  function reorderContainerRelativeToParent(containerNode) {
+    var idx = nodes.indexOf(containerNode);
+    if (idx === -1) return;
+    nodes.splice(idx, 1);
+    var parent = containerNode.parentId ? nodeById(containerNode.parentId) : null;
+    if (parent) {
+      var parentIdx = nodes.indexOf(parent);
+      nodes.splice(parentIdx + 1, 0, containerNode);
+    } else {
+      nodes.unshift(containerNode);
+    }
+    // Reordering the array alone doesn't move the actual DOM elements --
+    // without this, a re-parented container keeps painting (and capturing
+    // clicks) at its old stacking position until some unrelated render
+    // happens to refresh it.
+    renderNodes();
+  }
+
+  function applyNodeSelectionClasses() {
+    nodeLayer.querySelectorAll(".dg-node").forEach(function (el) {
+      el.classList.toggle("selected", selectedNodeIds.has(el.dataset.id));
+    });
+  }
+
+  function applyEdgeSelectionClasses() {
+    edgeLayer.querySelectorAll(".dg-edge").forEach(function (el) {
+      el.classList.toggle("selected", el.dataset.id === selectedEdgeId);
+    });
+  }
+
+  function updateGroupButtons() {
+    var ids = Array.from(selectedNodeIds);
+    groupBtn.disabled = ids.length < 2;
+    ungroupBtn.disabled = !ids.some(function (id) {
+      var n = nodeById(id);
+      return n && n.groupId;
+    });
+    toFrontBtn.disabled = ids.length === 0;
+    toBackBtn.disabled = ids.length === 0;
+    duplicateBtn.disabled = ids.length === 0;
+  }
+
+  function renderGroupOverlay() {
+    var existing = edgeLayer.querySelector(".dg-group-box");
+    if (existing) existing.remove();
+    if (selectedNodeIds.size < 2) return;
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (!n) return;
+      minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + n.w); maxY = Math.max(maxY, n.y + n.h);
+    });
+    if (!isFinite(minX)) return;
+    var pad = 12;
+    var rect = document.createElementNS(SVGNS, "rect");
+    rect.setAttribute("class", "dg-group-box");
+    rect.setAttribute("x", minX - pad);
+    rect.setAttribute("y", minY - pad);
+    rect.setAttribute("width", (maxX - minX) + pad * 2);
+    rect.setAttribute("height", (maxY - minY) + pad * 2);
+    edgeLayer.insertBefore(rect, edgeLayer.firstChild);
+  }
+
+  function refreshSelectionUI() {
+    applyNodeSelectionClasses();
+    applyEdgeSelectionClasses();
+    renderGroupOverlay();
+    updateGroupButtons();
+  }
+
+  function clearSelection() {
+    selectedNodeIds = new Set();
+    selectedEdgeId = null;
+    refreshSelectionUI();
+  }
+
+  function selectNodesOnly(ids) {
+    selectedNodeIds = new Set(ids);
+    selectedEdgeId = null;
+    refreshSelectionUI();
+  }
+
+  function selectEdgeOnly(id) {
+    selectedNodeIds = new Set();
+    selectedEdgeId = id;
+    refreshSelectionUI();
+  }
+
+  function toggleNodeInSelection(id) {
+    var node = nodeById(id);
+    var ids = node && node.groupId ? groupMembers(node.groupId) : [id];
+    var allIn = ids.every(function (i) { return selectedNodeIds.has(i); });
+    ids.forEach(function (i) {
+      if (allIn) selectedNodeIds.delete(i); else selectedNodeIds.add(i);
+    });
+    selectedEdgeId = null;
+    refreshSelectionUI();
+  }
+
+  function startEditLabel(label, node) {
+    label.setAttribute("contenteditable", "true");
+    label.focus();
+    var range = document.createRange();
+    range.selectNodeContents(label);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    var committed = false;
+    var labelBefore = node.label;
+    function commit() {
+      if (committed) return;
+      committed = true;
+      label.removeAttribute("contenteditable");
+      var text = label.textContent.trim();
+      var newLabel = text || "Component";
+      if (newLabel !== labelBefore) {
+        pushUndo();
+        node.label = newLabel;
+      }
+      label.textContent = node.label;
+      label.removeEventListener("blur", commit);
+      label.removeEventListener("keydown", onKeydown);
+      save();
+    }
+    function onKeydown(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        label.blur();
+      } else if (e.key === "Escape") {
+        committed = true;
+        label.textContent = node.label;
+        label.removeAttribute("contenteditable");
+        label.removeEventListener("blur", commit);
+        label.removeEventListener("keydown", onKeydown);
+      }
+    }
+    label.addEventListener("blur", commit);
+    label.addEventListener("keydown", onKeydown);
+  }
+
+  function screenToCanvas(clientX, clientY) {
+    var rect = wrap.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left - view.panX) / view.zoom,
+      y: (clientY - rect.top - view.panY) / view.zoom
+    };
+  }
+
+  function startConnectDrag(fromNode, e) {
+    var tempLine = document.createElementNS(SVGNS, "line");
+    tempLine.setAttribute("class", "dg-edge-temp");
+    edgeLayer.appendChild(tempLine);
+
+    var port = e.target;
+    port.setPointerCapture(e.pointerId);
+    var acx = fromNode.x + fromNode.w / 2, acy = fromNode.y + fromNode.h / 2;
+    var hoverTargetId = null;
+
+    function setHoverTarget(id) {
+      if (id === hoverTargetId) return;
+      if (hoverTargetId) {
+        var prevEl = nodeLayer.querySelector('[data-id="' + hoverTargetId + '"]');
+        if (prevEl) prevEl.classList.remove("drop-target");
+      }
+      if (id) {
+        var nextEl = nodeLayer.querySelector('[data-id="' + id + '"]');
+        if (nextEl) nextEl.classList.add("drop-target");
+      }
+      hoverTargetId = id;
+    }
+
+    function targetNodeIdAt(clientX, clientY) {
+      var targetEl = document.elementFromPoint(clientX, clientY);
+      var targetNodeEl = targetEl && targetEl.closest && targetEl.closest(".dg-node");
+      if (!targetNodeEl) return null;
+      var id = targetNodeEl.dataset.id;
+      return id !== fromNode.id ? id : null;
+    }
+
+    function onMove(ev) {
+      var pt = screenToCanvas(ev.clientX, ev.clientY);
+      var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
+      setHoverTarget(targetId);
+
+      var endX = pt.x, endY = pt.y;
+      if (targetId) {
+        var targetNode = nodeById(targetId);
+        if (targetNode) {
+          var snapped = nearestPort(targetNode, pt.x, pt.y);
+          endX = snapped.x;
+          endY = snapped.y;
+        }
+      }
+      tempLine.setAttribute("x1", acx);
+      tempLine.setAttribute("y1", acy);
+      tempLine.setAttribute("x2", endX);
+      tempLine.setAttribute("y2", endY);
+    }
+    function onUp(ev) {
+      port.removeEventListener("pointermove", onMove);
+      port.removeEventListener("pointerup", onUp);
+      tempLine.remove();
+      setHoverTarget(null);
+      var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
+      if (targetId) {
+        pushUndo();
+        edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "", lineStyle: "solid", arrowStyle: "one", flow: "none", flowDirection: "forward" });
+        renderEdges();
+        save();
+      }
+    }
+    port.addEventListener("pointermove", onMove);
+    port.addEventListener("pointerup", onUp);
+  }
+
+  function isHandle(target) {
+    return target.classList.contains("dg-port") || target.classList.contains("dg-resize-handle");
+  }
+
+  function wireNodeEvents(el, node, label, handle) {
+    // Note: pointerdown handlers below deliberately never call preventDefault().
+    // Doing so suppresses the browser's derived mouse events (click, dblclick) for
+    // the whole interaction, which silently broke double-click-to-rename before.
+    // touch-action: none (in CSS) handles touch-scroll suppression instead.
+    el.addEventListener("dblclick", function (e) {
+      if (isHandle(e.target)) return;
+      e.stopPropagation();
+      if (!label.isContentEditable) startEditLabel(label, node);
+    });
+
+    el.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      if (isHandle(e.target)) return;
+      if (label.isContentEditable) return;
+      e.stopPropagation();
+
+      if (e.shiftKey) {
+        toggleNodeInSelection(node.id);
+        return;
+      }
+
+      var dragIds;
+      var isContainer = node.type === "container";
+      var isGroup = !!node.groupId;
+      if (isContainer) {
+        var kids = containerChildren(node.id);
+        if (!(selectedNodeIds.size === 1 && selectedNodeIds.has(node.id))) selectNodesOnly([node.id]);
+        dragIds = [node.id].concat(kids);
+      } else if (isGroup) {
+        var members = groupMembers(node.groupId);
+        var alreadyExact = members.length === selectedNodeIds.size && members.every(function (id) { return selectedNodeIds.has(id); });
+        if (!alreadyExact) selectNodesOnly(members);
+        dragIds = members;
+      } else if (selectedNodeIds.has(node.id) && selectedNodeIds.size > 1) {
+        dragIds = Array.from(selectedNodeIds);
+      } else {
+        selectNodesOnly([node.id]);
+        dragIds = [node.id];
+      }
+
+      var startX = e.clientX, startY = e.clientY;
+      var origins = dragIds.map(function (id) {
+        var n = nodeById(id);
+        return { id: id, x: n.x, y: n.y };
+      });
+      var preDrag = snapshotState();
+      var moved = false;
+      el.setPointerCapture(e.pointerId);
+
+      function onMove(ev) {
+        var dx = (ev.clientX - startX) / view.zoom;
+        var dy = (ev.clientY - startY) / view.zoom;
+        if (!moved && (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3)) moved = true;
+        origins.forEach(function (o) {
+          var n = nodeById(o.id);
+          if (!n) return;
+          n.x = snap(o.x + dx);
+          n.y = snap(o.y + dy);
+          var elN = nodeLayer.querySelector('[data-id="' + o.id + '"]');
+          if (elN) { elN.style.left = n.x + "px"; elN.style.top = n.y + "px"; }
+        });
+        renderEdges();
+      }
+      function onUp() {
+        el.removeEventListener("pointermove", onMove);
+        el.removeEventListener("pointerup", onUp);
+        if (!moved) {
+          if (dragIds.length > 1 && !isGroup && !isContainer) selectNodesOnly([node.id]);
+        } else {
+          if (!isGroup && dragIds.length === 1) {
+            var cx = node.x + node.w / 2, cy = node.y + node.h / 2;
+            // A container can't be dropped into itself or into one of its own
+            // descendants -- exclude the whole nested subtree, not just its own id.
+            var excludeIds = isContainer ? [node.id].concat(containerChildren(node.id)) : node.id;
+            var container = containerAt(cx, cy, excludeIds);
+            node.parentId = container ? container.id : null;
+            if (isContainer) reorderContainerRelativeToParent(node);
+          }
+          commitUndo(preDrag);
+          save();
+        }
+      }
+      el.addEventListener("pointermove", onMove);
+      el.addEventListener("pointerup", onUp);
+    });
+
+    ["n", "e", "s", "w"].forEach(function (side) {
+      var port = el.querySelector(".dg-port-" + side);
+      port.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        startConnectDrag(node, e);
+      });
+    });
+
+    handle.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      var startX = e.clientX, startY = e.clientY;
+      var origW = node.w, origH = node.h;
+      var preResize = snapshotState();
+      handle.setPointerCapture(e.pointerId);
+
+      function onMove(ev) {
+        var dx = (ev.clientX - startX) / view.zoom;
+        var dy = (ev.clientY - startY) / view.zoom;
+        var maxW = node.type === "container" ? 2000 : 480;
+        var maxH = node.type === "container" ? 2000 : 320;
+        node.w = clamp(snap(origW + dx), 60, maxW);
+        node.h = clamp(snap(origH + dy), 36, maxH);
+        el.style.width = node.w + "px";
+        el.style.height = node.h + "px";
+        renderEdges();
+      }
+      function onUp() {
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        commitUndo(preResize);
+        save();
+      }
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+    });
+  }
+
+  function createNodeEl(node) {
+    var el = document.createElement("div");
+    el.className = "dg-node" + (node.type === "container" ? " container" : "") + (node.icon ? " has-icon" : "");
+    el.dataset.id = node.id;
+    if (node.color) el.dataset.color = node.color;
+    el.dataset.shape = node.shape || "rect";
+    el.style.left = node.x + "px";
+    el.style.top = node.y + "px";
+    el.style.width = node.w + "px";
+    el.style.height = node.h + "px";
+
+    if (node.icon && NODE_ICONS[node.icon]) {
+      var iconWrap = document.createElement("div");
+      iconWrap.className = "dg-node-icon";
+      iconWrap.innerHTML = iconSvg(node.icon, "dg-node-icon-svg");
+      el.appendChild(iconWrap);
+    }
+
+    var label = document.createElement("div");
+    label.className = "dg-node-label";
+    label.textContent = node.label;
+    label.spellcheck = false;
+    el.appendChild(label);
+
+    ["n", "e", "s", "w"].forEach(function (side) {
+      var port = document.createElement("div");
+      port.className = "dg-port dg-port-" + side;
+      el.appendChild(port);
+    });
+
+    var handle = document.createElement("div");
+    handle.className = "dg-resize-handle";
+    el.appendChild(handle);
+
+    nodeLayer.appendChild(el);
+    wireNodeEvents(el, node, label, handle);
+    return el;
+  }
+
+  function renderNodes() {
+    nodeLayer.innerHTML = "";
+    nodes.forEach(createNodeEl);
+    applyNodeSelectionClasses();
+  }
+
+  function clipPoint(cx, cy, w, h, dx, dy) {
+    if (dx === 0 && dy === 0) return { x: cx, y: cy };
+    var halfW = w / 2, halfH = h / 2;
+    var scaleX = dx !== 0 ? halfW / Math.abs(dx) : Infinity;
+    var scaleY = dy !== 0 ? halfH / Math.abs(dy) : Infinity;
+    var s = Math.min(scaleX, scaleY);
+    return { x: cx + dx * s, y: cy + dy * s };
+  }
+
+  function wireEdgeEvents(g, edge) {
+    g.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      selectEdgeOnly(edge.id);
+    });
+    g.addEventListener("dblclick", function (e) {
+      e.stopPropagation();
+      openEdgeLabelEditor(edge);
+    });
+  }
+
+  function renderEdges() {
+    edgeLayer.innerHTML = "";
+    edges.forEach(function (edge) {
+      var a = nodeById(edge.from), b = nodeById(edge.to);
+      if (!a || !b) return;
+      var acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+      var bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+      var dx = bcx - acx, dy = bcy - acy;
+      var p1 = clipPoint(acx, acy, a.w, a.h, dx, dy);
+      var p2 = clipPoint(bcx, bcy, b.w, b.h, -dx, -dy);
+      edge._mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+      var g = document.createElementNS(SVGNS, "g");
+      g.setAttribute("data-id", edge.id);
+      g.setAttribute("class", "dg-edge" + (edge.id === selectedEdgeId ? " selected" : ""));
+
+      var hit = document.createElementNS(SVGNS, "line");
+      hit.setAttribute("class", "dg-edge-hit");
+      hit.setAttribute("x1", p1.x); hit.setAttribute("y1", p1.y);
+      hit.setAttribute("x2", p2.x); hit.setAttribute("y2", p2.y);
+
+      var line = document.createElementNS(SVGNS, "line");
+      line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+      line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+
+      var arrowStyle = edge.arrowStyle || "one";
+      if (arrowStyle !== "none") line.setAttribute("marker-end", "url(#dgArrow)");
+      if (arrowStyle === "both") line.setAttribute("marker-start", "url(#dgArrow)");
+
+      // "dashed" is a static line style; "dash" flow reuses the same dash
+      // pattern but animates its offset (marching ants) to read as motion.
+      var flowAlt = edge.flowDirection === "alternate";
+      var lineClass = "dg-edge-line";
+      var dash = edge.lineStyle === "dashed" ? "6 4" : null;
+      if (edge.flow === "dash") {
+        dash = dash || "6 4";
+        lineClass += " dg-flow-dash" + (flowAlt ? " dg-flow-alt" : "");
+      }
+      if (dash) line.setAttribute("stroke-dasharray", dash);
+      line.setAttribute("class", lineClass);
+
+      g.appendChild(hit);
+      g.appendChild(line);
+
+      if (edge.flow === "dot") {
+        var dot = document.createElementNS(SVGNS, "circle");
+        dot.setAttribute("r", "3");
+        dot.setAttribute("class", "dg-edge-flow-dot" + (flowAlt ? " dg-flow-alt" : ""));
+        dot.style.offsetPath = "path('M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y + "')";
+        g.appendChild(dot);
+      }
+
+      if (edge.label) {
+        var w = Math.max(20, edge.label.length * 6 + 10);
+        var rect = document.createElementNS(SVGNS, "rect");
+        rect.setAttribute("class", "dg-edge-label-bg");
+        rect.setAttribute("x", edge._mid.x - w / 2);
+        rect.setAttribute("y", edge._mid.y - 8);
+        rect.setAttribute("width", w);
+        rect.setAttribute("height", 16);
+
+        var text = document.createElementNS(SVGNS, "text");
+        text.setAttribute("class", "dg-edge-label");
+        text.setAttribute("x", edge._mid.x);
+        text.setAttribute("y", edge._mid.y + 3.5);
+        text.setAttribute("text-anchor", "middle");
+        text.textContent = edge.label;
+
+        g.appendChild(rect);
+        g.appendChild(text);
+      }
+
+      wireEdgeEvents(g, edge);
+      edgeLayer.appendChild(g);
+    });
+    renderGroupOverlay();
+  }
+
+  function openEdgeLabelEditor(edge) {
+    var mid = edge._mid || { x: 0, y: 0 };
+    edgeInput.style.left = (view.panX + view.zoom * mid.x) + "px";
+    edgeInput.style.top = (view.panY + view.zoom * mid.y) + "px";
+    edgeInput.value = edge.label || "";
+    edgeInput.hidden = false;
+    edgeInput.focus();
+    edgeInput.select();
+
+    function commit() {
+      var newLabel = edgeInput.value.trim();
+      if (newLabel !== (edge.label || "")) {
+        pushUndo();
+        edge.label = newLabel;
+      }
+      edgeInput.hidden = true;
+      edgeInput.removeEventListener("blur", commit);
+      edgeInput.removeEventListener("keydown", onKeydown);
+      renderEdges();
+      save();
+    }
+    function onKeydown(e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        edgeInput.blur();
+      } else if (e.key === "Escape") {
+        edgeInput.hidden = true;
+        edgeInput.removeEventListener("blur", commit);
+        edgeInput.removeEventListener("keydown", onKeydown);
+      }
+    }
+    edgeInput.addEventListener("blur", commit);
+    edgeInput.addEventListener("keydown", onKeydown);
+  }
+
+  function addNode(x, y, type, extra) {
+    var isContainer = type === "container";
+    var isText = type === "text";
+    extra = extra || {};
+    var node = {
+      id: uid(),
+      x: x, y: y,
+      w: isContainer ? 320 : (isText ? 110 : 140),
+      h: isContainer ? 220 : (isText ? 28 : 56),
+      label: extra.label || (isContainer ? "Container" : (isText ? "Text" : "Component")),
+      type: isContainer ? "container" : "box",
+      shape: extra.shape || (isText ? "text" : "rect"),
+      icon: extra.icon || "",
+      parentId: null,
+      color: null
+    };
+    // A container can nest inside another container too (a Subnet dropped
+    // inside a VPC), same auto-parent as a plain box dropped inside one.
+    var c = containerAt(x + node.w / 2, y + node.h / 2, null);
+    if (c) node.parentId = c.id;
+    pushUndo();
+    // New containers go behind everything already on the canvas, since a
+    // frame that paints on top of existing boxes would hide them -- unless
+    // it's nested, in which case it needs to paint after its own parent.
+    if (isContainer) {
+      nodes.unshift(node);
+      if (node.parentId) reorderContainerRelativeToParent(node);
+    } else {
+      nodes.push(node);
+    }
+    renderNodes();
+    renderEdges();
+    save();
+    selectNodesOnly([node.id]);
+    var el = nodeLayer.querySelector('[data-id="' + node.id + '"]');
+    var label = el.querySelector(".dg-node-label");
+    startEditLabel(label, node);
+  }
+
+  wrap.addEventListener("pointerdown", function (e) {
+    if (e.button !== 0) return;
+    if (e.target.closest(".dg-node") || e.target.closest(".dg-edge")) return;
+    hideContextMenu();
+    var startX = e.clientX, startY = e.clientY;
+    var origPanX = view.panX, origPanY = view.panY;
+    wrap.setPointerCapture(e.pointerId);
+    wrap.classList.add("panning");
+    clearSelection();
+
+    function onMove(ev) {
+      view.panX = origPanX + (ev.clientX - startX);
+      view.panY = origPanY + (ev.clientY - startY);
+      applyView();
+    }
+    function onUp() {
+      wrap.removeEventListener("pointermove", onMove);
+      wrap.removeEventListener("pointerup", onUp);
+      wrap.classList.remove("panning");
+      save();
+    }
+    wrap.addEventListener("pointermove", onMove);
+    wrap.addEventListener("pointerup", onUp);
+  });
+
+  wrap.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var rect = wrap.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    var canvasX = (mx - view.panX) / view.zoom;
+    var canvasY = (my - view.panY) / view.zoom;
+    var factor = e.deltaY < 0 ? 1.1 : 0.9;
+    var newZoom = clamp(view.zoom * factor, 0.4, 2.5);
+    view.panX = mx - canvasX * newZoom;
+    view.panY = my - canvasY * newZoom;
+    view.zoom = newZoom;
+    applyView();
+    save();
+  }, { passive: false });
+
+  wrap.addEventListener("dragover", function (e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+  var DROP_SIZES = { container: [320, 220], text: [110, 28], box: [140, 56] };
+  wrap.addEventListener("drop", function (e) {
+    e.preventDefault();
+    var raw = e.dataTransfer.getData("text/plain");
+    var kind = DROP_SIZES[raw] ? raw : "box";
+    var size = DROP_SIZES[kind];
+    var rect = wrap.getBoundingClientRect();
+    var mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    var canvasX = (mx - view.panX) / view.zoom;
+    var canvasY = (my - view.panY) / view.zoom;
+    addNode(canvasX - size[0] / 2, canvasY - size[1] / 2, kind);
+  });
+
+  addChip.addEventListener("dragstart", function (e) {
+    e.dataTransfer.setData("text/plain", "box");
+    e.dataTransfer.effectAllowed = "copy";
+  });
+  addChip.addEventListener("click", function () {
+    var rect = wrap.getBoundingClientRect();
+    var cx = (rect.width / 2 - view.panX) / view.zoom;
+    var cy = (rect.height / 2 - view.panY) / view.zoom;
+    addNode(cx - 70, cy - 28, "box");
+  });
+
+  addContainerChip.addEventListener("dragstart", function (e) {
+    e.dataTransfer.setData("text/plain", "container");
+    e.dataTransfer.effectAllowed = "copy";
+  });
+  addContainerChip.addEventListener("click", function () {
+    var rect = wrap.getBoundingClientRect();
+    var cx = (rect.width / 2 - view.panX) / view.zoom;
+    var cy = (rect.height / 2 - view.panY) / view.zoom;
+    addNode(cx - 160, cy - 110, "container");
+  });
+
+  addTextChip.addEventListener("dragstart", function (e) {
+    e.dataTransfer.setData("text/plain", "text");
+    e.dataTransfer.effectAllowed = "copy";
+  });
+  addTextChip.addEventListener("click", function () {
+    var rect = wrap.getBoundingClientRect();
+    var cx = (rect.width / 2 - view.panX) / view.zoom;
+    var cy = (rect.height / 2 - view.panY) / view.zoom;
+    addNode(cx - 55, cy - 14, "text");
+  });
+
+  function placePreset(preset) {
+    var rect = wrap.getBoundingClientRect();
+    var cx = (rect.width / 2 - view.panX) / view.zoom;
+    var cy = (rect.height / 2 - view.panY) / view.zoom;
+    addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label });
+  }
+  addComponentBtn.addEventListener("click", function () {
+    var items = [];
+    COMPONENT_GROUPS.forEach(function (group, i) {
+      if (i > 0) items.push("separator");
+      items.push({ heading: group.heading });
+      group.items.forEach(function (preset) {
+        items.push({ label: preset.label, icon: preset.icon, action: function () { placePreset(preset); } });
+      });
+    });
+    var btnRect = addComponentBtn.getBoundingClientRect();
+    showContextMenu(items, btnRect.left, btnRect.bottom + 6);
+  });
+
+  function zoomBy(factor) {
+    var rect = wrap.getBoundingClientRect();
+    var cx = rect.width / 2, cy = rect.height / 2;
+    var canvasX = (cx - view.panX) / view.zoom;
+    var canvasY = (cy - view.panY) / view.zoom;
+    var newZoom = clamp(view.zoom * factor, 0.4, 2.5);
+    view.panX = cx - canvasX * newZoom;
+    view.panY = cy - canvasY * newZoom;
+    view.zoom = newZoom;
+    applyView();
+    save();
+  }
+  zoomInBtn.addEventListener("click", function () { zoomBy(1.2); });
+  zoomOutBtn.addEventListener("click", function () { zoomBy(1 / 1.2); });
+  zoomResetBtn.addEventListener("click", function () {
+    view = { panX: 40, panY: 40, zoom: 1 };
+    applyView();
+    save();
+  });
+
+  exportBtn.addEventListener("click", function () {
+    var data = JSON.stringify({ nodes: nodes, edges: edges }, null, 2);
+    var blob = new Blob([data], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "system-diagram.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  function recomputeNextIdFrom(items) {
+    var max = nextId - 1;
+    items.forEach(function (item) {
+      var match = /(\d+)$/.exec(String(item.id || ""));
+      if (match) max = Math.max(max, parseInt(match[1], 10));
+    });
+    return max + 1;
+  }
+
+  importBtn.addEventListener("click", function () {
+    importInput.value = "";
+    importInput.click();
+  });
+
+  importInput.addEventListener("change", function () {
+    var file = importInput.files && importInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data;
+      try {
+        data = JSON.parse(String(reader.result));
+      } catch (e) {
+        alert("That file isn't valid JSON.");
+        return;
+      }
+      if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+        alert('That file doesn\'t look like a diagram export (expected "nodes" and "edges" arrays).');
+        return;
+      }
+      if ((nodes.length || edges.length) && !confirm("Import will replace the current diagram. Continue?")) {
+        return;
+      }
+      pushUndo();
+
+      // Normalize defensively: imported nodes/edges keep their own ids (so internal
+      // from/to references stay valid), missing fields fall back to safe defaults.
+      // This also tolerates an export from before colors/containers/edge styles existed.
+      var importedNodes = data.nodes.map(function (nd) {
+        return {
+          id: nd && nd.id ? String(nd.id) : uid(),
+          x: nd && typeof nd.x === "number" ? nd.x : 0,
+          y: nd && typeof nd.y === "number" ? nd.y : 0,
+          w: nd && typeof nd.w === "number" ? nd.w : 140,
+          h: nd && typeof nd.h === "number" ? nd.h : 56,
+          label: nd && typeof nd.label === "string" ? nd.label : "Component",
+          type: nd && nd.type === "container" ? "container" : "box",
+          parentId: (nd && nd.parentId) || null,
+          groupId: (nd && nd.groupId) || null,
+          color: (nd && nd.color) || null,
+          shape: (nd && ["rect", "rounded", "diamond", "text"].indexOf(nd.shape) !== -1) ? nd.shape : "rect",
+          icon: (nd && NODE_ICONS[nd.icon]) ? nd.icon : ""
+        };
+      });
+      var validIds = {};
+      importedNodes.forEach(function (nd) { validIds[nd.id] = true; });
+      var importedEdges = data.edges
+        .filter(function (ed) { return ed && validIds[ed.from] && validIds[ed.to]; })
+        .map(function (ed) {
+          return {
+            id: ed.id ? String(ed.id) : uid(),
+            from: ed.from,
+            to: ed.to,
+            label: typeof ed.label === "string" ? ed.label : "",
+            lineStyle: ed.lineStyle === "dashed" ? "dashed" : "solid",
+            arrowStyle: (ed.arrowStyle === "both" || ed.arrowStyle === "none") ? ed.arrowStyle : "one",
+            flow: (ed.flow === "dot" || ed.flow === "dash") ? ed.flow : "none",
+            flowDirection: ed.flowDirection === "alternate" ? "alternate" : "forward"
+          };
+        });
+
+      nodes = importedNodes;
+      edges = importedEdges;
+      // A hand-edited or older export might not list a nested container's
+      // parent before it -- re-settle paint order so a child always renders
+      // after its parent regardless of file order. One pass per container is
+      // always enough to converge, however deep the nesting goes.
+      var importedContainers = importedNodes.filter(function (n) { return n.type === "container"; });
+      importedContainers.forEach(function () {
+        importedContainers.forEach(function (cn) {
+          if (cn.parentId) reorderContainerRelativeToParent(cn);
+        });
+      });
+      nextId = recomputeNextIdFrom(nodes.concat(edges));
+      clearSelection();
+      renderNodes();
+      renderEdges();
+      save();
+    };
+    reader.onerror = function () {
+      alert("Couldn't read that file.");
+    };
+    reader.readAsText(file);
+  });
+
+  clearBtn.addEventListener("click", function () {
+    if (!nodes.length && !edges.length) return;
+    if (!confirm("Clear the diagram? This can't be undone.")) return;
+    pushUndo();
+    nodes = [];
+    edges = [];
+    clearSelection();
+    renderNodes();
+    renderEdges();
+    save();
+  });
+
+  groupBtn.addEventListener("click", function () {
+    if (selectedNodeIds.size < 2) return;
+    pushUndo();
+    var gid = uid("g");
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n) n.groupId = gid;
+    });
+    updateGroupButtons();
+    save();
+  });
+
+  ungroupBtn.addEventListener("click", function () {
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n) n.groupId = null;
+    });
+    updateGroupButtons();
+    save();
+  });
+
+  function reorderSelected(toFront) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    var picked = nodes.filter(function (n) { return selectedNodeIds.has(n.id); });
+    var rest = nodes.filter(function (n) { return !selectedNodeIds.has(n.id); });
+    nodes = toFront ? rest.concat(picked) : picked.concat(rest);
+    renderNodes();
+    renderEdges();
+    save();
+  }
+  toFrontBtn.addEventListener("click", function () { reorderSelected(true); });
+  toBackBtn.addEventListener("click", function () { reorderSelected(false); });
+
+  function duplicateSelection() {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    var offset = GRID * 2;
+    var idMap = {};
+    var groupIdMap = {};
+    var selectedArr = nodes.filter(function (n) { return selectedNodeIds.has(n.id); });
+    var newNodes = selectedArr.map(function (n) {
+      var newId = uid();
+      idMap[n.id] = newId;
+      var newGroupId = null;
+      if (n.groupId) {
+        if (!groupIdMap[n.groupId]) groupIdMap[n.groupId] = uid("g");
+        newGroupId = groupIdMap[n.groupId];
+      }
+      return {
+        id: newId, x: snap(n.x + offset), y: snap(n.y + offset), w: n.w, h: n.h,
+        label: n.label, type: n.type, groupId: newGroupId, parentId: null, color: n.color || null,
+        shape: n.shape || "rect", icon: n.icon || ""
+      };
+    });
+    newNodes.forEach(function (nn, i) {
+      var origParent = selectedArr[i].parentId;
+      if (origParent) nn.parentId = idMap[origParent] || origParent;
+    });
+    var newEdges = [];
+    edges.forEach(function (ed) {
+      if (idMap[ed.from] && idMap[ed.to]) {
+        newEdges.push({ id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label, lineStyle: ed.lineStyle, arrowStyle: ed.arrowStyle, flow: ed.flow, flowDirection: ed.flowDirection });
+      }
+    });
+    newNodes.forEach(function (nn) {
+      if (nn.type === "container") {
+        nodes.unshift(nn);
+        if (nn.parentId) reorderContainerRelativeToParent(nn);
+      } else {
+        nodes.push(nn);
+      }
+    });
+    edges = edges.concat(newEdges);
+    renderNodes();
+    renderEdges();
+    selectNodesOnly(newNodes.map(function (n) { return n.id; }));
+    save();
+  }
+  duplicateBtn.addEventListener("click", duplicateSelection);
+  undoBtn.addEventListener("click", undo);
+
+  function deleteSelection() {
+    if (selectedNodeIds.size === 0 && !selectedEdgeId) return;
+    pushUndo();
+    if (selectedNodeIds.size > 0) {
+      var removedIds = selectedNodeIds;
+      // Deleting a container releases its children rather than taking them with it.
+      nodes.forEach(function (n) {
+        if (n.parentId && removedIds.has(n.parentId)) n.parentId = null;
+      });
+      nodes = nodes.filter(function (nd) { return !removedIds.has(nd.id); });
+      edges = edges.filter(function (ed) { return !removedIds.has(ed.from) && !removedIds.has(ed.to); });
+    } else if (selectedEdgeId) {
+      var removedEdgeId = selectedEdgeId;
+      edges = edges.filter(function (ed) { return ed.id !== removedEdgeId; });
+    }
+    clearSelection();
+    renderNodes();
+    renderEdges();
+    save();
+  }
+
+  document.addEventListener("keydown", function (e) {
+    var panel = wrap.closest(".boe-tab");
+    if (panel && panel.hidden) return;
+    var active = document.activeElement;
+    if (active && (active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      duplicateSelection();
+      return;
+    }
+
+    if (selectedNodeIds.size === 0 && !selectedEdgeId) return;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      deleteSelection();
+    }
+  });
+
+  // Stop pointerdown from bubbling to wrap's pan/deselect handler, which would
+  // clear the selection and hide the menu before a menu button's own click fires.
+  contextMenu.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+
+  function hideContextMenu() {
+    contextMenu.hidden = true;
+    contextMenu.innerHTML = "";
+  }
+
+  function setSelectionColor(colorKey) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.color = colorKey;
+    });
+    renderNodes();
+    save();
+  }
+
+  function setSelectionShape(shapeKey) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.shape = shapeKey;
+    });
+    renderNodes();
+    save();
+  }
+
+  function setSelectionIcon(iconKey) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.icon = iconKey;
+    });
+    renderNodes();
+    save();
+  }
+
+  function showContextMenu(items, clientX, clientY) {
+    contextMenu.innerHTML = "";
+    items.forEach(function (item) {
+      if (item === "separator") {
+        contextMenu.appendChild(document.createElement("hr"));
+        return;
+      }
+      if (item.heading) {
+        var h = document.createElement("div");
+        h.className = "dg-style-label";
+        h.textContent = item.heading;
+        contextMenu.appendChild(h);
+        return;
+      }
+      if (item.swatches) {
+        var row = document.createElement("div");
+        row.className = "dg-color-row";
+        var noneBtn = document.createElement("button");
+        noneBtn.type = "button";
+        noneBtn.className = "dg-swatch dg-swatch-none";
+        noneBtn.title = "No color";
+        noneBtn.addEventListener("click", function () { hideContextMenu(); item.onPick(null); });
+        row.appendChild(noneBtn);
+        NODE_COLORS.forEach(function (c) {
+          var sw = document.createElement("button");
+          sw.type = "button";
+          sw.className = "dg-swatch";
+          sw.style.background = c.hex;
+          sw.title = c.label;
+          sw.addEventListener("click", function () { hideContextMenu(); item.onPick(c.key); });
+          row.appendChild(sw);
+        });
+        contextMenu.appendChild(row);
+        return;
+      }
+      if (item.optionRow) {
+        if (item.rowLabel) {
+          var lbl = document.createElement("div");
+          lbl.className = "dg-style-label";
+          lbl.textContent = item.rowLabel;
+          contextMenu.appendChild(lbl);
+        }
+        var row2 = document.createElement("div");
+        row2.className = "dg-style-row";
+        item.options.forEach(function (opt) {
+          var ob = document.createElement("button");
+          ob.type = "button";
+          ob.className = "dg-style-btn" + (opt.key === item.current ? " active" : "");
+          if (opt.icon) {
+            ob.innerHTML = iconSvg(opt.icon, "dg-menu-icon-svg");
+            ob.title = opt.label;
+          } else {
+            ob.textContent = opt.label;
+          }
+          ob.addEventListener("click", function () { hideContextMenu(); item.onPick(opt.key); });
+          row2.appendChild(ob);
+        });
+        contextMenu.appendChild(row2);
+        return;
+      }
+      var btn = document.createElement("button");
+      btn.type = "button";
+      if (item.icon) {
+        var iw = document.createElement("span");
+        iw.innerHTML = iconSvg(item.icon, "dg-menu-icon-svg");
+        btn.appendChild(iw.firstChild);
+      }
+      var txt = document.createElement("span");
+      txt.textContent = item.label;
+      btn.appendChild(txt);
+      if (item.danger) btn.className = "danger";
+      btn.addEventListener("click", function () {
+        hideContextMenu();
+        item.action();
+      });
+      contextMenu.appendChild(btn);
+    });
+    var rect = wrap.getBoundingClientRect();
+    contextMenu.style.left = (clientX - rect.left) + "px";
+    contextMenu.style.top = (clientY - rect.top) + "px";
+    contextMenu.hidden = false;
+  }
+
+  wrap.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
+    var nodeEl = e.target.closest(".dg-node");
+    var edgeEl = !nodeEl && e.target.closest(".dg-edge");
+    if (nodeEl) {
+      var id = nodeEl.dataset.id;
+      var node = nodeById(id);
+      if (!node) { hideContextMenu(); return; }
+      if (!selectedNodeIds.has(id)) selectNodesOnly([id]);
+      var items = [
+        { label: "Duplicate", action: duplicateSelection },
+        { label: "To Front", action: function () { reorderSelected(true); } },
+        { label: "To Back", action: function () { reorderSelected(false); } }
+      ];
+      if (node.type !== "container") {
+        items.push("separator");
+        items.push({
+          optionRow: true, rowLabel: "Shape", current: node.shape || "rect",
+          options: [{ key: "rect", label: "Rect" }, { key: "rounded", label: "Rounded" }, { key: "diamond", label: "Diamond" }, { key: "text", label: "Text" }],
+          onPick: setSelectionShape
+        });
+        items.push({
+          optionRow: true, rowLabel: "Icon", current: node.icon || "",
+          options: [{ key: "", label: "None" }].concat(COMPONENT_PRESETS.map(function (p) { return { key: p.icon, label: p.label, icon: p.icon }; })),
+          onPick: setSelectionIcon
+        });
+        items.push({ swatches: true, onPick: setSelectionColor });
+      }
+      if (selectedNodeIds.size >= 2) items.push({ label: "Group", action: function () { groupBtn.click(); } });
+      if (node.groupId) items.push({ label: "Ungroup", action: function () { ungroupBtn.click(); } });
+      items.push("separator");
+      items.push({ label: "Delete", danger: true, action: deleteSelection });
+      showContextMenu(items, e.clientX, e.clientY);
+    } else if (edgeEl) {
+      var eid = edgeEl.dataset.id;
+      selectEdgeOnly(eid);
+      var edge = edgeById(eid);
+      if (!edge) { hideContextMenu(); return; }
+      var edgeItems = [
+        {
+          optionRow: true, rowLabel: "Line", current: edge.lineStyle || "solid",
+          options: [{ key: "solid", label: "Solid" }, { key: "dashed", label: "Dashed" }],
+          onPick: function (key) { setEdgeProp(eid, "lineStyle", key); }
+        },
+        {
+          optionRow: true, rowLabel: "Arrow", current: edge.arrowStyle || "one",
+          options: [{ key: "one", label: "One-way" }, { key: "both", label: "Both ways" }, { key: "none", label: "No arrow" }],
+          onPick: function (key) { setEdgeProp(eid, "arrowStyle", key); }
+        },
+        {
+          optionRow: true, rowLabel: "Flow", current: edge.flow || "none",
+          options: [{ key: "none", label: "Off" }, { key: "dot", label: "Dot" }, { key: "dash", label: "Dash" }],
+          onPick: function (key) { setEdgeProp(eid, "flow", key); }
+        }
+      ];
+      if ((edge.flow || "none") !== "none") {
+        edgeItems.push({
+          optionRow: true, rowLabel: "Direction", current: edge.flowDirection || "forward",
+          options: [{ key: "forward", label: "Forward" }, { key: "alternate", label: "Back and forth" }],
+          onPick: function (key) { setEdgeProp(eid, "flowDirection", key); }
+        });
+      }
+      edgeItems.push("separator");
+      edgeItems.push({ label: "Delete", danger: true, action: deleteSelection });
+      showContextMenu(edgeItems, e.clientX, e.clientY);
+    } else {
+      hideContextMenu();
+    }
+  });
+  document.addEventListener("pointerdown", function (e) {
+    if (!contextMenu.hidden && !contextMenu.contains(e.target)) hideContextMenu();
+  });
+  wrap.addEventListener("wheel", hideContextMenu, { passive: true });
+
+  function isFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+  var fullscreenEnterIcon = fullscreenBtn.querySelector(".dg-icon-enter");
+  var fullscreenExitIcon = fullscreenBtn.querySelector(".dg-icon-exit");
+  function updateFullscreenLabel() {
+    var fs = isFullscreen();
+    var label = fs ? "Exit fullscreen" : "Fullscreen";
+    fullscreenBtn.title = label;
+    fullscreenBtn.setAttribute("aria-label", label);
+    // SVG elements don't inherit HTMLElement's .hidden IDL reflection, so
+    // `.hidden = bool` here would just set an inert JS property and never
+    // touch the actual attribute -- toggleAttribute works on any Element.
+    fullscreenEnterIcon.toggleAttribute("hidden", fs);
+    fullscreenExitIcon.toggleAttribute("hidden", !fs);
+  }
+  fullscreenBtn.addEventListener("click", function () {
+    if (isFullscreen()) {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else if (dgRoot.requestFullscreen) {
+      dgRoot.requestFullscreen();
+    } else if (dgRoot.webkitRequestFullscreen) {
+      dgRoot.webkitRequestFullscreen();
+    }
+  });
+  document.addEventListener("fullscreenchange", updateFullscreenLabel);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenLabel);
+
+  load();
+  renderNodes();
+  renderEdges();
+  applyView();
+  updateGroupButtons();
+})();
+</script>

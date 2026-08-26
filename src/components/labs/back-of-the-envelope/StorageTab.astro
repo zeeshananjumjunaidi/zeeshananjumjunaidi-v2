@@ -1,0 +1,101 @@
+  <div class="boe-tab" data-tab="storage" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="stLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use writes/day from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="stLinkedNote">Currently <span id="stLinkedValue">—</span> writes per day, linked from Traffic.</div>
+          <label class="boe-field" id="stWritesField" hidden>
+            <span class="boe-label">Writes per day<span class="boe-unit">obj</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="stWrites" value="2000000">
+            <span class="boe-num-preview" id="stWritesPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Bytes per object<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="wbytes" value="1024">
+            <span class="boe-num-preview" id="wbytesPreview"></span>
+            <span class="boe-hint">Payload plus row overhead. A tweet is around 300 B; a photo is around 2 MB.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Compression ratio<span class="boe-unit">: 1</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="comp" value="2">
+            <span class="boe-hint">Text compresses 2–5×, JSON 4–10×, already-compressed media around 1×.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Index &amp; metadata overhead</span>
+              <span class="boe-slide-val"><span id="idxPctVal">25</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="200" step="5" id="idxPct" value="25">
+            <span class="boe-hint">Secondary indexes often cost more than the rows themselves.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Replication factor<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="repl" value="3">
+            <span class="boe-hint">3 is the default for durability across availability zones.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Retention<span class="boe-unit">years</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="years" value="5">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Yearly growth</span>
+              <span class="boe-slide-val"><span id="growthVal">30</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="200" step="5" id="growth" value="30">
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Storage is a <strong>flow</strong> problem, not a stock problem: bytes per day, times days. The two multipliers people forget sit on either side of that: compression divides the size, while indexes and replication multiply it back up.</p>
+          <p>With growth <em>g</em>, cumulative years form a geometric series, not a straight multiply: <code>Y1 × ((1+g)^N − 1) / g</code>. At 30% growth, five years comes out to 9.0 first-years, not 5.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Provisioned storage</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Total after <span id="stYearsLabel">5</span> years</span><span class="boe-out-val" id="out-physical">—</span></div>
+            <div class="boe-formula">logical × replication</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Logical (one copy)</span><span class="boe-out-val" id="out-logical">—</span></div>
+            <div class="boe-formula">Y1 × ((1+g)^N − 1) / g</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>First-year footprint</span><span class="boe-out-val" id="out-y1">—</span></div>
+            <div class="boe-formula">daily × 365</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per day (raw)</span><span class="boe-out-val" id="out-rawDay">—</span></div>
+            <div class="boe-formula">writes/day × bytes</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per day (stored, all copies)</span><span class="boe-out-val" id="out-physDay">—</span></div>
+            <div class="boe-formula">raw ÷ compression × (1+index) × replicas</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per month (stored)</span><span class="boe-out-val" id="out-physMonth">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Objects stored</span><span class="boe-out-val" id="out-objects">—</span></div>
+            <div class="boe-sub">Row and key count matters as much as bytes for index design</div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-petabyte">
+          Petabyte scale. Object storage with a metadata index beats a general-purpose database here, and cold tiering will dominate your cost conversation.
+        </div>
+        <div class="boe-flag" id="flag-billionrows">
+          Over 100 billion rows. No single index fits in memory, so plan for partitioned indexes or key-value access patterns only.
+        </div>
+      </div>
+    </div>
+  </div>

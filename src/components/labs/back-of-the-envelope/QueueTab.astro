@@ -1,0 +1,105 @@
+  <div class="boe-tab" data-tab="queue" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Stream</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="queueLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak write RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="queueLinkedNote">Currently <span id="queueLinkedValue">—</span> peak writes/sec, linked from Traffic.</div>
+          <label class="boe-field" id="msgRateField" hidden>
+            <span class="boe-label">Messages per second, peak<span class="boe-unit">msg/s</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="msgRate" value="200000">
+            <span class="boe-num-preview" id="msgRatePreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Bytes per message<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="msgBytes" value="512">
+            <span class="boe-num-preview" id="msgBytesPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Retention<span class="boe-unit">hours</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="retH" value="72">
+            <span class="boe-hint">How far back a consumer can rewind. 72 h is a common default.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Replication factor<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="qRepl" value="3">
+          </label>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Partitions &amp; consumers</h3>
+          <label class="boe-field">
+            <span class="boe-label">Throughput per partition<span class="boe-unit">MB/s</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="partMBps" value="10">
+            <span class="boe-hint">Kafka sustains roughly 10 MB/s per partition before latency degrades.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Messages per consumer instance<span class="boe-unit">msg/s</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="consRate" value="8000">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Consumer outage to survive<span class="boe-unit">min</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="outageMin" value="30">
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>A log is a buffer, and buffers have three numbers: fill rate, drain rate, and depth. Partition count is set by the greater of raw throughput and consumer parallelism, because <strong>one partition can only be read by one consumer in a group</strong>, partitions are the ceiling on how wide you can scale reads.</p>
+          <p>The number people skip is <strong>drain time</strong>. If consumers run at 1.1× the produce rate, a 30-minute outage takes five hours to clear. Recovery headroom is a design parameter, not an accident.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Sizing</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Partitions</span><span class="boe-out-val" id="out-partitions">—</span></div>
+            <div class="boe-formula">max(throughput ÷ per-partition, consumer count)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Throughput</span><span class="boe-out-val" id="out-qBps">—</span></div>
+            <div class="boe-formula">rate × message size</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Network with replication</span><span class="boe-out-val" id="out-qNet">—</span></div>
+            <div class="boe-formula">× (replicas + 1 consumer copy)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Consumer instances</span><span class="boe-out-val" id="out-consumers">—</span></div>
+            <div class="boe-formula">rate ÷ per-consumer rate</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Broker storage</span><span class="boe-out-val" id="out-qStore">—</span></div>
+            <div class="boe-formula">bytes/s × retention × replication</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Backlog recovery</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Time to drain after outage</span><span class="boe-out-val" id="out-drain">—</span></div>
+            <div class="boe-formula">backlog ÷ (consumer capacity − produce rate)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Backlog accumulated</span><span class="boe-out-val" id="out-backlog">—</span></div>
+            <div class="boe-formula" id="out-backlogFormula">—</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Backlog on disk</span><span class="boe-out-val" id="out-backlogBytes">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Spare drain capacity</span><span class="boe-out-val" id="out-drainCap">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-queue-drain">
+          Consumers have no spare capacity. Any pause becomes permanent lag, add instances so total capacity comfortably exceeds the produce rate.
+        </div>
+      </div>
+    </div>
+  </div>
