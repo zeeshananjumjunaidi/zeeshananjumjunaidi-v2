@@ -104,7 +104,7 @@
 .dg-icon[hidden] { display: none; }
 
 .dg-canvas-wrap {
-  position: relative; height: 460px; border: 1px solid var(--card-border); background: var(--card-bg);
+  position: relative; height: 600px; border: 1px solid var(--card-border); background: var(--card-bg);
   overflow: hidden; cursor: grab; touch-action: none;
   background-image: radial-gradient(color-mix(in srgb, var(--card-border) 70%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
@@ -165,6 +165,19 @@
 .dg-node[data-shape="text"]:hover, .dg-node[data-shape="text"].selected, .dg-node[data-shape="text"].drop-target {
   border-color: var(--card-border); border-style: dashed;
 }
+/* A text node has no background/border to tint (above), so its color swatch
+   colors the label text instead. Scoped to [data-shape="text"] only -- a
+   colored rect/rounded/diamond node keeps plain body-color text for
+   contrast against its own tinted background. */
+.dg-node[data-shape="text"][data-color="slate"] { color: color-mix(in srgb, #7c8aa5 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="blue"] { color: color-mix(in srgb, #5b8def 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="teal"] { color: color-mix(in srgb, #2fb8a6 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="green"] { color: color-mix(in srgb, #5fae6a 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="purple"] { color: color-mix(in srgb, #9b7cd6 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="rose"] { color: color-mix(in srgb, #d97b93 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="aws"] { color: color-mix(in srgb, #FF9900 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="gcp"] { color: color-mix(in srgb, #4285F4 70%, var(--headline-color)); }
+.dg-node[data-shape="text"][data-color="azure"] { color: color-mix(in srgb, #0078D4 70%, var(--headline-color)); }
 
 .dg-node.has-icon { flex-direction: column; gap: 5px; }
 .dg-node-icon-svg {
@@ -222,7 +235,12 @@
 }
 
 .dg-context-menu {
-  position: absolute; z-index: 10; min-width: 140px;
+  /* Fixed, not absolute: it's a sibling of the canvas viewport but must be
+     able to draw outside .dg-canvas-wrap's overflow:hidden clip (the
+     component picker alone is ~23 rows, taller than the canvas). Fixed
+     positioning escapes that clip and is measured straight in viewport
+     coordinates, which is what showContextMenu() already receives. */
+  position: fixed; z-index: 10; min-width: 140px; max-height: calc(100vh - 16px); overflow-y: auto;
   background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: 0 4px 16px color-mix(in srgb, #000 30%, transparent);
   padding: 4px; flex-direction: column;
 }
@@ -1561,10 +1579,16 @@
       });
       contextMenu.appendChild(btn);
     });
-    var rect = wrap.getBoundingClientRect();
-    contextMenu.style.left = (clientX - rect.left) + "px";
-    contextMenu.style.top = (clientY - rect.top) + "px";
+    contextMenu.style.left = clientX + "px";
+    contextMenu.style.top = clientY + "px";
     contextMenu.hidden = false;
+    // Clamp against the actual window, not just the canvas, so a menu
+    // opened near the bottom/right edge stays fully on screen.
+    var menuRect = contextMenu.getBoundingClientRect();
+    var maxLeft = window.innerWidth - menuRect.width - 8;
+    var maxTop = window.innerHeight - menuRect.height - 8;
+    if (menuRect.left > maxLeft) contextMenu.style.left = Math.max(8, maxLeft) + "px";
+    if (menuRect.top > maxTop) contextMenu.style.top = Math.max(8, maxTop) + "px";
   }
 
   wrap.addEventListener("contextmenu", function (e) {

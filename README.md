@@ -10,6 +10,7 @@ My personal site, rebuilt in Astro. It's a static site, deployed to GitHub Pages
 - Plain CSS custom properties for the dark/light theme, no Tailwind
 - Content collections for the Lab entries
 - pnpm
+- Claude Code
 
 ## Running it locally
 
