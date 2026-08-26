@@ -19,8 +19,25 @@ export function getStaticPaths() {
 
 const { lab } = Astro.props;
 const SimComponent = SIM_COMPONENTS[lab.slug];
+
+const pageURL = new URL(`/lab/${lab.slug}`, Astro.site).toString();
+const ogImageURL = new URL(`/lab/${lab.slug}-og.png`, Astro.site).toString();
+
+const toolSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: lab.title,
+  description: lab.metaDescription || lab.tagline,
+  url: pageURL,
+  applicationCategory: 'EducationalApplication',
+  operatingSystem: 'Any (runs in the browser)',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author: { '@type': 'Person', name: 'Zeeshan Anjum Junaidi', url: 'https://zeeshananjum.com' },
+  keywords: lab.tags.join(', '),
+};
 ---
-<BaseLayout title={`${lab.title} - Zeeshan Anjum Junaidi`} description={lab.tagline}>
+<BaseLayout title={`${lab.title} - Zeeshan Anjum Junaidi`} description={lab.metaDescription || lab.tagline} image={ogImageURL}>
+  <script type="application/ld+json" is:inline set:html={JSON.stringify(toolSchema)} />
   <div class="lab-page">
     <Nav />
 

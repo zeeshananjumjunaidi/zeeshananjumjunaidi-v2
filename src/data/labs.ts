@@ -6,6 +6,8 @@ export interface Lab {
   writeup: string[];
   /** Collapse the writeup behind a disclosure so a tool with several tabs isn't pushed down the page. */
   collapsibleWriteup?: boolean;
+  /** Longer, keyword-bearing description for <meta name="description"> and OG/Twitter tags -- the on-page tagline stays short for UI, this is written for search/social instead. Falls back to tagline if omitted. */
+  metaDescription?: string;
 }
 
 export const labs: Lab[] = [
@@ -13,6 +15,7 @@ export const labs: Lab[] = [
     slug: 'slam-playground',
     title: 'SLAM Playground',
     tagline: 'Mapping an unknown space while tracking your own position inside it',
+    metaDescription: 'An interactive SLAM (simultaneous localization and mapping) simulator: drive a robot with noisy LiDAR, GPS, and IMU sensors, watch occupancy-grid mapping and ICP scan matching fuse ground truth and belief in real time in your browser.',
     tags: ['SLAM', 'occupancy grid', 'ICP', 'sensor fusion'],
     writeup: [
       "SLAM, simultaneous localization and mapping, is the chicken-and-egg problem at the heart of every autonomous robot: to know where you are, you need a map; to build a map, you need to know where you are. The robot never gets ground truth, only noisy sensor readings, and has to fuse them into a single best guess of both at once.",
@@ -24,6 +27,7 @@ export const labs: Lab[] = [
     slug: 'hybrid-astar-parking',
     title: 'Hybrid A* Parking',
     tagline: 'Planning a full reverse-parking maneuver into a tight bay',
+    metaDescription: 'A hybrid A* path-planning demo: watch a search over reachable vehicle states (not grid cells) plan and drive a full reverse-parking maneuver, turning radius and gear changes included, directly in your browser.',
     tags: ['hybrid A*', 'parking', 'Reeds-Shepp'],
     writeup: [
       "Plain A* searches a grid and happily produces paths with instant 90° turns, fine for a game character, useless for a car. Hybrid A* searches over the vehicle's actual reachable states instead of grid cells: at every step it only considers moves the car could really drive, respecting its turning radius and letting it choose forward or reverse gears. The result is a path an actual steering wheel can execute, gear changes included.",
@@ -35,6 +39,7 @@ export const labs: Lab[] = [
     slug: 'back-of-the-envelope',
     title: 'Back of the Envelope',
     tagline: 'Capacity math for system design',
+    metaDescription: 'A free back-of-the-envelope system design calculator: traffic, storage, cache, bandwidth, compute, database sharding, queues, latency, and availability math, plus a diagram tool for sketching the architecture, all in your browser.',
     tags: ['capacity planning', 'estimation'],
     collapsibleWriteup: true,
     writeup: [
