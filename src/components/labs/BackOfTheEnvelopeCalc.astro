@@ -29,6 +29,7 @@ import DatabaseTab from "./back-of-the-envelope/DatabaseTab.astro";
 import QueueTab from "./back-of-the-envelope/QueueTab.astro";
 import LatencyTab from "./back-of-the-envelope/LatencyTab.astro";
 import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
+import ExportDialog from "./back-of-the-envelope/ExportDialog.astro";
 ---
 
 <div class="boe-root">
@@ -36,7 +37,10 @@ import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
     <div>
       <p class="boe-blurb" id="boeBlurb">Capacity math for system design. Change one assumption and watch it move through the numbers below.</p>
     </div>
-    <button type="button" id="boeReset" class="boe-reset">Reset</button>
+    <div class="boe-head-actions">
+      <button type="button" id="boeExportBtn" class="boe-export-btn">Export</button>
+      <button type="button" id="boeReset" class="boe-reset">Reset</button>
+    </div>
   </div>
 
   <div class="boe-tabs">
@@ -60,6 +64,7 @@ import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
   <QueueTab />
   <LatencyTab />
   <DiagramTab />
+  <ExportDialog />
 </div>
 
 <!--
@@ -75,12 +80,16 @@ import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
 
 .boe-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
 .boe-blurb { font-family: var(--font-body); font-weight: 300; font-size: 15px; line-height: 1.7; color: var(--card-desc); max-width: 52ch; margin: 0; }
-.boe-reset {
+.boe-head-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.boe-reset, .boe-export-btn {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--tone-bad); background: transparent; border: 1px solid var(--card-border);
-  padding: 6px 12px; cursor: pointer; flex-shrink: 0; transition: border-color .4s ease;
+  background: transparent; border: 1px solid var(--card-border);
+  padding: 6px 12px; cursor: pointer; flex-shrink: 0; transition: border-color .4s ease, color .4s ease;
 }
+.boe-reset { color: var(--tone-bad); }
 .boe-reset:hover { border-color: var(--tone-bad); }
+.boe-export-btn { color: var(--card-label); }
+.boe-export-btn:hover { border-color: var(--card-label); }
 
 .boe-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); }
 .boe-tabbtn {

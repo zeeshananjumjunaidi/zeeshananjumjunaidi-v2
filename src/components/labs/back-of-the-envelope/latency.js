@@ -144,6 +144,10 @@ export function initLatency(onChange) {
   IDS.forEach(function (id) { els[id].addEventListener("input", render); });
 
   renderHops();
+  // Latency has no upstream tab (unlike Queue, which piggybacks on Database's
+  // onChange), so nothing in the render cascade would ever reach it -- it
+  // has to kick off its own first render instead of waiting to be called.
+  render();
 
   return { state: state, render: render, reset: reset };
 }

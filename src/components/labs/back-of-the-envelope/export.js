@@ -286,6 +286,12 @@ function buildPrintDiagramBlock(section) {
   if (clone) {
     clone.style.transform = "translate(" + (pad - minX) + "px, " + (pad - minY) + "px)";
     clone.querySelectorAll("[contenteditable]").forEach(function (el) { el.removeAttribute("contenteditable"); });
+    // Strip ids from the clone -- it's a static snapshot with no scripting,
+    // and leaving them in would duplicate the live diagram's element ids
+    // (marker refs like url(#dgArrow) still resolve fine against the
+    // original, which keeps its own id).
+    clone.removeAttribute("id");
+    clone.querySelectorAll("[id]").forEach(function (el) { el.removeAttribute("id"); });
   }
 
   var maxPrintWidth = 680;
@@ -368,6 +374,13 @@ export function initExport() {
   var selectAllEl = document.getElementById("exportSelectAll");
   var closeBtn = document.getElementById("exportClose");
   var printRoot = document.getElementById("boeExportPrint");
+  // The print stylesheet hides everything under `body > *` except this node,
+  // which only works if it really is a direct child of <body> -- move it out
+  // of wherever the Astro component tree placed it (nested inside the page's
+  // layout/main), independent of that layout's structure.
+  if (printRoot && printRoot.parentElement !== document.body) {
+    document.body.appendChild(printRoot);
+  }
 
   var meta = loadMeta();
   titleEl.value = meta.title || "";

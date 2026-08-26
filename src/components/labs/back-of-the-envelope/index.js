@@ -10,8 +10,10 @@ import { initCompute } from "./compute.js";
 import { initDatabase } from "./database.js";
 import { initQueue } from "./queue.js";
 import { initLatency } from "./latency.js";
+import { initExport } from "./export.js";
 
 initTabs();
+initExport();
 
 var traffic = initTraffic(function () { storage.render(); });
 var storage = initStorage(traffic.state, function () { cache.render(); });
