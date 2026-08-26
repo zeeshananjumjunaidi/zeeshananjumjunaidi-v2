@@ -1,10 +1,12 @@
   <div class="boe-tab" data-tab="diagram" hidden>
     <div class="dg-root">
       <div class="dg-toolbar">
+        <button type="button" class="dg-btn dg-btn-icon" id="dgToggleSidebar" title="Components panel" aria-label="Toggle components panel" aria-pressed="true">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="1.2"/><path d="M8 4v12"/></svg>
+        </button>
         <div class="dg-chip" id="dgAddBox" draggable="true" title="Drag onto the canvas, or click to add">+ Box</div>
         <div class="dg-chip" id="dgAddContainer" draggable="true" title="Drag onto the canvas, or click to add">+ Container</div>
         <div class="dg-chip" id="dgAddText" draggable="true" title="Drag onto the canvas, or click to add">+ Text</div>
-        <button type="button" class="dg-chip dg-chip-btn" id="dgAddComponent" title="Pick a labeled component">+ Component ▾</button>
         <div class="dg-tool-group">
           <button type="button" class="dg-btn" id="dgZoomOut" aria-label="Zoom out">−</button>
           <span class="dg-zoom-val" id="dgZoomVal">100%</span>
@@ -48,23 +50,28 @@
         </button>
       </div>
 
-      <div class="dg-canvas-wrap" id="dgCanvasWrap">
-        <div class="dg-viewport" id="dgViewport">
-          <svg class="dg-svg" id="dgSvg">
-            <defs>
-              <marker id="dgArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 z"></path>
-              </marker>
-            </defs>
-            <g id="dgEdgeLayer"></g>
-          </svg>
-          <div id="dgNodeLayer"></div>
+      <div class="dg-body">
+        <div class="dg-sidebar" id="dgSidebar">
+          <div class="dg-sidebar-inner" id="dgSidebarInner"></div>
         </div>
-        <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
-        <div id="dgContextMenu" class="dg-context-menu" hidden></div>
+        <div class="dg-canvas-wrap" id="dgCanvasWrap">
+          <div class="dg-viewport" id="dgViewport">
+            <svg class="dg-svg" id="dgSvg">
+              <defs>
+                <marker id="dgArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z"></path>
+                </marker>
+              </defs>
+              <g id="dgEdgeLayer"></g>
+            </svg>
+            <div id="dgNodeLayer"></div>
+          </div>
+          <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
+          <div id="dgContextMenu" class="dg-context-menu" hidden></div>
+        </div>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box", "+ Container", or "+ Text" onto the canvas, or click any of them to add. "+ Component" drops a pre-labeled icon: client and identity, compute, data, messaging and network, or AI. A container is a large frame: drop boxes (or other containers, nested as deep as you like) inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including its shape (rect, rounded, diamond, or borderless text), an icon, and a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box", "+ Container", or "+ Text" onto the canvas, or click any of them to add. The components panel on the left (toggle it with the button before "+ Box") holds pre-labeled icons grouped by client and identity, compute, data, messaging and network, or AI -- drag one onto the canvas or click it to drop it in the middle. A container is a large frame: drop boxes (or other containers, nested as deep as you like) inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including its shape (rect, rounded, diamond, or borderless text), an icon, and a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
     </div>
   </div>
 
@@ -103,9 +110,41 @@
    attribute's state. */
 .dg-icon[hidden] { display: none; }
 
+.dg-body { display: flex; align-items: stretch; gap: 0; }
+.dg-sidebar {
+  width: 190px; flex-shrink: 0; border: 1px solid var(--card-border); border-right: 0;
+  background: var(--card-bg); overflow-y: auto;
+  transition: width .2s ease, opacity .2s ease, border-width .2s ease;
+}
+.dg-sidebar.collapsed { width: 0; opacity: 0; border-width: 0; overflow: hidden; }
+.dg-sidebar-group { padding: 10px 0; border-bottom: 1px solid var(--card-border); }
+.dg-sidebar-group:last-child { border-bottom: 0; }
+.dg-sidebar-heading {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--card-desc); opacity: 0.75; padding: 0 12px 6px; white-space: nowrap;
+}
+.dg-sidebar-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: grab;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--headline-color); white-space: nowrap;
+  transition: background .15s ease, color .15s ease;
+}
+.dg-sidebar-item:hover { background: color-mix(in srgb, var(--card-label) 10%, transparent); color: var(--card-label); }
+.dg-sidebar-item:active { cursor: grabbing; }
+.dg-sidebar-item-icon { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (max-width: 640px) {
+  .dg-body { flex-direction: column; }
+  .dg-sidebar {
+    width: auto; max-height: 160px; border-right: 1px solid var(--card-border); border-bottom: 0;
+    transition: max-height .2s ease, opacity .2s ease, border-width .2s ease;
+  }
+  .dg-sidebar.collapsed { max-height: 0; width: auto; }
+  .dg-sidebar-group { display: inline-block; vertical-align: top; padding: 10px 12px; border-bottom: 0; border-right: 1px solid var(--card-border); }
+}
+
 .dg-canvas-wrap {
   position: relative; height: 600px; border: 1px solid var(--card-border); background: var(--card-bg);
-  overflow: hidden; cursor: grab; touch-action: none;
+  overflow: hidden; cursor: grab; touch-action: none; flex: 1 1 auto; min-width: 0;
   background-image: radial-gradient(color-mix(in srgb, var(--card-border) 70%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
 }
@@ -304,7 +343,9 @@
   var addChip = document.getElementById("dgAddBox");
   var addContainerChip = document.getElementById("dgAddContainer");
   var addTextChip = document.getElementById("dgAddText");
-  var addComponentBtn = document.getElementById("dgAddComponent");
+  var sidebarToggleBtn = document.getElementById("dgToggleSidebar");
+  var sidebarEl = document.getElementById("dgSidebar");
+  var sidebarInner = document.getElementById("dgSidebarInner");
   var zoomInBtn = document.getElementById("dgZoomIn");
   var zoomOutBtn = document.getElementById("dgZoomOut");
   var zoomResetBtn = document.getElementById("dgZoomReset");
@@ -1128,16 +1169,23 @@
     e.dataTransfer.dropEffect = "copy";
   });
   var DROP_SIZES = { container: [320, 220], text: [110, 28], box: [140, 56] };
+  // Payload is JSON so a sidebar item can carry icon/label alongside its
+  // kind, not just the plain "box"/"container"/"text" strings the toolbar
+  // chips set -- falls back to treating a non-JSON payload as a bare kind,
+  // so nothing about the existing chips below needs to change.
   wrap.addEventListener("drop", function (e) {
     e.preventDefault();
     var raw = e.dataTransfer.getData("text/plain");
-    var kind = DROP_SIZES[raw] ? raw : "box";
+    var payload;
+    try { payload = JSON.parse(raw); } catch (err) { payload = { kind: raw }; }
+    var kind = DROP_SIZES[payload.kind] ? payload.kind : "box";
     var size = DROP_SIZES[kind];
     var rect = wrap.getBoundingClientRect();
     var mx = e.clientX - rect.left, my = e.clientY - rect.top;
     var canvasX = (mx - view.panX) / view.zoom;
     var canvasY = (my - view.panY) / view.zoom;
-    addNode(canvasX - size[0] / 2, canvasY - size[1] / 2, kind);
+    var extra = payload.icon ? { icon: payload.icon, label: payload.label } : undefined;
+    addNode(canvasX - size[0] / 2, canvasY - size[1] / 2, kind, extra);
   });
 
   addChip.addEventListener("dragstart", function (e) {
@@ -1179,18 +1227,48 @@
     var cy = (rect.height / 2 - view.panY) / view.zoom;
     addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label });
   }
-  addComponentBtn.addEventListener("click", function () {
-    var items = [];
-    COMPONENT_GROUPS.forEach(function (group, i) {
-      if (i > 0) items.push("separator");
-      items.push({ heading: group.heading });
-      group.items.forEach(function (preset) {
-        items.push({ label: preset.label, icon: preset.icon, action: function () { placePreset(preset); } });
+
+  // Sidebar replaces the old "+ Component" dropdown -- same COMPONENT_GROUPS
+  // data (also still used by the right-click "Icon" picker below), built
+  // once since the list itself never changes at runtime.
+  var SIDEBAR_KEY = "boe-diagram-sidebar";
+  COMPONENT_GROUPS.forEach(function (group) {
+    var groupEl = document.createElement("div");
+    groupEl.className = "dg-sidebar-group";
+    var heading = document.createElement("div");
+    heading.className = "dg-sidebar-heading";
+    heading.textContent = group.heading;
+    groupEl.appendChild(heading);
+    group.items.forEach(function (preset) {
+      var item = document.createElement("div");
+      item.className = "dg-sidebar-item";
+      item.draggable = true;
+      item.title = "Drag onto the canvas, or click to add";
+      item.innerHTML = iconSvg(preset.icon, "dg-sidebar-item-icon");
+      var label = document.createElement("span");
+      label.textContent = preset.label;
+      item.appendChild(label);
+      item.addEventListener("dragstart", function (e) {
+        e.dataTransfer.setData("text/plain", JSON.stringify({ kind: "box", icon: preset.icon, label: preset.label }));
+        e.dataTransfer.effectAllowed = "copy";
       });
+      item.addEventListener("click", function () { placePreset(preset); });
+      groupEl.appendChild(item);
     });
-    var btnRect = addComponentBtn.getBoundingClientRect();
-    showContextMenu(items, btnRect.left, btnRect.bottom + 6);
+    sidebarInner.appendChild(groupEl);
   });
+
+  function setSidebarCollapsed(collapsed) {
+    sidebarEl.classList.toggle("collapsed", collapsed);
+    sidebarToggleBtn.setAttribute("aria-pressed", String(!collapsed));
+    try { localStorage.setItem(SIDEBAR_KEY, collapsed ? "collapsed" : "expanded"); } catch (e) {}
+  }
+  sidebarToggleBtn.addEventListener("click", function () {
+    setSidebarCollapsed(!sidebarEl.classList.contains("collapsed"));
+  });
+  var storedSidebarState = null;
+  try { storedSidebarState = localStorage.getItem(SIDEBAR_KEY); } catch (e) {}
+  setSidebarCollapsed(storedSidebarState ? storedSidebarState === "collapsed" : window.innerWidth < 640);
 
   function zoomBy(factor) {
     var rect = wrap.getBoundingClientRect();
