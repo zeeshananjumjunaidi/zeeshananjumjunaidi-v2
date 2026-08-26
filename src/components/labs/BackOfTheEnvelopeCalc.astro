@@ -450,6 +450,8 @@
       <div class="dg-toolbar">
         <div class="dg-chip" id="dgAddBox" draggable="true" title="Drag onto the canvas, or click to add">+ Box</div>
         <div class="dg-chip" id="dgAddContainer" draggable="true" title="Drag onto the canvas, or click to add">+ Container</div>
+        <div class="dg-chip" id="dgAddText" draggable="true" title="Drag onto the canvas, or click to add">+ Text</div>
+        <button type="button" class="dg-chip dg-chip-btn" id="dgAddComponent" title="Pick a labeled component">+ Component ▾</button>
         <div class="dg-tool-group">
           <button type="button" class="dg-btn" id="dgZoomOut" aria-label="Zoom out">−</button>
           <span class="dg-zoom-val" id="dgZoomVal">100%</span>
@@ -509,7 +511,7 @@
         <div id="dgContextMenu" class="dg-context-menu" hidden></div>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box" or "+ Container" onto the canvas, or click either to add. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box", "+ Container", or "+ Text" onto the canvas, or click any of them to add. "+ Component" drops a pre-labeled Database, User, Cache, Server, Gateway, Queue, or CDN icon. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including its shape (rect, rounded, diamond, or borderless text), an icon, and a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
     </div>
   </div>
 </div>
@@ -535,6 +537,13 @@
 .boe-tabbtn + .boe-tabbtn { margin-left: 18px; }
 .boe-tabbtn:hover { color: var(--headline-color); }
 .boe-tabbtn.active { color: var(--card-label); border-bottom-color: var(--card-label); }
+/* Diagram is a different kind of tool from the four numeric calculators before
+   it (a canvas, not a form), set apart with a divider rather than blending
+   into the same run of tabs. */
+.boe-tabbtn[data-tab="diagram"] { margin-left: 30px; position: relative; }
+.boe-tabbtn[data-tab="diagram"]::before {
+  content: ""; position: absolute; left: -16px; top: 4px; bottom: 6px; width: 1px; background: var(--card-border);
+}
 
 .boe-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
 @media (min-width: 860px) { .boe-grid { grid-template-columns: 1fr 1fr; align-items: start; } }
@@ -642,6 +651,7 @@
   cursor: grab; user-select: none; background: transparent;
 }
 .dg-chip:active { cursor: grabbing; }
+.dg-chip-btn { cursor: pointer; font: inherit; }
 .dg-tool-group { display: flex; align-items: center; gap: 6px; }
 .dg-zoom-val { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); min-width: 34px; text-align: center; }
 .dg-btn {
@@ -718,6 +728,24 @@
   color: var(--card-desc);
 }
 
+/* Shape variants -- outline only, ports still sit at the bounding box's N/S/E/W
+   midpoints regardless of shape (those happen to land exactly on a diamond's
+   own vertices, so connectors need no special-casing there). */
+.dg-node[data-shape="rounded"] { border-radius: 12px; }
+.dg-node[data-shape="diamond"] { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+.dg-node[data-shape="text"] {
+  background: transparent; border-color: transparent; padding: 4px 6px;
+}
+.dg-node[data-shape="text"]:hover, .dg-node[data-shape="text"].selected, .dg-node[data-shape="text"].drop-target {
+  border-color: var(--card-border); border-style: dashed;
+}
+
+.dg-node.has-icon { flex-direction: column; gap: 5px; }
+.dg-node-icon-svg {
+  width: 22px; height: 22px; flex-shrink: 0; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; color: var(--card-desc);
+}
+
 .dg-port {
   position: absolute; width: 8px; height: 8px; border-radius: 50%;
   background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0;
@@ -779,8 +807,9 @@
 .dg-context-menu button {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
   color: var(--headline-color); background: transparent; border: 0; text-align: left;
-  padding: 7px 10px; cursor: pointer;
+  padding: 7px 10px; cursor: pointer; display: flex; align-items: center; gap: 8px;
 }
+.dg-menu-icon-svg { width: 14px; height: 14px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .dg-context-menu button:hover { background: color-mix(in srgb, var(--card-label) 12%, transparent); color: var(--card-label); }
 .dg-context-menu button.danger { color: var(--tone-bad); }
 .dg-context-menu button.danger:hover { background: color-mix(in srgb, var(--tone-bad) 12%, transparent); }
@@ -1246,6 +1275,8 @@
   var nodeLayer = document.getElementById("dgNodeLayer");
   var addChip = document.getElementById("dgAddBox");
   var addContainerChip = document.getElementById("dgAddContainer");
+  var addTextChip = document.getElementById("dgAddText");
+  var addComponentBtn = document.getElementById("dgAddComponent");
   var zoomInBtn = document.getElementById("dgZoomIn");
   var zoomOutBtn = document.getElementById("dgZoomOut");
   var zoomResetBtn = document.getElementById("dgZoomReset");
@@ -1291,6 +1322,33 @@
     { key: "gcp", label: "GCP", hex: "#4285F4" },
     { key: "azure", label: "Azure", hex: "#0078D4" }
   ];
+
+  // Line-art paths for the component icon set, same stroke-and-fill:none
+  // language as the toolbar icons above. Rendered inside nodes (larger) and
+  // inside context-menu buttons (smaller) via iconSvg() below.
+  var NODE_ICONS = {
+    db: '<ellipse cx="10" cy="5" rx="7" ry="3"/><path d="M3 5v10a7 3 0 0 0 14 0V5"/><path d="M3 10a7 3 0 0 0 14 0"/>',
+    user: '<circle cx="10" cy="6.5" r="3.5"/><path d="M3 17c0-4.2 3.1-7 7-7s7 2.8 7 7"/>',
+    cache: '<path d="M11 2 4 12h5l-1 6 8-11h-5l1-5z"/>',
+    server: '<rect x="3" y="3" width="14" height="5" rx="1"/><rect x="3" y="12" width="14" height="5" rx="1"/><circle cx="6.2" cy="5.5" r="0.7" fill="currentColor" stroke="none"/><circle cx="6.2" cy="14.5" r="0.7" fill="currentColor" stroke="none"/>',
+    gateway: '<rect x="7" y="2" width="6" height="4" rx="1"/><path d="M10 6v3"/><path d="M4 13h12"/><path d="M4 13v4M10 13v4M16 13v4"/>',
+    queue: '<rect x="3" y="4" width="10" height="3" rx="0.5"/><rect x="3" y="9" width="10" height="3" rx="0.5"/><rect x="3" y="14" width="10" height="3" rx="0.5"/><path d="M15.5 9.5h1.5M17 9.5l-1.8-1.8M17 9.5l-1.8 1.8"/>',
+    cloud: '<path d="M6.5 15a3.5 3.5 0 0 1-.5-6.9 4.5 4.5 0 0 1 8.6-1.6A3.3 3.3 0 0 1 14.5 15z"/>'
+  };
+  var COMPONENT_PRESETS = [
+    { icon: "db", label: "Database" },
+    { icon: "user", label: "User" },
+    { icon: "cache", label: "Cache" },
+    { icon: "server", label: "Server" },
+    { icon: "gateway", label: "Gateway" },
+    { icon: "queue", label: "Queue" },
+    { icon: "cloud", label: "CDN" }
+  ];
+  function iconSvg(key, cls) {
+    var d = NODE_ICONS[key];
+    if (!d) return "";
+    return '<svg class="' + cls + '" viewBox="0 0 20 20" aria-hidden="true">' + d + "</svg>";
+  }
 
   function snapshotState() {
     return JSON.parse(JSON.stringify({ nodes: nodes, edges: edges }));
@@ -1717,13 +1775,21 @@
 
   function createNodeEl(node) {
     var el = document.createElement("div");
-    el.className = "dg-node" + (node.type === "container" ? " container" : "");
+    el.className = "dg-node" + (node.type === "container" ? " container" : "") + (node.icon ? " has-icon" : "");
     el.dataset.id = node.id;
     if (node.color) el.dataset.color = node.color;
+    el.dataset.shape = node.shape || "rect";
     el.style.left = node.x + "px";
     el.style.top = node.y + "px";
     el.style.width = node.w + "px";
     el.style.height = node.h + "px";
+
+    if (node.icon && NODE_ICONS[node.icon]) {
+      var iconWrap = document.createElement("div");
+      iconWrap.className = "dg-node-icon";
+      iconWrap.innerHTML = iconSvg(node.icon, "dg-node-icon-svg");
+      el.appendChild(iconWrap);
+    }
 
     var label = document.createElement("div");
     label.className = "dg-node-label";
@@ -1886,15 +1952,19 @@
     edgeInput.addEventListener("keydown", onKeydown);
   }
 
-  function addNode(x, y, type) {
+  function addNode(x, y, type, extra) {
     var isContainer = type === "container";
+    var isText = type === "text";
+    extra = extra || {};
     var node = {
       id: uid(),
       x: x, y: y,
-      w: isContainer ? 320 : 140,
-      h: isContainer ? 220 : 56,
-      label: isContainer ? "Container" : "Component",
+      w: isContainer ? 320 : (isText ? 110 : 140),
+      h: isContainer ? 220 : (isText ? 28 : 56),
+      label: extra.label || (isContainer ? "Container" : (isText ? "Text" : "Component")),
       type: isContainer ? "container" : "box",
+      shape: extra.shape || (isText ? "text" : "rect"),
+      icon: extra.icon || "",
       parentId: null,
       color: null
     };
@@ -1959,15 +2029,17 @@
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
   });
+  var DROP_SIZES = { container: [320, 220], text: [110, 28], box: [140, 56] };
   wrap.addEventListener("drop", function (e) {
     e.preventDefault();
-    var kind = e.dataTransfer.getData("text/plain") === "container" ? "container" : "box";
-    var w = kind === "container" ? 320 : 140, h = kind === "container" ? 220 : 56;
+    var raw = e.dataTransfer.getData("text/plain");
+    var kind = DROP_SIZES[raw] ? raw : "box";
+    var size = DROP_SIZES[kind];
     var rect = wrap.getBoundingClientRect();
     var mx = e.clientX - rect.left, my = e.clientY - rect.top;
     var canvasX = (mx - view.panX) / view.zoom;
     var canvasY = (my - view.panY) / view.zoom;
-    addNode(canvasX - w / 2, canvasY - h / 2, kind);
+    addNode(canvasX - size[0] / 2, canvasY - size[1] / 2, kind);
   });
 
   addChip.addEventListener("dragstart", function (e) {
@@ -1990,6 +2062,34 @@
     var cx = (rect.width / 2 - view.panX) / view.zoom;
     var cy = (rect.height / 2 - view.panY) / view.zoom;
     addNode(cx - 160, cy - 110, "container");
+  });
+
+  addTextChip.addEventListener("dragstart", function (e) {
+    e.dataTransfer.setData("text/plain", "text");
+    e.dataTransfer.effectAllowed = "copy";
+  });
+  addTextChip.addEventListener("click", function () {
+    var rect = wrap.getBoundingClientRect();
+    var cx = (rect.width / 2 - view.panX) / view.zoom;
+    var cy = (rect.height / 2 - view.panY) / view.zoom;
+    addNode(cx - 55, cy - 14, "text");
+  });
+
+  addComponentBtn.addEventListener("click", function () {
+    var items = COMPONENT_PRESETS.map(function (preset) {
+      return {
+        label: preset.label,
+        icon: preset.icon,
+        action: function () {
+          var rect = wrap.getBoundingClientRect();
+          var cx = (rect.width / 2 - view.panX) / view.zoom;
+          var cy = (rect.height / 2 - view.panY) / view.zoom;
+          addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label });
+        }
+      };
+    });
+    var btnRect = addComponentBtn.getBoundingClientRect();
+    showContextMenu(items, btnRect.left, btnRect.bottom + 6);
   });
 
   function zoomBy(factor) {
@@ -2074,7 +2174,9 @@
           type: nd && nd.type === "container" ? "container" : "box",
           parentId: (nd && nd.parentId) || null,
           groupId: (nd && nd.groupId) || null,
-          color: (nd && nd.color) || null
+          color: (nd && nd.color) || null,
+          shape: (nd && ["rect", "rounded", "diamond", "text"].indexOf(nd.shape) !== -1) ? nd.shape : "rect",
+          icon: (nd && NODE_ICONS[nd.icon]) ? nd.icon : ""
         };
       });
       var validIds = {};
@@ -2172,7 +2274,8 @@
       }
       return {
         id: newId, x: snap(n.x + offset), y: snap(n.y + offset), w: n.w, h: n.h,
-        label: n.label, type: n.type, groupId: newGroupId, parentId: null, color: n.color || null
+        label: n.label, type: n.type, groupId: newGroupId, parentId: null, color: n.color || null,
+        shape: n.shape || "rect", icon: n.icon || ""
       };
     });
     newNodes.forEach(function (nn, i) {
@@ -2262,6 +2365,28 @@
     save();
   }
 
+  function setSelectionShape(shapeKey) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.shape = shapeKey;
+    });
+    renderNodes();
+    save();
+  }
+
+  function setSelectionIcon(iconKey) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.icon = iconKey;
+    });
+    renderNodes();
+    save();
+  }
+
   function showContextMenu(items, clientX, clientY) {
     contextMenu.innerHTML = "";
     items.forEach(function (item) {
@@ -2303,7 +2428,12 @@
           var ob = document.createElement("button");
           ob.type = "button";
           ob.className = "dg-style-btn" + (opt.key === item.current ? " active" : "");
-          ob.textContent = opt.label;
+          if (opt.icon) {
+            ob.innerHTML = iconSvg(opt.icon, "dg-menu-icon-svg");
+            ob.title = opt.label;
+          } else {
+            ob.textContent = opt.label;
+          }
           ob.addEventListener("click", function () { hideContextMenu(); item.onPick(opt.key); });
           row2.appendChild(ob);
         });
@@ -2312,7 +2442,14 @@
       }
       var btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = item.label;
+      if (item.icon) {
+        var iw = document.createElement("span");
+        iw.innerHTML = iconSvg(item.icon, "dg-menu-icon-svg");
+        btn.appendChild(iw.firstChild);
+      }
+      var txt = document.createElement("span");
+      txt.textContent = item.label;
+      btn.appendChild(txt);
       if (item.danger) btn.className = "danger";
       btn.addEventListener("click", function () {
         hideContextMenu();
@@ -2342,6 +2479,16 @@
       ];
       if (node.type !== "container") {
         items.push("separator");
+        items.push({
+          optionRow: true, rowLabel: "Shape", current: node.shape || "rect",
+          options: [{ key: "rect", label: "Rect" }, { key: "rounded", label: "Rounded" }, { key: "diamond", label: "Diamond" }, { key: "text", label: "Text" }],
+          onPick: setSelectionShape
+        });
+        items.push({
+          optionRow: true, rowLabel: "Icon", current: node.icon || "",
+          options: [{ key: "", label: "None" }].concat(COMPONENT_PRESETS.map(function (p) { return { key: p.icon, label: p.label, icon: p.icon }; })),
+          onPick: setSelectionIcon
+        });
         items.push({ swatches: true, onPick: setSelectionColor });
       }
       if (selectedNodeIds.size >= 2) items.push({ label: "Group", action: function () { groupBtn.click(); } });
