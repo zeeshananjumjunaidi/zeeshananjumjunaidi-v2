@@ -25,6 +25,7 @@
     <button type="button" class="boe-tabbtn active" data-tab="traffic">Traffic</button>
     <button type="button" class="boe-tabbtn" data-tab="storage">Storage</button>
     <button type="button" class="boe-tabbtn" data-tab="cache">Cache</button>
+    <button type="button" class="boe-tabbtn" data-tab="bandwidth">Bandwidth</button>
     <button type="button" class="boe-tabbtn" data-tab="diagram">Diagram</button>
   </div>
 
@@ -339,6 +340,106 @@
         </div>
         <div class="boe-flag" id="flag-cache-fleet">
           That's a large fleet for one logical cache. Look at a managed cluster mode that shards across nodes, and double check whether the whole working set really needs to be hot at once.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="boe-tab" data-tab="bandwidth" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="bwLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="bwLinkedNote">Currently <span id="bwLinkedValue">—</span> peak reads/sec and <span id="bwLinkedWriteValue">—</span> peak writes/sec, linked from Traffic.</div>
+          <label class="boe-field" id="bwReadsField" hidden>
+            <span class="boe-label">Peak read requests/sec<span class="boe-unit">RPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="bwReads" value="6000">
+            <span class="boe-num-preview" id="bwReadsPreview"></span>
+          </label>
+          <label class="boe-field" id="bwWritesField" hidden>
+            <span class="boe-label">Peak write requests/sec<span class="boe-unit">RPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="bwWrites" value="60">
+            <span class="boe-num-preview" id="bwWritesPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Average response size<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="respBytes" value="5120">
+            <span class="boe-num-preview" id="respBytesPreview"></span>
+            <span class="boe-hint">What actually goes out the wire: JSON payload, headers, TLS overhead. Usually bigger than the raw object.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Average request size<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="reqBytes" value="1024">
+            <span class="boe-num-preview" id="reqBytesPreview"></span>
+            <span class="boe-hint">Upload or write payload plus headers.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">CDN / edge offload</span>
+              <span class="boe-slide-val"><span id="cdnPctVal">60</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="100" step="1" id="cdnPct" value="60">
+            <span class="boe-hint">Static assets and edge-cacheable responses that never reach your origin at all. This is a different lever from the Cache tab's hit ratio: caching saves your database, a CDN saves your network. 0% if you have no CDN.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Protocol overhead<span class="boe-unit">: 1</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="bwOverhead" value="1.15">
+            <span class="boe-hint">TCP/TLS handshakes, retries, and headers on top of the payload. 10–20% is typical.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Bandwidth has the same peak-vs-average split as everything else in this tool, but it shows up twice: the <strong>peak</strong> figure is what you provision, the link speed and NIC capacity that has to survive your busiest second. The <strong>monthly transfer</strong> figure is what you get billed for, built from average traffic over the whole month, not the peak.</p>
+          <p>CDN offload and cache hit ratio look similar but solve different problems: caching keeps repeat reads off your database while still serving them from your own servers, so they still count as egress here. A CDN in front of that serves some of those reads from the edge instead, so they never touch your origin's network at all, that's the traffic this tab actually removes.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Peak bandwidth</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Total, at peak</span><span class="boe-out-val" id="out-bwTotal">—</span></div>
+            <div class="boe-formula">egress + ingress</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Egress, reads out</span><span class="boe-out-val" id="out-bwEgress">—</span></div>
+            <div class="boe-formula">origin read RPS × response size × overhead</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Ingress, writes in</span><span class="boe-out-val" id="out-bwIngress">—</span></div>
+            <div class="boe-formula">peak write RPS × request size × overhead</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Origin read RPS after CDN</span><span class="boe-out-val" id="out-bwOriginRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">peak read RPS × (1 − CDN offload)</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Monthly transfer</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Total per month</span><span class="boe-out-val" id="out-bwTotalMonth">—</span></div>
+            <div class="boe-formula">average volume, not peak</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Egress per month</span><span class="boe-out-val" id="out-bwEgressMonth">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Ingress per month</span><span class="boe-out-val" id="out-bwIngressMonth">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-bandwidth-heavy">
+          Multiple Gbps at peak is past what a single instance's NIC handles comfortably. Expect a load-balancer tier fanning out across several boxes, not one box with a bigger pipe.
+        </div>
+        <div class="boe-flag" id="flag-bandwidth-cost">
+          At this monthly volume, egress pricing is likely a bigger line item than compute. A CDN, or a cloud provider with cheap/free egress, pays for itself here.
         </div>
       </div>
     </div>
@@ -789,6 +890,19 @@
     }
     return (x >= 100 ? x.toFixed(0) : x.toFixed(2)) + " " + BYTE_UNITS[i];
   }
+  // Network bandwidth is quoted in bits, decimal (powers of 1000) by convention --
+  // unlike storage, which is bytes, binary (powers of 1024) via bytes() above.
+  var BIT_UNITS = ["bps", "Kbps", "Mbps", "Gbps", "Tbps"];
+  function bitrate(bps) {
+    if (!isFinite(bps) || bps === 0) return "0 bps";
+    var i = 0;
+    var x = Math.abs(bps);
+    while (x >= 1000 && i < BIT_UNITS.length - 1) {
+      x /= 1000;
+      i++;
+    }
+    return (x >= 100 ? x.toFixed(0) : x.toFixed(2)) + " " + BIT_UNITS[i];
+  }
 
   function deriveTraffic(s) {
     var d = {};
@@ -850,6 +964,35 @@
 
     var nodeBytes = Math.max(n(s.cacheNodeGB), 0.001) * Math.pow(1024, 3);
     d.nodes = d.memTotal > 0 ? Math.ceil(d.memTotal / nodeBytes) : 0;
+    return d;
+  }
+
+  // Bandwidth links off Traffic's peak RPS directly (not Cache's miss rate) --
+  // every read response leaves your origin's network whether it was served
+  // from cache or from the database, CDN offload is the only thing here that
+  // removes traffic from your origin entirely.
+  function deriveBandwidth(s, trafficD) {
+    var d = {};
+    d.peakReadRps = s.bwLink ? trafficD.peakReadRps : n(s.bwReads);
+    d.peakWriteRps = s.bwLink ? trafficD.peakWriteRps : n(s.bwWrites);
+    d.readsDay = s.bwLink ? trafficD.readsDay : d.peakReadRps * 86400;
+    d.writesDay = s.bwLink ? trafficD.writesDay : d.peakWriteRps * 86400;
+
+    var cdn = n(s.cdnPct) / 100;
+    d.originReadRps = d.peakReadRps * (1 - cdn);
+    var overhead = Math.max(n(s.bwOverhead), 1);
+    var respBytes = Math.max(n(s.respBytes), 0);
+    var reqBytes = Math.max(n(s.reqBytes), 0);
+
+    d.egressBps = d.originReadRps * respBytes * 8 * overhead;
+    d.ingressBps = d.peakWriteRps * reqBytes * 8 * overhead;
+    d.totalBps = d.egressBps + d.ingressBps;
+
+    var originReadsMonth = d.readsDay * (1 - cdn) * 30;
+    var writesMonth = d.writesDay * 30;
+    d.egressBytesMonth = originReadsMonth * respBytes * overhead;
+    d.ingressBytesMonth = writesMonth * reqBytes * overhead;
+    d.totalBytesMonth = d.egressBytesMonth + d.ingressBytesMonth;
     return d;
   }
 
@@ -981,6 +1124,50 @@
 
     toggle("flag-cache-lowhit", d.peakReadRps > 0 && d.hitRatio < 0.5);
     toggle("flag-cache-fleet", d.nodes > 20);
+
+    renderBandwidth(); // Bandwidth's linked peak RPS depends on Traffic, independent of Cache/Storage.
+  }
+
+  var BANDWIDTH_DEFAULTS = { bwReads: "6000", bwWrites: "60", respBytes: "5120", reqBytes: "1024", cdnPct: "60", bwOverhead: "1.15" };
+  var bandwidthIds = ["bwReads", "bwWrites", "respBytes", "reqBytes", "cdnPct", "bwOverhead"];
+  var bandwidthEls = {};
+  bandwidthIds.forEach(function (id) { bandwidthEls[id] = document.getElementById(id); });
+  var bwLinkEl = document.getElementById("bwLink");
+  var bwReadsField = document.getElementById("bwReadsField");
+  var bwWritesField = document.getElementById("bwWritesField");
+  var bwLinkedNote = document.getElementById("bwLinkedNote");
+
+  function bandwidthState() {
+    var s = {};
+    bandwidthIds.forEach(function (id) { s[id] = bandwidthEls[id].value; });
+    s.bwLink = bwLinkEl.checked;
+    return s;
+  }
+
+  function renderBandwidth() {
+    var trafficD = deriveTraffic(trafficState());
+    var s = bandwidthState();
+    var d = deriveBandwidth(s, trafficD);
+
+    document.getElementById("bwLinkedValue").textContent = int(trafficD.peakReadRps);
+    document.getElementById("bwLinkedWriteValue").textContent = int(trafficD.peakWriteRps);
+    document.getElementById("cdnPctVal").textContent = s.cdnPct;
+    document.getElementById("bwReadsPreview").textContent = numPreview(n(s.bwReads));
+    document.getElementById("bwWritesPreview").textContent = numPreview(n(s.bwWrites));
+    document.getElementById("respBytesPreview").textContent = numPreview(n(s.respBytes));
+    document.getElementById("reqBytesPreview").textContent = numPreview(n(s.reqBytes));
+
+    document.getElementById("out-bwTotal").textContent = bitrate(d.totalBps);
+    document.getElementById("out-bwEgress").textContent = bitrate(d.egressBps);
+    document.getElementById("out-bwIngress").textContent = bitrate(d.ingressBps);
+    document.getElementById("out-bwOriginRps").firstChild.textContent = int(d.originReadRps);
+
+    document.getElementById("out-bwTotalMonth").textContent = bytes(d.totalBytesMonth);
+    document.getElementById("out-bwEgressMonth").textContent = bytes(d.egressBytesMonth);
+    document.getElementById("out-bwIngressMonth").textContent = bytes(d.ingressBytesMonth);
+
+    toggle("flag-bandwidth-heavy", d.totalBps > 5e9);
+    toggle("flag-bandwidth-cost", d.totalBytesMonth > 1e15);
   }
 
   trafficIds.forEach(function (id) { trafficEls[id].addEventListener("input", renderTraffic); });
@@ -1009,6 +1196,17 @@
   cacheDataField.hidden = cacheDataLinkEl.checked;
   cacheDataLinkedNote.hidden = !cacheDataLinkEl.checked;
 
+  bandwidthIds.forEach(function (id) { bandwidthEls[id].addEventListener("input", renderBandwidth); });
+  bwLinkEl.addEventListener("change", function () {
+    bwReadsField.hidden = bwLinkEl.checked;
+    bwWritesField.hidden = bwLinkEl.checked;
+    bwLinkedNote.hidden = !bwLinkEl.checked;
+    renderBandwidth();
+  });
+  bwReadsField.hidden = bwLinkEl.checked;
+  bwWritesField.hidden = bwLinkEl.checked;
+  bwLinkedNote.hidden = !bwLinkEl.checked;
+
   document.getElementById("boeReset").addEventListener("click", function () {
     trafficIds.forEach(function (id) { trafficEls[id].value = TRAFFIC_DEFAULTS[id]; });
     storageIds.forEach(function (id) { storageEls[id].value = STORAGE_DEFAULTS[id]; });
@@ -1022,6 +1220,11 @@
     cacheDataLinkEl.checked = true;
     cacheDataField.hidden = true;
     cacheDataLinkedNote.hidden = false;
+    bandwidthIds.forEach(function (id) { bandwidthEls[id].value = BANDWIDTH_DEFAULTS[id]; });
+    bwLinkEl.checked = true;
+    bwReadsField.hidden = true;
+    bwWritesField.hidden = true;
+    bwLinkedNote.hidden = false;
     renderTraffic();
   });
 
