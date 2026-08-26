@@ -1,6 +1,17 @@
 ---
 import { experience } from '../data/experience';
-import { certifications } from '../data/certifications';
+import { certifications, type Certification } from '../data/certifications';
+
+const [featuredCert, ...restCerts] = certifications;
+const certGroups = restCerts.reduce<{ issuer: string; items: Certification[] }[]>((groups, cert) => {
+  let group = groups.find((g) => g.issuer === cert.issuer);
+  if (!group) {
+    group = { issuer: cert.issuer, items: [] };
+    groups.push(group);
+  }
+  group.items.push(cert);
+  return groups;
+}, []);
 ---
 <section id="work" aria-labelledby="work-label">
   <div class="section-label-row">
@@ -9,18 +20,44 @@ import { certifications } from '../data/certifications';
     <span class="line"></span>
   </div>
   <p class="subhead" style="max-width:64ch; margin-bottom:18px;">Most of my work revolves around cloud infrastructure and platform engineering, from Kubernetes and Terraform to CI/CD and network security across AWS and GCP. I work on the infrastructure behind identity verification and anti-money-laundering systems.</p>
-  <div class="tag-row" role="list" aria-label="Career timeline">
-    {experience.map((entry) => (
-      <span class="tag" role="listitem">{entry.role} · {entry.org} · {entry.dates}</span>
+
+  <div class="timeline" role="list" aria-label="Career timeline">
+    {experience.map((entry, i) => (
+      <div class:list={['timeline-item', { current: i === 0 }]} role="listitem">
+        <span class="timeline-dot"></span>
+        <div class="timeline-content">
+          <span class="timeline-role">{entry.role}</span>
+          <span class="timeline-org">{entry.org}</span>
+          <span class="timeline-dates">{entry.dates}</span>
+        </div>
+      </div>
     ))}
   </div>
 
-  <div class="repo-list-header" style="margin-top:22px;">
-    <span class="section-meta">CERTIFICATIONS</span>
+  <div class="cred-label-row">
+    <span class="cred-label" id="credentials-label">Credentials</span>
+    <span class="cred-count">{certifications.length} total</span>
   </div>
-  <div class="tag-row" role="list" aria-label="Certifications">
-    {certifications.map((cert) => (
-      <span class="tag" role="listitem">{cert.name} · {cert.issuer} · {cert.year}</span>
-    ))}
+
+  <div class="cred-featured">
+    <span class="timeline-dot"></span>
+    <span class="cred-featured-name">{featuredCert.name}</span>
+    <span class="cred-featured-meta">{featuredCert.issuer} · {featuredCert.year}</span>
   </div>
+
+  <details class="cred-more">
+    <summary><span class="chevron">&#9656;</span> {restCerts.length} more credentials</summary>
+    <div class="cred-groups" role="list" aria-labelledby="credentials-label">
+      {certGroups.map((group) => (
+        <div class="cred-group" role="listitem">
+          <span class="cred-group-label">{group.issuer}</span>
+          <div class="tag-row">
+            {group.items.map((cert) => (
+              <span class="cred-tag">{cert.name} · {cert.year}</span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </details>
 </section>

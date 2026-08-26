@@ -650,6 +650,56 @@ kbd {
   padding: 5px 9px;
 }
 
+/* ---- Career timeline + credentials (Work section) ----
+   Career and credentials share one marker (a dot = "a point in time"), so
+   the section reads as one continuous record instead of two unrelated
+   piles of identical chips. */
+.timeline { position: relative; padding-left: 26px; display: flex; flex-direction: column; gap: 26px; margin-bottom: 44px; }
+.timeline::before { content: ""; position: absolute; left: 4px; top: 6px; bottom: 6px; width: 1px; background: linear-gradient(var(--ember-1), transparent 90%); opacity: .38; }
+.timeline-item { position: relative; animation: inkRise .6s both; }
+.timeline-item:nth-child(2) { animation-delay: .06s; }
+.timeline-item:nth-child(3) { animation-delay: .12s; }
+.timeline-item:nth-child(4) { animation-delay: .18s; }
+.timeline-dot { position: absolute; left: -26px; top: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--page-bg); border: 1.5px solid var(--card-border-hover); }
+.timeline-item.current .timeline-dot { background: var(--ember-1); border-color: var(--ember-1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ember-1) 22%, transparent); }
+.timeline-content { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 14px; row-gap: 4px; }
+.timeline-role { font-family: var(--font-head); font-weight: 400; font-size: 18px; color: var(--headline-color); }
+.timeline-org { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; color: var(--card-label); }
+.timeline-dates { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; color: var(--section-meta); margin-left: auto; white-space: nowrap; }
+
+.cred-label-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px; }
+.cred-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--section-label); }
+.cred-count { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; color: var(--section-meta); }
+
+.cred-featured { position: relative; padding-left: 26px; margin-bottom: 18px; }
+.cred-featured .timeline-dot { top: 5px; background: var(--ember-1); border-color: var(--ember-1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ember-1) 22%, transparent); }
+.cred-featured-name { font-family: var(--font-head); font-weight: 400; font-size: 17px; color: var(--headline-color); display: block; }
+.cred-featured-meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; color: var(--card-label); display: block; margin-top: 5px; }
+
+.cred-more summary {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--card-desc); cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 7px;
+  padding-left: 26px; transition: color .3s ease;
+}
+.cred-more summary::-webkit-details-marker { display: none; }
+.cred-more summary .chevron { display: inline-block; transition: transform .25s ease; font-size: 9px; }
+.cred-more[open] summary .chevron { transform: rotate(90deg); }
+.cred-more summary:hover { color: var(--card-label); }
+.cred-more summary:hover .chevron { color: var(--card-label); }
+
+.cred-groups { padding-left: 26px; margin-top: 18px; display: flex; flex-direction: column; gap: 16px; animation: inkRise .5s both; }
+.cred-group-label { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--section-meta); margin-bottom: 8px; }
+/* Deliberately not .tag: .tag is set uppercase for short structured labels
+   (role/org/dates), but these are long specialization titles -- shouting
+   them in caps at 10px hurts scanability, so this keeps mixed case and
+   tighter tracking. */
+.cred-tag {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+  color: var(--tag-text); background: var(--tag-bg); border: 1px solid var(--tag-border);
+  padding: 6px 10px; transition: border-color .3s ease, color .3s ease;
+}
+.cred-tag:hover { border-color: var(--card-border-hover); color: var(--headline-color); }
+
 /* ---- Footer / contact ---- */
 .site-footer {
   margin-top: 64px;
