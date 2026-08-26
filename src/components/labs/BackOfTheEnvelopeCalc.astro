@@ -24,6 +24,7 @@
   <div class="boe-tabs">
     <button type="button" class="boe-tabbtn active" data-tab="traffic">Traffic</button>
     <button type="button" class="boe-tabbtn" data-tab="storage">Storage</button>
+    <button type="button" class="boe-tabbtn" data-tab="cache">Cache</button>
     <button type="button" class="boe-tabbtn" data-tab="diagram">Diagram</button>
   </div>
 
@@ -35,6 +36,7 @@
           <label class="boe-field">
             <span class="boe-label">Daily active users<span class="boe-unit">DAU</span></span>
             <input class="boe-inp" type="number" min="0" step="any" id="dau" value="10000000">
+            <span class="boe-num-preview" id="dauPreview"></span>
             <span class="boe-hint">People who hit the system in a day.</span>
           </label>
           <label class="boe-field">
@@ -131,10 +133,12 @@
           <label class="boe-field" id="stWritesField" hidden>
             <span class="boe-label">Writes per day<span class="boe-unit">obj</span></span>
             <input class="boe-inp" type="number" min="0" step="any" id="stWrites" value="2000000">
+            <span class="boe-num-preview" id="stWritesPreview"></span>
           </label>
           <label class="boe-field">
             <span class="boe-label">Bytes per object<span class="boe-unit">B</span></span>
             <input class="boe-inp" type="number" min="0" step="any" id="wbytes" value="1024">
+            <span class="boe-num-preview" id="wbytesPreview"></span>
             <span class="boe-hint">Payload plus row overhead. A tweet is around 300 B; a photo is around 2 MB.</span>
           </label>
           <label class="boe-field">
@@ -212,6 +216,129 @@
         </div>
         <div class="boe-flag" id="flag-billionrows">
           Over 100 billion rows. No single index fits in memory, so plan for partitioned indexes or key-value access patterns only.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="boe-tab" data-tab="cache" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="cacheLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak read RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="cacheLinkedNote">Currently <span id="cacheLinkedValue">—</span> peak read RPS, linked from Traffic.</div>
+          <label class="boe-field" id="cacheReadsField" hidden>
+            <span class="boe-label">Peak read requests/sec<span class="boe-unit">RPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheReads" value="5000">
+            <span class="boe-num-preview" id="cacheReadsPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Cache hit ratio</span>
+              <span class="boe-slide-val"><span id="hitRatioVal">80</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="100" step="1" id="hitRatio" value="80">
+            <span class="boe-hint">Share of reads the cache answers without touching the database.</span>
+          </label>
+
+          <label class="boe-toggle">
+            <input type="checkbox" id="cacheDataLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use total data size from Storage</span>
+          </label>
+          <div class="boe-linked-note" id="cacheDataLinkedNote">Currently <span id="cacheDataLinkedValue">—</span> of data, linked from Storage.</div>
+          <label class="boe-field" id="cacheDataField" hidden>
+            <span class="boe-label">Total data size<span class="boe-unit">GB</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheDataManual" value="500">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Working set, % of total data</span>
+              <span class="boe-slide-val"><span id="workingPctVal">20</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="100" step="1" id="workingPct" value="20">
+            <span class="boe-hint">Real access patterns are skewed: a small hot slice serves most reads. That slice, not your whole dataset, is what has to fit in memory.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Average cached item size<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheItemBytes" value="2048">
+            <span class="boe-num-preview" id="cacheItemBytesPreview"></span>
+            <span class="boe-hint">Usually bigger than a raw row: a cache entry is often a rendered or joined response.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Memory overhead<span class="boe-unit">: 1</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="cacheOverhead" value="1.3">
+            <span class="boe-hint">Key overhead, hash table structure, fragmentation. Redis alone runs 1.2–1.5×.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Replicas per shard<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="cacheRepl" value="2">
+            <span class="boe-hint">At least one replica for failover; more if reads need to scale past a single node.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Usable memory per node<span class="boe-unit">GB</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cacheNodeGB" value="24">
+            <span class="boe-hint">Leave headroom below the instance's advertised RAM. A 32 GB box is not 32 GB of usable cache.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>A cache only ever helps the <strong>read</strong> path, and only for data that gets read again before it changes. It doesn't reduce how much data exists, it reduces how often you have to go get it, which is why the two numbers that matter are the hit ratio (how much traffic it absorbs) and the working set (how much of the data has to stay hot to earn that hit ratio).</p>
+          <p>Real traffic is skewed, not uniform: a small slice of keys usually accounts for most reads. That's what makes caching cheap, you're not memory-provisioning for the whole dataset, just its hot tail. Get the working-set estimate wrong, low, and you'll see a hit ratio that never reaches what you sized for.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Cache traffic</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Reads served by cache</span><span class="boe-out-val" id="out-cacheHitRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">peak read RPS × hit ratio</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Reads that still reach the database</span><span class="boe-out-val" id="out-cacheMissRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">peak read RPS × (1 − hit ratio)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Backend load</span><span class="boe-out-val" id="out-cacheReduction">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Cache sizing</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Cache nodes needed</span><span class="boe-out-val" id="out-cacheNodes">—</span></div>
+            <div class="boe-formula">memory needed ÷ usable memory per node</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Memory needed, with replicas</span><span class="boe-out-val" id="out-cacheMemTotal">—</span></div>
+            <div class="boe-formula">raw × replicas</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Memory needed, raw</span><span class="boe-out-val" id="out-cacheMemRaw">—</span></div>
+            <div class="boe-formula">working set × overhead</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Working set</span><span class="boe-out-val" id="out-workingSet">—</span></div>
+            <div class="boe-formula">total data × working-set %</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Cached items (keys)</span><span class="boe-out-val" id="out-cacheItems">—</span></div>
+            <div class="boe-sub">Roughly how many keys you're managing, not just bytes</div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-cache-lowhit">
+          Under 50% hit ratio, the cache is barely earning its keep. Check the eviction policy and TTLs, or whether this access pattern is cacheable at all, before adding nodes to fix what might be a modeling problem.
+        </div>
+        <div class="boe-flag" id="flag-cache-fleet">
+          That's a large fleet for one logical cache. Look at a managed cluster mode that shards across nodes, and double check whether the whole working set really needs to be hot at once.
         </div>
       </div>
     </div>
@@ -320,7 +447,12 @@
   color: var(--card-desc); margin: 0 0 14px;
 }
 
-.boe-field { display: block; margin-bottom: 14px; }
+/* [hidden] and .boe-field tie on specificity, and author styles beat the UA
+   stylesheet in that tie -- same class of bug as the diagram context menu
+   below. Gate display on :not([hidden]) so the "linked" toggle's manual
+   field actually disappears instead of always rendering. */
+.boe-field { margin-bottom: 14px; }
+.boe-field:not([hidden]) { display: block; }
 .boe-label, .boe-label-row {
   display: flex; justify-content: space-between; align-items: baseline;
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
@@ -336,6 +468,11 @@
 .boe-inp:focus { border-bottom-color: var(--card-label); }
 .boe-range { width: 100%; accent-color: var(--card-label); }
 .boe-hint { display: block; margin-top: 5px; font-family: var(--font-body); font-size: 12px; font-style: italic; color: var(--card-desc); }
+.boe-num-preview {
+  display: block; margin-top: 4px; font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--card-label); opacity: 0.85; font-variant-numeric: tabular-nums;
+}
+.boe-num-preview:empty { display: none; }
 
 .boe-out { padding: 8px 0; border-bottom: 1px solid var(--card-border); }
 .boe-out:last-child { border-bottom: 0; }
@@ -422,6 +559,12 @@
   width: 16px; height: 16px; fill: none; stroke: currentColor;
   stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
 }
+/* Browsers don't apply the UA [hidden] { display: none } rule to inline
+   <svg> elements at all (it's scoped to the HTML namespace), so the
+   fullscreen button's enter/exit icon swap needs its own explicit rule --
+   without this, both icons render side by side regardless of the hidden
+   attribute's state. */
+.dg-icon[hidden] { display: none; }
 
 .dg-canvas-wrap {
   position: relative; height: 460px; border: 1px solid var(--card-border); background: var(--card-bg);
@@ -618,6 +761,23 @@
     if (!isFinite(x)) return "—";
     return Math.round(x).toLocaleString("en-US");
   }
+  // Short word form for a preview line under raw number inputs, e.g. "10M" --
+  // native number inputs can't render "10,000,000" with separators themselves.
+  function short(x) {
+    var a = Math.abs(x);
+    var units = [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]];
+    for (var i = 0; i < units.length; i++) {
+      if (a >= units[i][0]) {
+        var r = Math.round((x / units[i][0]) * 10) / 10;
+        return (r % 1 === 0 ? r.toFixed(0) : r.toFixed(1)) + units[i][1];
+      }
+    }
+    return int(x);
+  }
+  function numPreview(x) {
+    if (!isFinite(x) || Math.abs(x) < 1000) return "";
+    return int(x) + " (" + short(x) + ")";
+  }
   var BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
   function bytes(b) {
     if (!isFinite(b) || b === 0) return "0 B";
@@ -667,6 +827,32 @@
     return d;
   }
 
+  // Cache optionally reads peak read RPS off Traffic and total data size off
+  // Storage, same "linked" pattern Storage itself uses for writes/day.
+  function deriveCache(s, trafficD, storageD) {
+    var d = {};
+    d.peakReadRps = s.cacheLink ? trafficD.peakReadRps : n(s.cacheReads);
+    d.hitRatio = n(s.hitRatio) / 100;
+    d.hitRps = d.peakReadRps * d.hitRatio;
+    d.missRps = d.peakReadRps * (1 - d.hitRatio);
+
+    d.totalDataBytes = s.cacheDataLink ? storageD.logical : n(s.cacheDataManual) * Math.pow(1024, 3);
+    d.workingPct = n(s.workingPct) / 100;
+    d.workingSet = d.totalDataBytes * d.workingPct;
+
+    var itemBytes = Math.max(n(s.cacheItemBytes), 1);
+    d.cacheItems = d.workingSet / itemBytes;
+
+    var overhead = Math.max(n(s.cacheOverhead), 1);
+    d.memRaw = d.workingSet * overhead;
+    var repl = Math.max(n(s.cacheRepl), 1);
+    d.memTotal = d.memRaw * repl;
+
+    var nodeBytes = Math.max(n(s.cacheNodeGB), 0.001) * Math.pow(1024, 3);
+    d.nodes = d.memTotal > 0 ? Math.ceil(d.memTotal / nodeBytes) : 0;
+    return d;
+  }
+
   function toggle(id, on) {
     var el = document.getElementById(id);
     el.classList.toggle("on", on);
@@ -688,6 +874,7 @@
     var d = deriveTraffic(s);
 
     document.getElementById("peakVal").textContent = s.peak;
+    document.getElementById("dauPreview").textContent = numPreview(d.dau);
 
     document.getElementById("out-peakRps").firstChild.textContent = int(d.peakRps);
     document.getElementById("out-rps").firstChild.textContent = int(d.rps);
@@ -733,6 +920,8 @@
     document.getElementById("idxPctVal").textContent = s.idxPct;
     document.getElementById("growthVal").textContent = s.growth;
     document.getElementById("stYearsLabel").textContent = n(s.years);
+    document.getElementById("stWritesPreview").textContent = numPreview(d.stWrites);
+    document.getElementById("wbytesPreview").textContent = numPreview(n(s.wbytes));
 
     document.getElementById("out-physical").textContent = bytes(d.physical);
     document.getElementById("out-logical").textContent = bytes(d.logical);
@@ -744,6 +933,54 @@
 
     toggle("flag-petabyte", d.physical > 1e15);
     toggle("flag-billionrows", d.objects > 1e11);
+
+    renderCache(); // Cache's linked inputs (peak read RPS, total data size) depend on both tabs above.
+  }
+
+  var CACHE_DEFAULTS = { cacheReads: "5000", hitRatio: "80", cacheDataManual: "500", workingPct: "20", cacheItemBytes: "2048", cacheOverhead: "1.3", cacheRepl: "2", cacheNodeGB: "24" };
+  var cacheIds = ["cacheReads", "hitRatio", "cacheDataManual", "workingPct", "cacheItemBytes", "cacheOverhead", "cacheRepl", "cacheNodeGB"];
+  var cacheEls = {};
+  cacheIds.forEach(function (id) { cacheEls[id] = document.getElementById(id); });
+  var cacheLinkEl = document.getElementById("cacheLink");
+  var cacheReadsField = document.getElementById("cacheReadsField");
+  var cacheLinkedNote = document.getElementById("cacheLinkedNote");
+  var cacheDataLinkEl = document.getElementById("cacheDataLink");
+  var cacheDataField = document.getElementById("cacheDataField");
+  var cacheDataLinkedNote = document.getElementById("cacheDataLinkedNote");
+
+  function cacheState() {
+    var s = {};
+    cacheIds.forEach(function (id) { s[id] = cacheEls[id].value; });
+    s.cacheLink = cacheLinkEl.checked;
+    s.cacheDataLink = cacheDataLinkEl.checked;
+    return s;
+  }
+
+  function renderCache() {
+    var trafficD = deriveTraffic(trafficState());
+    var storageD = deriveStorage(storageState(), trafficD);
+    var s = cacheState();
+    var d = deriveCache(s, trafficD, storageD);
+
+    document.getElementById("cacheLinkedValue").textContent = int(trafficD.peakReadRps);
+    document.getElementById("cacheDataLinkedValue").textContent = bytes(storageD.logical);
+    document.getElementById("hitRatioVal").textContent = s.hitRatio;
+    document.getElementById("workingPctVal").textContent = s.workingPct;
+    document.getElementById("cacheReadsPreview").textContent = numPreview(n(s.cacheReads));
+    document.getElementById("cacheItemBytesPreview").textContent = numPreview(n(s.cacheItemBytes));
+
+    document.getElementById("out-cacheHitRps").firstChild.textContent = int(d.hitRps);
+    document.getElementById("out-cacheMissRps").firstChild.textContent = int(d.missRps);
+    document.getElementById("out-cacheReduction").textContent = d.peakReadRps > 0 ? (d.hitRatio * 100).toFixed(0) + "% fewer reads reach the database" : "—";
+
+    document.getElementById("out-cacheNodes").textContent = isFinite(d.nodes) ? d.nodes.toLocaleString("en-US") : "—";
+    document.getElementById("out-cacheMemTotal").textContent = bytes(d.memTotal);
+    document.getElementById("out-cacheMemRaw").textContent = bytes(d.memRaw);
+    document.getElementById("out-workingSet").textContent = bytes(d.workingSet);
+    document.getElementById("out-cacheItems").textContent = fmt(d.cacheItems);
+
+    toggle("flag-cache-lowhit", d.peakReadRps > 0 && d.hitRatio < 0.5);
+    toggle("flag-cache-fleet", d.nodes > 20);
   }
 
   trafficIds.forEach(function (id) { trafficEls[id].addEventListener("input", renderTraffic); });
@@ -756,12 +993,35 @@
   stWritesField.hidden = stLinkEl.checked;
   stLinkedNote.hidden = !stLinkEl.checked;
 
+  cacheIds.forEach(function (id) { cacheEls[id].addEventListener("input", renderCache); });
+  cacheLinkEl.addEventListener("change", function () {
+    cacheReadsField.hidden = cacheLinkEl.checked;
+    cacheLinkedNote.hidden = !cacheLinkEl.checked;
+    renderCache();
+  });
+  cacheDataLinkEl.addEventListener("change", function () {
+    cacheDataField.hidden = cacheDataLinkEl.checked;
+    cacheDataLinkedNote.hidden = !cacheDataLinkEl.checked;
+    renderCache();
+  });
+  cacheReadsField.hidden = cacheLinkEl.checked;
+  cacheLinkedNote.hidden = !cacheLinkEl.checked;
+  cacheDataField.hidden = cacheDataLinkEl.checked;
+  cacheDataLinkedNote.hidden = !cacheDataLinkEl.checked;
+
   document.getElementById("boeReset").addEventListener("click", function () {
     trafficIds.forEach(function (id) { trafficEls[id].value = TRAFFIC_DEFAULTS[id]; });
     storageIds.forEach(function (id) { storageEls[id].value = STORAGE_DEFAULTS[id]; });
     stLinkEl.checked = true;
     stWritesField.hidden = true;
     stLinkedNote.hidden = false;
+    cacheIds.forEach(function (id) { cacheEls[id].value = CACHE_DEFAULTS[id]; });
+    cacheLinkEl.checked = true;
+    cacheReadsField.hidden = true;
+    cacheLinkedNote.hidden = false;
+    cacheDataLinkEl.checked = true;
+    cacheDataField.hidden = true;
+    cacheDataLinkedNote.hidden = false;
     renderTraffic();
   });
 
@@ -1937,8 +2197,11 @@
     var label = fs ? "Exit fullscreen" : "Fullscreen";
     fullscreenBtn.title = label;
     fullscreenBtn.setAttribute("aria-label", label);
-    fullscreenEnterIcon.hidden = fs;
-    fullscreenExitIcon.hidden = !fs;
+    // SVG elements don't inherit HTMLElement's .hidden IDL reflection, so
+    // `.hidden = bool` here would just set an inert JS property and never
+    // touch the actual attribute -- toggleAttribute works on any Element.
+    fullscreenEnterIcon.toggleAttribute("hidden", fs);
+    fullscreenExitIcon.toggleAttribute("hidden", !fs);
   }
   fullscreenBtn.addEventListener("click", function () {
     if (isFullscreen()) {

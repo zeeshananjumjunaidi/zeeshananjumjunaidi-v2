@@ -3,24 +3,39 @@ import { getCollection } from 'astro:content';
 import LabCard from './LabCard.astro';
 import RepoListItem from './RepoListItem.astro';
 import { skillsTicker } from '../data/skillsTicker';
+import { domainLabel } from '../data/domains';
 
 const entries = await getCollection('lab');
 const sorted = entries.map((e) => e.data).sort((a, b) => a.order - b.order);
 
-const featured = sorted.filter((e) => e.featured);
-const grouped = sorted.filter((e) => !e.featured);
-
-// Grouped entries keep the order they appear in, grouped by their `group` label.
-const groups: { label: string; items: typeof grouped }[] = [];
-for (const entry of grouped) {
-  const label = entry.group ?? '';
-  let group = groups.find((g) => g.label === label);
-  if (!group) {
-    group = { label, items: [] };
-    groups.push(group);
+// The Lab is organized two levels deep: a top-level `domain` (Systems Design,
+// Robotics, whatever comes next), and within it the existing `featured` cards
+// plus `group`-labeled repo lists. A domain's position is the lowest `order`
+// among its own entries, so new domains slot in wherever their entries do
+// without a second ordering field to keep in sync.
+type Entry = (typeof sorted)[number];
+const domains: { domain: string; order: number; featured: Entry[]; groups: { label: string; items: Entry[] }[] }[] = [];
+for (const entry of sorted) {
+  let dom = domains.find((d) => d.domain === entry.domain);
+  if (!dom) {
+    dom = { domain: entry.domain, order: entry.order, featured: [], groups: [] };
+    domains.push(dom);
+  } else {
+    dom.order = Math.min(dom.order, entry.order);
   }
-  group.items.push(entry);
+  if (entry.featured) {
+    dom.featured.push(entry);
+  } else {
+    const label = entry.group ?? '';
+    let group = dom.groups.find((g) => g.label === label);
+    if (!group) {
+      group = { label, items: [] };
+      dom.groups.push(group);
+    }
+    group.items.push(entry);
+  }
 }
+domains.sort((a, b) => a.order - b.order);
 
 const tickerSeparator = ' &nbsp;·&nbsp; ';
 const tickerLine = skillsTicker.join(' · ') + tickerSeparator;
@@ -33,30 +48,42 @@ const tickerDoubled = tickerLine + tickerLine;
     <span class="line"></span>
   </div>
 
-  <div class="lab-grid lab-grid-2">
-    {featured.map((entry) => (
-      <LabCard
-        title={entry.title}
-        href={entry.href}
-        category={entry.category}
-        year={entry.year}
-        description={entry.description}
-        preview={entry.preview}
-      />
-    ))}
-  </div>
+  {domains.map((dom) => (
+    <div class="domain-block">
+      <div class="domain-header">
+        <span class="domain-label">{domainLabel(dom.domain)}</span>
+      </div>
 
-  {groups.map((group) => (
-    <>
-      <div class="repo-list-header">
-        <span class="section-meta">{group.label}</span>
-      </div>
-      <div class="repo-list">
-        {group.items.map((entry) => (
-          <RepoListItem title={entry.title} href={entry.href} description={entry.description} />
-        ))}
-      </div>
-    </>
+      {dom.featured.length > 0 && (
+        <div class="lab-grid lab-grid-2">
+          {dom.featured.map((entry) => (
+            <LabCard
+              title={entry.title}
+              href={entry.href}
+              category={entry.category}
+              year={entry.year}
+              description={entry.description}
+              preview={entry.preview}
+            />
+          ))}
+        </div>
+      )}
+
+      {dom.groups.map((group) => (
+        <>
+          {group.label && (
+            <div class="repo-list-header">
+              <span class="section-meta">{group.label}</span>
+            </div>
+          )}
+          <div class="repo-list">
+            {group.items.map((entry) => (
+              <RepoListItem title={entry.title} href={entry.href} description={entry.description} />
+            ))}
+          </div>
+        </>
+      ))}
+    </div>
   ))}
 
   <div class="ticker-wrap">

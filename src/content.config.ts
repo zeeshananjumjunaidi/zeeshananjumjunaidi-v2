@@ -6,6 +6,7 @@ const lab = defineCollection({
   schema: z.object({
     title: z.string(),
     href: z.string(), // external URL or an internal path like /lab/slam-playground
+    domain: z.string(), // top-level grouping, e.g. "systems-design", "robotics" -- see src/data/domains.ts
     category: z.string(),
     year: z.string(),
     description: z.string().optional(),

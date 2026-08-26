@@ -419,6 +419,14 @@ img { max-width: 100%; display: block; }
 .section-label-row .line { flex: 1; min-width: 40px; height: 1px; background: var(--section-divider); transform-origin: left; animation: inkDraw 1.6s 1.15s cubic-bezier(.6,0,.2,1) both; }
 
 /* ---- Lab grid ---- */
+.domain-block { margin-top: 32px; }
+.domain-block:first-child { margin-top: 4px; }
+.domain-header { margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+.domain-label {
+  font-family: var(--font-head); font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--section-label);
+}
+
 .lab-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));

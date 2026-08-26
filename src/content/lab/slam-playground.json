@@ -1,6 +1,7 @@
 {
   "title": "SLAM Playground",
   "href": "/lab/slam-playground",
+  "domain": "robotics",
   "category": "Robotics · Perception",
   "year": "Interactive",
   "description": "Mapping an unknown space while tracking your own position inside it.",

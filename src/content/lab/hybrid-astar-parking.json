@@ -1,6 +1,7 @@
 {
   "title": "Hybrid A* Parking",
   "href": "/lab/hybrid-astar-parking",
+  "domain": "robotics",
   "category": "Robotics · Planning",
   "year": "Interactive",
   "description": "Planning a full reverse-parking maneuver into a tight bay.",

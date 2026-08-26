@@ -1,6 +1,7 @@
 {
   "title": "CarND-Path-Planning-Project",
   "href": "https://github.com/zeeshananjumjunaidi/CarND-Path-Planning-Project",
+  "domain": "robotics",
   "category": "Self-Driving Car Nanodegree",
   "year": "2017–2021",
   "description": "Highway path planning, in C++.",
