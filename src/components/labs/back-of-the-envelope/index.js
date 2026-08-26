@@ -11,6 +11,7 @@ import { initDatabase } from "./database.js";
 import { initQueue } from "./queue.js";
 import { initLatency } from "./latency.js";
 import { initAvailability } from "./availability.js";
+import { initCost } from "./cost.js";
 import { initExport } from "./export.js";
 
 initTabs();
@@ -21,10 +22,15 @@ var storage = initStorage(traffic.state, function () { cache.render(); });
 var cache = initCache(traffic.state, storage.state, function () { bandwidth.render(); });
 var bandwidth = initBandwidth(traffic.state, function () { compute.render(); });
 var compute = initCompute(traffic.state, function () { database.render(); });
-var database = initDatabase(traffic.state, storage.state, function () { queue.render(); availability.render(); });
+var database = initDatabase(traffic.state, storage.state, function () { queue.render(); availability.render(); cost.render(); });
 var queue = initQueue(traffic.state, function () {});
 var latency = initLatency(function () {});
 var availability = initAvailability(traffic.state, function () {});
+// Cost has no onChange consumer of its own -- database's onChange is the
+// last step of the traffic->...->database cascade, so by the time it fires
+// every tab Cost reads from (compute/database/cache/storage/bandwidth) has
+// already rendered at least once.
+var cost = initCost(traffic.state, compute.state, database.state, cache.state, storage.state, bandwidth.state, function () {});
 
 var resetBtn = document.getElementById("boeReset");
 if (resetBtn) {
@@ -38,6 +44,7 @@ if (resetBtn) {
     queue.reset();
     latency.reset();
     availability.reset();
+    cost.reset();
     traffic.render();
   });
 }

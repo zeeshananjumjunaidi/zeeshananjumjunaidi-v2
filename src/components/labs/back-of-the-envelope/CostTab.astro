@@ -1,0 +1,89 @@
+  <div class="boe-tab" data-tab="cost" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Unit prices (monthly, list)</h3>
+          <label class="boe-field">
+            <span class="boe-label">Server<span class="boe-unit">$/hr</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="pServer" value="0.35">
+            <span class="boe-hint">An 8 vCPU instance runs about $0.30-0.40/hr on demand.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Database node<span class="boe-unit">$/hr</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="pDbHr" value="0.60">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Cache memory<span class="boe-unit">$/GB-mo</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="pCacheGB" value="0.045">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Storage<span class="boe-unit">$/GB-mo</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="pStorage" value="0.023">
+            <span class="boe-hint">Standard object storage is ~$0.023; block storage 3-5x more.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Egress<span class="boe-unit">$/GB</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="pEgress" value="0.08">
+            <span class="boe-hint">Cloud egress is $0.05-0.12/GB. CDN offload is the main lever.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Cost estimates are for <strong>shape</strong>, not procurement, they tell you which component you should be arguing about. In most designs one line dominates by an order of magnitude, and it is usually egress or storage rather than compute.</p>
+          <p>Two derived numbers matter more than the total: cost per user and cost per million requests. Those are the ones that have to sit below revenue per user, and they are what turn an architecture debate into a business one.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Monthly run rate</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Total per month</span><span class="boe-out-val" id="out-cTotal">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Application servers</span><span class="boe-out-val" id="out-cServer">—</span></div>
+            <div class="boe-sub" id="out-cServer-sub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Database nodes</span><span class="boe-out-val" id="out-cDb">—</span></div>
+            <div class="boe-sub" id="out-cDb-sub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Cache memory</span><span class="boe-out-val" id="out-cCache">—</span></div>
+            <div class="boe-sub" id="out-cCache-sub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Storage</span><span class="boe-out-val" id="out-cStorage">—</span></div>
+            <div class="boe-sub" id="out-cStorage-sub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Egress</span><span class="boe-out-val" id="out-cEgress">—</span></div>
+            <div class="boe-sub" id="out-cEgress-sub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Per year</span><span class="boe-out-val" id="out-cPerYear">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Unit economics</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Cost per DAU per month</span><span class="boe-out-val" id="out-cPerUser">—</span></div>
+            <div class="boe-formula">total ÷ DAU</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Cost per million requests</span><span class="boe-out-val" id="out-cPerM">—</span></div>
+            <div class="boe-formula">total ÷ (monthly requests ÷ 1M)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Cost per GB delivered</span><span class="boe-out-val" id="out-cPerGB">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-cost-high">
+          Over $0.50 per user per month. Unless this is enterprise software, infrastructure is eating the business model, look at the dominant line above first.
+        </div>
+      </div>
+    </div>
+  </div>
