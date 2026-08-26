@@ -263,8 +263,35 @@
 .dg-edge-flow-dot { fill: var(--card-label); pointer-events: none; animation: dg-flow-move 1.6s linear infinite; }
 .dg-edge-flow-dot.dg-flow-alt { animation-direction: alternate; }
 
+/* Packet: same offset-path travel as the dot, but offset-rotate is pinned to
+   0deg -- unlike an arrowhead, an envelope reads better staying upright than
+   tilting to match each edge's angle. */
+.dg-edge-flow-packet { pointer-events: none; animation: dg-flow-move 1.8s linear infinite; offset-rotate: 0deg; }
+.dg-edge-flow-packet.dg-flow-alt { animation-direction: alternate; }
+.dg-edge-flow-packet-body { fill: var(--card-bg); stroke: var(--card-label); stroke-width: 1.4; }
+.dg-edge-flow-packet-flap { fill: none; stroke: var(--card-label); stroke-width: 1.2; }
+
+/* Notify: a solid badge plus an expanding, fading ring behind it -- the
+   classic two-layer "ping" read as new activity on a node. */
+.dg-node-badge { position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; pointer-events: none; }
+.dg-node-badge::before, .dg-node-badge::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--tone-bad);
+}
+.dg-node-badge::after { animation: dg-notify-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite; }
+@keyframes dg-notify-ping { 0% { transform: scale(1); opacity: 0.7; } 75%, 100% { transform: scale(2.4); opacity: 0; } }
+
+/* Fill: a thin bar along the node's bottom edge that loops fill -> brief
+   hold -> reset, the loading-bar read for "this is buffering/filling". */
+.dg-node-fillbar {
+  position: absolute; left: 4px; right: 4px; bottom: 4px; height: 4px; border-radius: 2px;
+  background: color-mix(in srgb, var(--card-border) 70%, transparent); overflow: hidden; pointer-events: none;
+}
+.dg-node-fillbar-inner { height: 100%; width: 0; background: var(--card-label); animation: dg-fill-loop 2.4s ease-in-out infinite; }
+@keyframes dg-fill-loop { 0% { width: 0; } 85%, 100% { width: 100%; } }
+
 @media (prefers-reduced-motion: reduce) {
-  .dg-edge-line.dg-flow-dash, .dg-edge-flow-dot { animation: none; }
+  .dg-edge-line.dg-flow-dash, .dg-edge-flow-dot, .dg-edge-flow-packet,
+  .dg-node-badge::after, .dg-node-fillbar-inner { animation: none; }
 }
 
 .dg-edge-input {
@@ -930,6 +957,19 @@
     label.spellcheck = false;
     el.appendChild(label);
 
+    if (node.animate === "notify") {
+      var badge = document.createElement("div");
+      badge.className = "dg-node-badge";
+      el.appendChild(badge);
+    } else if (node.animate === "fill") {
+      var fillBar = document.createElement("div");
+      fillBar.className = "dg-node-fillbar";
+      var fillBarInner = document.createElement("div");
+      fillBarInner.className = "dg-node-fillbar-inner";
+      fillBar.appendChild(fillBarInner);
+      el.appendChild(fillBar);
+    }
+
     ["n", "e", "s", "w"].forEach(function (side) {
       var port = document.createElement("div");
       port.className = "dg-port dg-port-" + side;
@@ -1022,6 +1062,24 @@
         dot.setAttribute("class", "dg-edge-flow-dot" + (flowAlt ? " dg-flow-alt" : ""));
         dot.style.offsetPath = "path('M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y + "')";
         g.appendChild(dot);
+      }
+
+      if (edge.flow === "packet") {
+        var pw = 14, ph = 10;
+        var packet = document.createElementNS(SVGNS, "g");
+        packet.setAttribute("class", "dg-edge-flow-packet" + (flowAlt ? " dg-flow-alt" : ""));
+        var pbody = document.createElementNS(SVGNS, "rect");
+        pbody.setAttribute("class", "dg-edge-flow-packet-body");
+        pbody.setAttribute("x", -pw / 2); pbody.setAttribute("y", -ph / 2);
+        pbody.setAttribute("width", pw); pbody.setAttribute("height", ph);
+        pbody.setAttribute("rx", 1.5);
+        var pflap = document.createElementNS(SVGNS, "path");
+        pflap.setAttribute("class", "dg-edge-flow-packet-flap");
+        pflap.setAttribute("d", "M " + (-pw / 2) + " " + (-ph / 2) + " L 0 1 L " + (pw / 2) + " " + (-ph / 2));
+        packet.appendChild(pbody);
+        packet.appendChild(pflap);
+        packet.style.offsetPath = "path('M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y + "')";
+        g.appendChild(packet);
       }
 
       if (edge.label) {
@@ -1558,6 +1616,17 @@
     save();
   }
 
+  function setSelectionAnimate(animateKey) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.animate = animateKey;
+    });
+    renderNodes();
+    save();
+  }
+
   function setSelectionShape(shapeKey) {
     if (selectedNodeIds.size === 0) return;
     pushUndo();
@@ -1696,6 +1765,11 @@
           onPick: setSelectionIcon
         });
         items.push({ swatches: true, onPick: setSelectionColor });
+        items.push({
+          optionRow: true, rowLabel: "Animate", current: node.animate || "none",
+          options: [{ key: "none", label: "Off" }, { key: "notify", label: "Notify" }, { key: "fill", label: "Fill" }],
+          onPick: setSelectionAnimate
+        });
       }
       if (selectedNodeIds.size >= 2) items.push({ label: "Group", action: function () { groupBtn.click(); } });
       if (node.groupId) items.push({ label: "Ungroup", action: function () { ungroupBtn.click(); } });
@@ -1720,7 +1794,7 @@
         },
         {
           optionRow: true, rowLabel: "Flow", current: edge.flow || "none",
-          options: [{ key: "none", label: "Off" }, { key: "dot", label: "Dot" }, { key: "dash", label: "Dash" }],
+          options: [{ key: "none", label: "Off" }, { key: "dot", label: "Dot" }, { key: "dash", label: "Dash" }, { key: "packet", label: "Packet" }],
           onPick: function (key) { setEdgeProp(eid, "flow", key); }
         }
       ];
