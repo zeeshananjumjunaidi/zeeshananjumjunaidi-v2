@@ -1,0 +1,90 @@
+  <div class="boe-tab" data-tab="traffic">
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-field">
+            <span class="boe-label">Daily active users<span class="boe-unit">DAU</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dau" value="10000000">
+            <span class="boe-num-preview" id="dauPreview"></span>
+            <span class="boe-hint">People who hit the system in a day.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Requests per user per day<span class="boe-unit">req</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="rpu" value="20">
+            <span class="boe-hint">Count API calls, not screens.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Peak-to-average factor</span>
+              <span class="boe-slide-val"><span id="peakVal">3</span>×</span>
+            </span>
+            <input class="boe-range" type="range" min="1" max="20" step="0.5" id="peak" value="3">
+            <span class="boe-hint">Traffic is never flat. 2–4× for global apps, 10×+ for sales and live events.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Reads per write<span class="boe-unit">: 1</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="rw" value="100">
+            <span class="boe-hint">100 means 100 reads for every write.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Everything downstream hangs off peak RPS, so get it first. The only constant you need is <strong>86,400 seconds in a day</strong>, round it to 100,000 and your numbers land within 15%, which is well inside the error bars of every other guess you are making.</p>
+          <p>Size for <strong>peak</strong>, not average. A system sized for the mean is down every evening.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Derived load</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Peak requests per second</span><span class="boe-out-val" id="out-peakRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">peak = DAU × req/user ÷ 86,400 × peak factor</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Average RPS</span><span class="boe-out-val" id="out-rps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula">DAU × req/user ÷ 86,400</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Requests per day</span><span class="boe-out-val" id="out-reqDay">—</span></div>
+            <div class="boe-formula">DAU × req/user</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Requests per month</span><span class="boe-out-val" id="out-reqMonth">—</span></div>
+            <div class="boe-formula">× 30</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Read / write split</h3>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Peak read RPS</span><span class="boe-out-val" id="out-peakReadRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula" id="out-rShare">—</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Peak write RPS</span><span class="boe-out-val" id="out-peakWriteRps">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula" id="out-wShare">—</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Writes per day</span><span class="boe-out-val" id="out-writesDay">—</span></div>
+            <div class="boe-sub">Feeds the storage tab</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Reads per day</span><span class="boe-out-val" id="out-readsDay">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-scale">
+          Above ~100k RPS you are past what a single region and a single primary database will do comfortably. Expect sharding, regional partitioning and an edge tier in your design.
+        </div>
+        <div class="boe-flag boe-flag-ok" id="flag-readheavy">
+          Read-heavy. This is a caching and read-replica problem. Writes are almost a rounding error, so spend your design budget on the read path.
+        </div>
+        <div class="boe-flag" id="flag-writeheavy">
+          Write-heavy. Caching will not save you. Look at LSM-tree stores, batching, and a log in front of the database.
+        </div>
+      </div>
+    </div>
+  </div>

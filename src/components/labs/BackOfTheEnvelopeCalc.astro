@@ -26,6 +26,8 @@
     <button type="button" class="boe-tabbtn" data-tab="storage">Storage</button>
     <button type="button" class="boe-tabbtn" data-tab="cache">Cache</button>
     <button type="button" class="boe-tabbtn" data-tab="bandwidth">Bandwidth</button>
+    <button type="button" class="boe-tabbtn" data-tab="compute">Compute</button>
+    <button type="button" class="boe-tabbtn" data-tab="database">Database</button>
     <button type="button" class="boe-tabbtn" data-tab="diagram">Diagram</button>
   </div>
 
@@ -445,6 +447,228 @@
     </div>
   </div>
 
+  <div class="boe-tab" data-tab="compute" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Inputs</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="cpLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="cpLinkedNote">Currently <span id="cpLinkedValue">—</span> peak RPS, linked from Traffic.</div>
+          <label class="boe-field" id="cpReqField" hidden>
+            <span class="boe-label">Peak requests/sec<span class="boe-unit">RPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cpReq" value="7000">
+            <span class="boe-num-preview" id="cpReqPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">CPU time per request<span class="boe-unit">ms</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="cpuMs" value="20">
+            <span class="boe-hint">Actual processor work, excluding time spent waiting on I/O.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">End-to-end service time<span class="boe-unit">ms</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="svcMs" value="80">
+            <span class="boe-hint">Wall clock inside your service, including downstream waits. Drives concurrency.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Cores per server<span class="boe-unit">vCPU</span></span>
+            <input class="boe-inp" type="number" min="1" step="any" id="cores" value="8">
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Target CPU utilisation</span>
+              <span class="boe-slide-val"><span id="utilVal">60</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="10" max="95" step="5" id="util" value="60">
+            <span class="boe-hint">Above ~70% queueing delay starts to dominate tail latency.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Availability zones<span class="boe-unit">AZ</span></span>
+            <input class="boe-inp" type="number" min="1" step="1" id="az" value="3">
+            <span class="boe-hint">Provision so the loss of one zone still carries peak.</span>
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Two different laws, two different answers, and mixing them up is the classic mistake. <strong>Throughput</strong> is bounded by CPU work: a core does 1000 ÷ cpu-ms requests per second. <strong>Concurrency</strong> is Little's Law, <code>L = λ × W</code>, a request waiting 200ms on a database still occupies a thread even though it burns no CPU. That's why an I/O-heavy service needs many more threads than cores.</p>
+          <p>Utilisation is where queueing theory bites. For an M/M/1 queue, latency scales as <code>1 / (1 − ρ)</code>. At 50% load you wait 2× service time; at 90% you wait 10×; at 99% you wait 100×. Nothing changed about the server, only how full it is.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Fleet size</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Servers to provision</span><span class="boe-out-val" id="out-serversAz">—</span></div>
+            <div class="boe-formula">minimum × AZ ÷ (AZ − 1), for zone loss</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Servers to serve peak</span><span class="boe-out-val" id="out-servers">—</span></div>
+            <div class="boe-formula">peak RPS ÷ (cores × 1000/cpu-ms × utilisation)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Throughput per server</span><span class="boe-out-val" id="out-perServer">—<span class="boe-out-unit">RPS</span></span></div>
+            <div class="boe-formula" id="out-perServerFormula">—</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Fleet headroom at peak</span><span class="boe-out-val" id="out-headroom">—<span class="boe-out-unit">RPS</span></span></div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Concurrency (Little's Law)</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>In-flight requests at peak</span><span class="boe-out-val" id="out-concurrency">—</span></div>
+            <div class="boe-formula">L = peak RPS × service time</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Threads or connections per server</span><span class="boe-out-val" id="out-threadsPerServer">—</span></div>
+            <div class="boe-sub">Set your pool at least this high, or you queue before you even start work</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Latency multiplier at target load</span><span class="boe-out-val" id="out-qMult">—</span></div>
+            <div class="boe-formula">1 / (1 − ρ)</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Utilisation vs latency</h3>
+          <div class="boe-table-wrap">
+            <table class="boe-table">
+              <thead><tr><th>Utilisation</th><th>Latency ×</th><th>Servers needed</th></tr></thead>
+              <tbody id="utilRefBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-compute-util">
+          Running above 80% leaves nothing for a deploy, a GC pause or a retry storm. The servers you save show up as p99 latency.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="boe-tab" data-tab="database" hidden>
+    <div class="boe-grid">
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Dataset</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="dbRecordsLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use record count from Storage</span>
+          </label>
+          <div class="boe-linked-note" id="dbRecordsLinkedNote">Currently <span id="dbRecordsLinkedValue">—</span> objects stored, linked from Storage.</div>
+          <label class="boe-field" id="dbRecordsField" hidden>
+            <span class="boe-label">Total records<span class="boe-unit">rows</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dbRecords" value="20000000000">
+            <span class="boe-num-preview" id="dbRecordsPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Bytes per record<span class="boe-unit">B</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="recBytes" value="512">
+            <span class="boe-num-preview" id="recBytesPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label-row">
+              <span class="boe-label-text">Index overhead</span>
+              <span class="boe-slide-val"><span id="dbIdxVal">30</span>%</span>
+            </span>
+            <input class="boe-range" type="range" min="0" max="200" step="5" id="dbIdx" value="30">
+          </label>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Shard limits</h3>
+          <label class="boe-toggle">
+            <input type="checkbox" id="dbQpsLink" checked>
+            <span class="boe-toggle-track"><span class="boe-toggle-thumb"></span></span>
+            <span class="boe-toggle-label">Use peak RPS from Traffic</span>
+          </label>
+          <div class="boe-linked-note" id="dbQpsLinkedNote">Currently <span id="dbQpsLinkedValue">—</span> peak RPS, linked from Traffic.</div>
+          <label class="boe-field" id="dbQpsField" hidden>
+            <span class="boe-label">Peak queries/sec<span class="boe-unit">QPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dbQps" value="7000">
+            <span class="boe-num-preview" id="dbQpsPreview"></span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Storage per shard<span class="boe-unit">GB</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="shardCapGB" value="2000">
+            <span class="boe-hint">Keep it small enough to rebuild, back up and rebalance in reasonable time. 1–2 TB is a common ceiling.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">QPS per shard<span class="boe-unit">QPS</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="shardQps" value="20000">
+            <span class="boe-num-preview" id="shardQpsPreview"></span>
+            <span class="boe-hint">Postgres primary ~10–20k simple queries/s; Cassandra node ~10k writes/s.</span>
+          </label>
+          <label class="boe-field">
+            <span class="boe-label">Replicas per shard<span class="boe-unit">×</span></span>
+            <input class="boe-inp" type="number" min="0" step="any" id="dbRepl" value="2">
+          </label>
+        </div>
+
+        <div class="boe-learn">
+          <div class="boe-learn-label">Why it works</div>
+          <p>Shard count is the <strong>maximum</strong> of two independent constraints: how much data fits, and how much traffic a node takes. Sizing on storage alone is how you end up with fat, idle shards that still fall over.</p>
+          <p>Averages lie about shards. A uniform split assumes uniform keys, and real keys are Zipfian, one celebrity, one popular product, one busy tenant. Estimate your hottest shard at several times the mean and check that number instead.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Sharding</h3>
+          <div class="boe-out boe-out-big">
+            <div class="boe-out-row"><span>Shards</span><span class="boe-out-val" id="out-shards">—</span></div>
+            <div class="boe-formula">max(storage-bound, QPS-bound)</div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Storage-bound shards</span><span class="boe-out-val" id="out-shardsStorage">—</span></div>
+            <div class="boe-formula">dataset ÷ per-shard capacity</div>
+            <div class="boe-sub" id="out-shardsStorageSub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>QPS-bound shards</span><span class="boe-out-val" id="out-shardsQps">—</span></div>
+            <div class="boe-formula">peak QPS ÷ per-shard QPS</div>
+            <div class="boe-sub" id="out-shardsQpsSub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Total nodes with replicas</span><span class="boe-out-val" id="out-dbNodes">—</span></div>
+            <div class="boe-formula" id="out-dbNodesFormula">—</div>
+          </div>
+        </div>
+
+        <div class="boe-panel">
+          <h3 class="boe-panel-title">Per shard</h3>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Data per shard</span><span class="boe-out-val" id="out-perShardBytes">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Rows per shard</span><span class="boe-out-val" id="out-perShardRows">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>QPS per shard, uniform</span><span class="boe-out-val" id="out-perShardQps">—</span></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Hottest shard at 5× skew</span><span class="boe-out-val" id="out-hotShardQps">—</span></div>
+            <div class="boe-sub" id="out-hotShardQpsSub"></div>
+          </div>
+          <div class="boe-out">
+            <div class="boe-out-row"><span>Total dataset with indexes</span><span class="boe-out-val" id="out-dataset">—</span></div>
+          </div>
+        </div>
+
+        <div class="boe-flag" id="flag-database-shards">
+          Over a thousand shards means rebalancing, schema migrations and cross-shard queries are now their own engineering programme. Consider a bigger per-shard budget first.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="boe-tab" data-tab="diagram" hidden>
     <div class="dg-root">
       <div class="dg-toolbar">
@@ -591,8 +815,22 @@
 .boe-out-unit { font-size: 11px; color: var(--card-desc); margin-left: 3px; }
 .boe-out-big .boe-out-row { font-size: 14px; }
 .boe-out-big .boe-out-val { font-size: 24px; font-weight: 600; padding-bottom: 2px; border-bottom: 3px double var(--card-label); }
+.boe-out-val.tone-bad { color: var(--tone-bad); }
+.boe-out-big .boe-out-val.tone-bad { border-bottom-color: var(--tone-bad); }
+.boe-out-val.tone-ok { color: var(--tone-ok); }
+.boe-out-big .boe-out-val.tone-ok { border-bottom-color: var(--tone-ok); }
 .boe-formula { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); opacity: 0.85; margin-top: 4px; }
 .boe-sub { font-family: var(--font-body); font-size: 11.5px; color: var(--card-desc); margin-top: 2px; }
+.boe-sub:empty { display: none; }
+
+.boe-table-wrap { overflow-x: auto; }
+.boe-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; }
+.boe-table th {
+  text-align: left; padding: 6px 8px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--card-desc); border-bottom: 1px solid var(--card-border); white-space: nowrap;
+}
+.boe-table td { padding: 6px 8px; border-bottom: 1px solid var(--card-border); color: var(--headline-color); font-variant-numeric: tabular-nums; }
+.boe-table tr:last-child td { border-bottom: 0; }
 
 .boe-learn {
   border-left: 3px solid var(--tone-bad); background: color-mix(in srgb, var(--tone-bad) 6%, transparent);
@@ -1025,9 +1263,58 @@
     return d;
   }
 
+  function deriveCompute(s, trafficD) {
+    var d = {};
+    d.peakRps = s.cpLink ? trafficD.peakRps : n(s.cpReq);
+
+    d.perCore = 1000 / Math.max(n(s.cpuMs), 0.001);
+    d.utilF = Math.max(Math.min(n(s.util), 100), 0) / 100;
+    var cores = Math.max(n(s.cores), 1);
+    d.perServer = d.perCore * cores * d.utilF;
+    d.servers = d.peakRps > 0 ? Math.ceil(d.peakRps / Math.max(d.perServer, 0.0001)) : 0;
+    d.az = Math.max(n(s.az), 1);
+    d.serversAz = d.az > 1 ? Math.ceil(d.servers * (d.az / (d.az - 1))) : d.servers;
+    d.concurrency = d.peakRps * (n(s.svcMs) / 1000);
+    d.threadsPerServer = d.serversAz > 0 ? Math.ceil(d.concurrency / d.serversAz) : 0;
+    d.qMult = d.utilF < 1 ? 1 / (1 - d.utilF) : Infinity;
+    d.headroom = d.perServer * d.serversAz;
+    return d;
+  }
+
+  // Database's dataset/QPS optionally read off Storage (objects stored) and
+  // Traffic (peak RPS), same "linked" pattern as the tabs before it.
+  function deriveDatabase(s, trafficD, storageD) {
+    var d = {};
+    d.records = s.dbRecordsLink ? storageD.objects : n(s.dbRecords);
+    d.dataset = d.records * n(s.recBytes) * (1 + n(s.dbIdx) / 100);
+
+    var shardCap = Math.max(n(s.shardCapGB), 1) * Math.pow(1024, 3);
+    d.shardsStorage = d.dataset > 0 ? Math.ceil(d.dataset / shardCap) : 0;
+
+    d.dbQps = s.dbQpsLink ? trafficD.peakRps : n(s.dbQps);
+    var shardQps = Math.max(n(s.shardQps), 1);
+    d.shardsQps = d.dbQps > 0 ? Math.ceil(d.dbQps / shardQps) : 0;
+
+    d.shards = Math.max(1, d.shardsStorage, d.shardsQps);
+    d.dbRepl = Math.max(n(s.dbRepl), 0);
+    d.dbNodes = d.shards * (1 + d.dbRepl);
+
+    d.perShardBytes = d.dataset / d.shards;
+    d.perShardRows = d.records / d.shards;
+    d.perShardQps = d.dbQps / d.shards;
+    d.hotShardQps = d.perShardQps * 5;
+    return d;
+  }
+
   function toggle(id, on) {
     var el = document.getElementById(id);
     el.classList.toggle("on", on);
+  }
+
+  function setTone(id, tone) {
+    var el = document.getElementById(id);
+    el.classList.toggle("tone-bad", tone === "bad");
+    el.classList.toggle("tone-ok", tone === "ok");
   }
 
   var TRAFFIC_DEFAULTS = { dau: "10000000", rpu: "20", peak: "3", rw: "100" };
@@ -1197,6 +1484,121 @@
 
     toggle("flag-bandwidth-heavy", d.totalBps > 5e9);
     toggle("flag-bandwidth-cost", d.totalBytesMonth > 1e15);
+
+    renderCompute(); // Compute's linked peak RPS depends on Traffic, independent of everything between them.
+  }
+
+  var COMPUTE_DEFAULTS = { cpReq: "7000", cpuMs: "20", svcMs: "80", cores: "8", util: "60", az: "3" };
+  var computeIds = ["cpReq", "cpuMs", "svcMs", "cores", "util", "az"];
+  var computeEls = {};
+  computeIds.forEach(function (id) { computeEls[id] = document.getElementById(id); });
+  var cpLinkEl = document.getElementById("cpLink");
+  var cpReqField = document.getElementById("cpReqField");
+  var cpLinkedNote = document.getElementById("cpLinkedNote");
+  var UTIL_STEPS = [50, 60, 70, 80, 90, 95, 99];
+
+  function computeState() {
+    var s = {};
+    computeIds.forEach(function (id) { s[id] = computeEls[id].value; });
+    s.cpLink = cpLinkEl.checked;
+    return s;
+  }
+
+  function renderCompute() {
+    var trafficD = deriveTraffic(trafficState());
+    var s = computeState();
+    var d = deriveCompute(s, trafficD);
+
+    document.getElementById("cpLinkedValue").textContent = int(trafficD.peakRps);
+    document.getElementById("utilVal").textContent = s.util;
+    document.getElementById("cpReqPreview").textContent = numPreview(n(s.cpReq));
+
+    document.getElementById("out-serversAz").textContent = int(d.serversAz);
+    document.getElementById("out-servers").textContent = int(d.servers);
+    document.getElementById("out-perServer").firstChild.textContent = int(d.perServer);
+    document.getElementById("out-perServerFormula").textContent =
+      int(d.perCore) + " RPS/core × " + n(s.cores) + " cores × " + n(s.util) + "%";
+    document.getElementById("out-headroom").firstChild.textContent = int(d.headroom);
+    setTone("out-headroom", d.headroom >= d.peakRps ? "ok" : "bad");
+
+    document.getElementById("out-concurrency").textContent = int(d.concurrency);
+    document.getElementById("out-threadsPerServer").textContent = int(d.threadsPerServer);
+    document.getElementById("out-qMult").textContent = isFinite(d.qMult) ? d.qMult.toFixed(1) + "×" : "∞";
+    setTone("out-qMult", d.qMult > 4 ? "bad" : "ok");
+
+    var perCore = d.perCore, cores = Math.max(n(s.cores), 1);
+    var refBody = document.getElementById("utilRefBody");
+    refBody.innerHTML = "";
+    UTIL_STEPS.forEach(function (u) {
+      var perServerAtU = perCore * cores * (u / 100);
+      var serversAtU = d.peakRps > 0 ? Math.ceil(d.peakRps / Math.max(perServerAtU, 0.0001)) : 0;
+      var mult = 1 / (1 - u / 100);
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>" + u + "%</td><td>" + mult.toFixed(1) + "×</td><td>" + int(serversAtU) + "</td>";
+      refBody.appendChild(tr);
+    });
+
+    toggle("flag-compute-util", n(s.util) > 80);
+
+    renderDatabase(); // Database's linked record count/QPS depend on Storage and Traffic, not Compute.
+  }
+
+  var DATABASE_DEFAULTS = { dbRecords: "20000000000", recBytes: "512", dbIdx: "30", dbQps: "7000", shardCapGB: "2000", shardQps: "20000", dbRepl: "2" };
+  var databaseIds = ["dbRecords", "recBytes", "dbIdx", "dbQps", "shardCapGB", "shardQps", "dbRepl"];
+  var databaseEls = {};
+  databaseIds.forEach(function (id) { databaseEls[id] = document.getElementById(id); });
+  var dbRecordsLinkEl = document.getElementById("dbRecordsLink");
+  var dbRecordsField = document.getElementById("dbRecordsField");
+  var dbRecordsLinkedNote = document.getElementById("dbRecordsLinkedNote");
+  var dbQpsLinkEl = document.getElementById("dbQpsLink");
+  var dbQpsField = document.getElementById("dbQpsField");
+  var dbQpsLinkedNote = document.getElementById("dbQpsLinkedNote");
+
+  function databaseState() {
+    var s = {};
+    databaseIds.forEach(function (id) { s[id] = databaseEls[id].value; });
+    s.dbRecordsLink = dbRecordsLinkEl.checked;
+    s.dbQpsLink = dbQpsLinkEl.checked;
+    return s;
+  }
+
+  function renderDatabase() {
+    var trafficD = deriveTraffic(trafficState());
+    var storageD = deriveStorage(storageState(), trafficD);
+    var s = databaseState();
+    var d = deriveDatabase(s, trafficD, storageD);
+
+    document.getElementById("dbRecordsLinkedValue").textContent = fmt(storageD.objects);
+    document.getElementById("dbQpsLinkedValue").textContent = int(trafficD.peakRps);
+    document.getElementById("dbIdxVal").textContent = s.dbIdx;
+    document.getElementById("dbRecordsPreview").textContent = numPreview(n(s.dbRecords));
+    document.getElementById("recBytesPreview").textContent = numPreview(n(s.recBytes));
+    document.getElementById("dbQpsPreview").textContent = numPreview(n(s.dbQps));
+    document.getElementById("shardQpsPreview").textContent = numPreview(n(s.shardQps));
+
+    document.getElementById("out-shards").textContent = int(d.shards);
+    document.getElementById("out-shardsStorage").textContent = int(d.shardsStorage);
+    document.getElementById("out-shardsQps").textContent = int(d.shardsQps);
+    var storageBound = d.shardsStorage >= d.shardsQps;
+    setTone("out-shardsStorage", storageBound ? "bad" : null);
+    document.getElementById("out-shardsStorageSub").textContent = storageBound ? "This is your binding constraint" : "";
+    setTone("out-shardsQps", !storageBound ? "bad" : null);
+    document.getElementById("out-shardsQpsSub").textContent = !storageBound ? "This is your binding constraint" : "";
+    document.getElementById("out-dbNodes").textContent = int(d.dbNodes);
+    document.getElementById("out-dbNodesFormula").textContent = "shards × (1 + " + n(s.dbRepl) + ")";
+
+    document.getElementById("out-perShardBytes").textContent = bytes(d.perShardBytes);
+    document.getElementById("out-perShardRows").textContent = fmt(d.perShardRows);
+    document.getElementById("out-perShardQps").textContent = int(d.perShardQps);
+    document.getElementById("out-hotShardQps").textContent = int(d.hotShardQps);
+    var hotExceeds = d.hotShardQps > Math.max(n(s.shardQps), 1);
+    setTone("out-hotShardQps", hotExceeds ? "bad" : "ok");
+    document.getElementById("out-hotShardQpsSub").textContent = hotExceeds
+      ? "Exceeds a single node's budget, you need a hot-key strategy"
+      : "Within a single node's budget";
+    document.getElementById("out-dataset").textContent = bytes(d.dataset);
+
+    toggle("flag-database-shards", d.shards > 1000);
   }
 
   trafficIds.forEach(function (id) { trafficEls[id].addEventListener("input", renderTraffic); });
@@ -1236,6 +1638,31 @@
   bwWritesField.hidden = bwLinkEl.checked;
   bwLinkedNote.hidden = !bwLinkEl.checked;
 
+  computeIds.forEach(function (id) { computeEls[id].addEventListener("input", renderCompute); });
+  cpLinkEl.addEventListener("change", function () {
+    cpReqField.hidden = cpLinkEl.checked;
+    cpLinkedNote.hidden = !cpLinkEl.checked;
+    renderCompute();
+  });
+  cpReqField.hidden = cpLinkEl.checked;
+  cpLinkedNote.hidden = !cpLinkEl.checked;
+
+  databaseIds.forEach(function (id) { databaseEls[id].addEventListener("input", renderDatabase); });
+  dbRecordsLinkEl.addEventListener("change", function () {
+    dbRecordsField.hidden = dbRecordsLinkEl.checked;
+    dbRecordsLinkedNote.hidden = !dbRecordsLinkEl.checked;
+    renderDatabase();
+  });
+  dbQpsLinkEl.addEventListener("change", function () {
+    dbQpsField.hidden = dbQpsLinkEl.checked;
+    dbQpsLinkedNote.hidden = !dbQpsLinkEl.checked;
+    renderDatabase();
+  });
+  dbRecordsField.hidden = dbRecordsLinkEl.checked;
+  dbRecordsLinkedNote.hidden = !dbRecordsLinkEl.checked;
+  dbQpsField.hidden = dbQpsLinkEl.checked;
+  dbQpsLinkedNote.hidden = !dbQpsLinkEl.checked;
+
   document.getElementById("boeReset").addEventListener("click", function () {
     trafficIds.forEach(function (id) { trafficEls[id].value = TRAFFIC_DEFAULTS[id]; });
     storageIds.forEach(function (id) { storageEls[id].value = STORAGE_DEFAULTS[id]; });
@@ -1254,6 +1681,17 @@
     bwReadsField.hidden = true;
     bwWritesField.hidden = true;
     bwLinkedNote.hidden = false;
+    computeIds.forEach(function (id) { computeEls[id].value = COMPUTE_DEFAULTS[id]; });
+    cpLinkEl.checked = true;
+    cpReqField.hidden = true;
+    cpLinkedNote.hidden = false;
+    databaseIds.forEach(function (id) { databaseEls[id].value = DATABASE_DEFAULTS[id]; });
+    dbRecordsLinkEl.checked = true;
+    dbRecordsField.hidden = true;
+    dbRecordsLinkedNote.hidden = false;
+    dbQpsLinkEl.checked = true;
+    dbQpsField.hidden = true;
+    dbQpsLinkedNote.hidden = false;
     renderTraffic();
   });
 
