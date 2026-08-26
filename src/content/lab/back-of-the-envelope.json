@@ -5,7 +5,7 @@
   "category": "Systems Design · Capacity Planning",
   "year": "Tool",
   "description": "Start from daily users and requests, and peak load falls out as a calculation.",
-  "preview": "bars",
+  "preview": "flow",
   "featured": true,
   "order": -0.25
 }
