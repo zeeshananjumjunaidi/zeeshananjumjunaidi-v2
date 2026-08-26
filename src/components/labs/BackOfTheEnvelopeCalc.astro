@@ -511,7 +511,7 @@
         <div id="dgContextMenu" class="dg-context-menu" hidden></div>
       </div>
 
-      <p class="boe-hint dg-hint">Drag "+ Box", "+ Container", or "+ Text" onto the canvas, or click any of them to add. "+ Component" drops a pre-labeled Database, User, Cache, Server, Gateway, Queue, or CDN icon. A container is a large frame: drop boxes inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including its shape (rect, rounded, diamond, or borderless text), an icon, and a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
+      <p class="boe-hint dg-hint">Drag "+ Box", "+ Container", or "+ Text" onto the canvas, or click any of them to add. "+ Component" drops a pre-labeled icon: client and identity, compute, data, messaging and network, or AI. A container is a large frame: drop boxes (or other containers, nested as deep as you like) inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including its shape (rect, rounded, diamond, or borderless text), an icon, and a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
     </div>
   </div>
 </div>
@@ -1333,17 +1333,44 @@
     server: '<rect x="3" y="3" width="14" height="5" rx="1"/><rect x="3" y="12" width="14" height="5" rx="1"/><circle cx="6.2" cy="5.5" r="0.7" fill="currentColor" stroke="none"/><circle cx="6.2" cy="14.5" r="0.7" fill="currentColor" stroke="none"/>',
     gateway: '<rect x="7" y="2" width="6" height="4" rx="1"/><path d="M10 6v3"/><path d="M4 13h12"/><path d="M4 13v4M10 13v4M16 13v4"/>',
     queue: '<rect x="3" y="4" width="10" height="3" rx="0.5"/><rect x="3" y="9" width="10" height="3" rx="0.5"/><rect x="3" y="14" width="10" height="3" rx="0.5"/><path d="M15.5 9.5h1.5M17 9.5l-1.8-1.8M17 9.5l-1.8 1.8"/>',
-    cloud: '<path d="M6.5 15a3.5 3.5 0 0 1-.5-6.9 4.5 4.5 0 0 1 8.6-1.6A3.3 3.3 0 0 1 14.5 15z"/>'
+    cloud: '<path d="M6.5 15a3.5 3.5 0 0 1-.5-6.9 4.5 4.5 0 0 1 8.6-1.6A3.3 3.3 0 0 1 14.5 15z"/>',
+    external: '<circle cx="10" cy="10" r="7"/><path d="M3 10h14"/><path d="M10 3a11 11 0 0 1 0 14"/><path d="M10 3a11 11 0 0 0 0 14"/>',
+    vm: '<path d="M10 2 17 6v8l-7 4-7-4V6z"/><circle cx="10" cy="10" r="2"/>',
+    function: '<path d="M6 3c2.2 0 3.3.6 3.6 2C10.2 8 12 12 14 17"/><path d="M10.5 9 6 17"/>',
+    bucket: '<path d="M4 4h12l-1.4 12.2a1 1 0 0 1-1 .8H6.4a1 1 0 0 1-1-.8z"/><path d="M4 4l1-2h10l1 2"/>',
+    eventbus: '<circle cx="6" cy="14" r="1.5" fill="currentColor" stroke="none"/><path d="M9 11a4 4 0 0 1 0 6"/><path d="M12 8a8 8 0 0 1 0 12"/>',
+    firewall: '<rect x="3" y="4" width="14" height="12" rx="1"/><path d="M3 8h14M3 12h14M7 4v4M13 8v4M7 12v4"/>',
+    aiagent: '<rect x="5" y="7" width="10" height="8" rx="2"/><path d="M10 7V4"/><circle cx="10" cy="3" r="1" fill="currentColor" stroke="none"/><circle cx="7.8" cy="11" r="0.9" fill="currentColor" stroke="none"/><circle cx="12.2" cy="11" r="0.9" fill="currentColor" stroke="none"/><path d="M8 14h4"/>'
   };
-  var COMPONENT_PRESETS = [
-    { icon: "db", label: "Database" },
-    { icon: "user", label: "User" },
-    { icon: "cache", label: "Cache" },
-    { icon: "server", label: "Server" },
-    { icon: "gateway", label: "Gateway" },
-    { icon: "queue", label: "Queue" },
-    { icon: "cloud", label: "CDN" }
+  // Grouped for the "+ Component" palette; flattened for the node context
+  // menu's Icon row, where grouping doesn't matter since it's icon-only.
+  var COMPONENT_GROUPS = [
+    { heading: "Client & identity", items: [
+      { icon: "user", label: "User" },
+      { icon: "external", label: "External" }
+    ] },
+    { heading: "Compute", items: [
+      { icon: "server", label: "Server" },
+      { icon: "vm", label: "VM / Pod" },
+      { icon: "function", label: "Function" }
+    ] },
+    { heading: "Data", items: [
+      { icon: "db", label: "Database" },
+      { icon: "cache", label: "Cache" },
+      { icon: "bucket", label: "Object storage" }
+    ] },
+    { heading: "Messaging & network", items: [
+      { icon: "queue", label: "Queue" },
+      { icon: "eventbus", label: "Event bus" },
+      { icon: "gateway", label: "Gateway" },
+      { icon: "firewall", label: "Firewall" },
+      { icon: "cloud", label: "CDN" }
+    ] },
+    { heading: "AI", items: [
+      { icon: "aiagent", label: "AI Agent" }
+    ] }
   ];
+  var COMPONENT_PRESETS = [].concat.apply([], COMPONENT_GROUPS.map(function (g) { return g.items; }));
   function iconSvg(key, cls) {
     var d = NODE_ICONS[key];
     if (!d) return "";
@@ -1434,18 +1461,51 @@
     return nodes.filter(function (n) { return n.groupId === groupId; }).map(function (n) { return n.id; });
   }
 
+  // Recursive: a container's "children" includes anything nested inside a
+  // child container too, so dragging the outermost container (say a VPC)
+  // carries a Subnet inside it, and everything inside that Subnet, together.
   function containerChildren(containerId) {
-    return nodes.filter(function (n) { return n.parentId === containerId; }).map(function (n) { return n.id; });
+    var direct = nodes.filter(function (n) { return n.parentId === containerId; });
+    var ids = direct.map(function (n) { return n.id; });
+    direct.forEach(function (n) {
+      if (n.type === "container") ids = ids.concat(containerChildren(n.id));
+    });
+    return ids;
   }
 
-  // Topmost container (by array/paint order) whose bounds contain the given canvas-space point.
-  function containerAt(x, y, excludeId) {
+  // Topmost container (by array/paint order) whose bounds contain the given canvas-space
+  // point. Containers are kept ordered so a nested child always paints after its parent
+  // (see reorderContainerRelativeToParent), so when a point falls inside both an outer and
+  // inner container, the later match here is correctly the innermost one.
+  function containerAt(x, y, excludeIds) {
+    var exclude = excludeIds == null ? null : new Set([].concat(excludeIds));
     var found = null;
     nodes.forEach(function (n) {
-      if (n.type !== "container" || n.id === excludeId) return;
+      if (n.type !== "container" || (exclude && exclude.has(n.id))) return;
       if (x >= n.x && x <= n.x + n.w && y >= n.y && y <= n.y + n.h) found = n;
     });
     return found;
+  }
+
+  // Keeps a container immediately after its parent in paint order (or sent to
+  // the back if it has none), so nested containers reliably render on top of
+  // -- and stay clickable over -- whatever they're nested inside.
+  function reorderContainerRelativeToParent(containerNode) {
+    var idx = nodes.indexOf(containerNode);
+    if (idx === -1) return;
+    nodes.splice(idx, 1);
+    var parent = containerNode.parentId ? nodeById(containerNode.parentId) : null;
+    if (parent) {
+      var parentIdx = nodes.indexOf(parent);
+      nodes.splice(parentIdx + 1, 0, containerNode);
+    } else {
+      nodes.unshift(containerNode);
+    }
+    // Reordering the array alone doesn't move the actual DOM elements --
+    // without this, a re-parented container keeps painting (and capturing
+    // clicks) at its old stacking position until some unrelated render
+    // happens to refresh it.
+    renderNodes();
   }
 
   function applyNodeSelectionClasses() {
@@ -1721,10 +1781,14 @@
         if (!moved) {
           if (dragIds.length > 1 && !isGroup && !isContainer) selectNodesOnly([node.id]);
         } else {
-          if (!isContainer && !isGroup && dragIds.length === 1) {
+          if (!isGroup && dragIds.length === 1) {
             var cx = node.x + node.w / 2, cy = node.y + node.h / 2;
-            var container = containerAt(cx, cy, node.id);
+            // A container can't be dropped into itself or into one of its own
+            // descendants -- exclude the whole nested subtree, not just its own id.
+            var excludeIds = isContainer ? [node.id].concat(containerChildren(node.id)) : node.id;
+            var container = containerAt(cx, cy, excludeIds);
             node.parentId = container ? container.id : null;
+            if (isContainer) reorderContainerRelativeToParent(node);
           }
           commitUndo(preDrag);
           save();
@@ -1968,14 +2032,20 @@
       parentId: null,
       color: null
     };
-    if (!isContainer) {
-      var c = containerAt(x + node.w / 2, y + node.h / 2, null);
-      if (c) node.parentId = c.id;
-    }
+    // A container can nest inside another container too (a Subnet dropped
+    // inside a VPC), same auto-parent as a plain box dropped inside one.
+    var c = containerAt(x + node.w / 2, y + node.h / 2, null);
+    if (c) node.parentId = c.id;
     pushUndo();
     // New containers go behind everything already on the canvas, since a
-    // frame that paints on top of existing boxes would hide them.
-    if (isContainer) nodes.unshift(node); else nodes.push(node);
+    // frame that paints on top of existing boxes would hide them -- unless
+    // it's nested, in which case it needs to paint after its own parent.
+    if (isContainer) {
+      nodes.unshift(node);
+      if (node.parentId) reorderContainerRelativeToParent(node);
+    } else {
+      nodes.push(node);
+    }
     renderNodes();
     renderEdges();
     save();
@@ -2075,18 +2145,20 @@
     addNode(cx - 55, cy - 14, "text");
   });
 
+  function placePreset(preset) {
+    var rect = wrap.getBoundingClientRect();
+    var cx = (rect.width / 2 - view.panX) / view.zoom;
+    var cy = (rect.height / 2 - view.panY) / view.zoom;
+    addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label });
+  }
   addComponentBtn.addEventListener("click", function () {
-    var items = COMPONENT_PRESETS.map(function (preset) {
-      return {
-        label: preset.label,
-        icon: preset.icon,
-        action: function () {
-          var rect = wrap.getBoundingClientRect();
-          var cx = (rect.width / 2 - view.panX) / view.zoom;
-          var cy = (rect.height / 2 - view.panY) / view.zoom;
-          addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label });
-        }
-      };
+    var items = [];
+    COMPONENT_GROUPS.forEach(function (group, i) {
+      if (i > 0) items.push("separator");
+      items.push({ heading: group.heading });
+      group.items.forEach(function (preset) {
+        items.push({ label: preset.label, icon: preset.icon, action: function () { placePreset(preset); } });
+      });
     });
     var btnRect = addComponentBtn.getBoundingClientRect();
     showContextMenu(items, btnRect.left, btnRect.bottom + 6);
@@ -2198,6 +2270,16 @@
 
       nodes = importedNodes;
       edges = importedEdges;
+      // A hand-edited or older export might not list a nested container's
+      // parent before it -- re-settle paint order so a child always renders
+      // after its parent regardless of file order. One pass per container is
+      // always enough to converge, however deep the nesting goes.
+      var importedContainers = importedNodes.filter(function (n) { return n.type === "container"; });
+      importedContainers.forEach(function () {
+        importedContainers.forEach(function (cn) {
+          if (cn.parentId) reorderContainerRelativeToParent(cn);
+        });
+      });
       nextId = recomputeNextIdFrom(nodes.concat(edges));
       clearSelection();
       renderNodes();
@@ -2289,7 +2371,12 @@
       }
     });
     newNodes.forEach(function (nn) {
-      if (nn.type === "container") nodes.unshift(nn); else nodes.push(nn);
+      if (nn.type === "container") {
+        nodes.unshift(nn);
+        if (nn.parentId) reorderContainerRelativeToParent(nn);
+      } else {
+        nodes.push(nn);
+      }
     });
     edges = edges.concat(newEdges);
     renderNodes();
@@ -2392,6 +2479,13 @@
     items.forEach(function (item) {
       if (item === "separator") {
         contextMenu.appendChild(document.createElement("hr"));
+        return;
+      }
+      if (item.heading) {
+        var h = document.createElement("div");
+        h.className = "dg-style-label";
+        h.textContent = item.heading;
+        contextMenu.appendChild(h);
         return;
       }
       if (item.swatches) {
