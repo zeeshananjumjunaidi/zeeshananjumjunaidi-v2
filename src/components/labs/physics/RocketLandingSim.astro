@@ -727,6 +727,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var PHYS = {
     isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
     vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02, groundContact: 1.5,
+    // Crossrange divert clock (Article §09): kill lateral drift by this
+    // altitude, then just descend; the 11 s floor is the article's own
+    // number, same vehicle as the reference file.
+    hDiv: 45, tLatFloor: 11,
     // Deceleration-profile law (Article §07's "reference profile" --
     // symbolic there, these two numbers are this port's own tuning, not
     // from the source).
@@ -1005,14 +1009,29 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
     var tGo = Math.max(2 * Math.max(state.y, 0) / (Math.abs(state.vy) + PHYS.vTarget), PHYS.tGoFloor);
 
-    var zemX = -(state.x + state.vx * tGo);
-    var ax = (6 * zemX) / (tGo * tGo) - (2 * -state.vx) / tGo;
+    // Crossrange gets its OWN clock (Article §09), not tGo. Sharing tGo
+    // between vertical and lateral was the actual bug behind poor
+    // touchdown accuracy: near the ground tGo swings with every cycle of
+    // the throttle-floor pulsing (state.y/vy oscillate as the engine
+    // cuts and re-lights), so lateral gain was erratic exactly when it
+    // mattered most. A long, mostly-fixed horizon here is the
+    // counterintuitive part the article calls out -- it trades a short,
+    // "hot" clock (which saturates the tilt limit and overshoots) for
+    // one that stays inside what the vehicle can actually deliver, so
+    // the divert converges instead of ringing.
+    var vRefHdiv = -Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * PHYS.aDec * PHYS.hDiv);
+    var tDiv = (2 * (state.y - PHYS.hDiv)) / (Math.abs(state.vy) + Math.abs(vRefHdiv));
+    var tLat = Math.max(PHYS.tLatFloor, tDiv, PHYS.tGoFloor);
 
-    var zemZ = -(state.z + state.vz * tGo);
-    var az = (6 * zemZ) / (tGo * tGo) - (2 * -state.vz) / tGo;
+    var zemX = -(state.x + state.vx * tLat);
+    var ax = (6 * zemX) / (tLat * tLat) - (2 * -state.vx) / tLat;
 
-    // Lateral is always ZEM/ZEV (Article §09's crossrange divert); only
-    // the vertical channel changes with the guidance-law selector.
+    var zemZ = -(state.z + state.vz * tLat);
+    var az = (6 * zemZ) / (tLat * tLat) - (2 * -state.vz) / tLat;
+
+    // Lateral is always ZEM/ZEV (Article §09's crossrange divert), on
+    // the tLat clock above; only the vertical channel changes with the
+    // guidance-law selector.
     var ay;
     if (guidanceSelect && guidanceSelect.value === "profile") {
       var vRef = -Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * PHYS.aDec * Math.max(state.y, 0));
