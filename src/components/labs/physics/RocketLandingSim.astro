@@ -19,6 +19,14 @@
             <span class="val" id="throttleV">0%</span>
           </div>
         </div>
+        <div class="group">
+          <span class="tag">world</span>
+          <select id="world">
+            <option value="earth">Earth</option>
+            <option value="mars">Mars</option>
+            <option value="moon">Moon</option>
+          </select>
+        </div>
         <button id="autopilot" class="active">Autopilot: On</button>
         <button id="reset">Reset run</button>
       </div>
@@ -617,6 +625,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var throttleLabel = document.getElementById("throttleV");
   var resetBtn = document.getElementById("reset");
   var autopilotBtn = document.getElementById("autopilot");
+  var worldSelect = document.getElementById("world");
   var altEl = document.getElementById("alt");
   var vspeedEl = document.getElementById("vspeed");
   var fuelEl = document.getElementById("fuel");
@@ -646,6 +655,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // to place geometry are needed yet; g0/isp/Cd etc. wait for the physics
   // integration.
   var DEG = Math.PI / 180;
+  var STD_G0 = 9.80665; // standard gravity Isp is conventionally referenced to
   var VEH = {
     dry: 22200, fuel0: 5200, maxT: 845000, minThr: 0.4, L: 47, R: 1.85, arm: 16,
     I: 4.9e6, maxGimbal: 15 * DEG, maxTilt: 32 * DEG
@@ -658,12 +668,24 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // Grid-fin torque, the coast-phase actuator (Article 04), is not
   // modelled -- attitude only has authority once the engine is lit.
   var PHYS = {
-    g0: 9.80665, isp: 282, rho0: 1.225, H: 8500, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
+    isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
     vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02
   };
 
+  // Article §04's own closing point, made selectable: gravity and the
+  // atmosphere (so drag, and everything fin-related that isn't modelled
+  // here) change per world. g/rho0/H replace PHYS.g0/rho0/H, looked up
+  // through the currently selected world on every physics step.
+  var WORLDS = {
+    earth: { name: "Earth", g: 9.807, rho0: 1.225, H: 8500, ground: 0x1a1d22 },
+    mars: { name: "Mars", g: 3.721, rho0: 0.020, H: 11100, ground: 0x3a2418 },
+    moon: { name: "Moon", g: 1.625, rho0: 0, H: 1, ground: 0x28282a }
+  };
+  function world() { return WORLDS[state.world]; }
+
   function defaultState() {
     return {
+      world: worldSelect ? worldSelect.value : "earth",
       x: 180, y: 900, z: 60,
       vx: -16, vy: -85, vz: -6,
       phi: 0, psi: 0, wphi: 0, wpsi: 0,
@@ -676,7 +698,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   }
   var state = defaultState();
 
-  var rocket, nozzleGroup, flame, flameInner, glow, legParts = [];
+  var rocket, nozzleGroup, flame, flameInner, glow, groundMesh, legParts = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
   var restY = VEH.arm - 2.2 + 11;
@@ -690,13 +712,13 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   }
 
   function buildGround() {
-    var ground = new THREE.Mesh(
+    groundMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(20000, 20000),
-      new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: 1, metalness: 0 })
+      new THREE.MeshStandardMaterial({ color: world().ground, roughness: 1, metalness: 0 })
     );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.4;
-    scene.add(ground);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.position.y = -0.4;
+    scene.add(groundMesh);
 
     var grid = new THREE.GridHelper(1400, 56, 0x3a4048, 0x3a4048);
     grid.material.opacity = 0.18;
@@ -850,9 +872,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   function guidance() {
     var mass = VEH.dry + state.fuel;
 
+    var g = world().g;
     if (!state.ignited) {
       var aReq = (state.vy * state.vy - PHYS.vTouch * PHYS.vTouch) / (2 * Math.max(state.y, 0.001));
-      var aAvail = VEH.maxT / mass - PHYS.g0;
+      var aAvail = VEH.maxT / mass - g;
       if (aReq / aAvail >= 0.98) state.ignited = true;
     }
     if (!state.ignited || state.fuel <= 0) return { thrust: 0, defPhi: 0, defPsi: 0 };
@@ -865,8 +888,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var zemZ = -(state.z + state.vz * tGo);
     var az = (6 * zemZ) / (tGo * tGo) - (2 * -state.vz) / tGo;
 
-    var zemY = -(state.y + state.vy * tGo - 0.5 * PHYS.g0 * tGo * tGo);
-    var zevY = -PHYS.vTarget - state.vy + PHYS.g0 * tGo;
+    var zemY = -(state.y + state.vy * tGo - 0.5 * g * tGo * tGo);
+    var zevY = -PHYS.vTarget - state.vy + g * tGo;
     var ay = (6 * zemY) / (tGo * tGo) - (2 * zevY) / tGo;
 
     var mag = Math.sqrt(ax * ax + ay * ay + az * az);
@@ -896,14 +919,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var ux = -Math.sin(totalPhi);
     var uy = Math.cos(totalPhi) * Math.cos(totalPsi);
     var uz = Math.cos(totalPhi) * Math.sin(totalPsi);
+    var w = world();
     var speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy + s.vz * s.vz);
-    var rho = PHYS.rho0 * Math.exp(-Math.max(s.y, 0) / PHYS.H);
+    var rho = w.rho0 * Math.exp(-Math.max(s.y, 0) / w.H);
     var dragK = (0.5 * rho * PHYS.Cd * PHYS.A * speed) / mass;
 
     return {
       x: s.vx, y: s.vy, z: s.vz,
       vx: (u.thrust * ux) / mass - dragK * s.vx,
-      vy: (u.thrust * uy) / mass - PHYS.g0 - dragK * s.vy,
+      vy: (u.thrust * uy) / mass - w.g - dragK * s.vy,
       vz: (u.thrust * uz) / mass - dragK * s.vz,
       phi: s.wphi, psi: s.wpsi,
       wphi: (-u.thrust * VEH.arm * Math.sin(u.defPhi)) / VEH.I,
@@ -932,7 +956,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var u = state.autopilot ? guidance() : manualControl();
 
     rk4Step(state, u, dt, mass);
-    if (u.thrust > 0) state.fuel = Math.max(0, state.fuel - (u.thrust / (PHYS.isp * PHYS.g0)) * dt);
+    // Isp is defined against standard Earth gravity by convention, not the
+    // local world's -- STD_G0, not world().g, is what belongs here.
+    if (u.thrust > 0) state.fuel = Math.max(0, state.fuel - (u.thrust / (PHYS.isp * STD_G0)) * dt);
     state.thrustFrac = u.thrust / VEH.maxT;
     state.defPhi = u.defPhi;
     state.defPsi = u.defPsi;
@@ -1055,6 +1081,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
   if (throttleInput) throttleInput.addEventListener("input", updateEngineVisual);
   if (resetBtn) resetBtn.addEventListener("click", resetRun);
+  // Gravity/atmosphere can't sensibly change mid-fall, so picking a new
+  // world just starts the run over under it.
+  if (worldSelect) worldSelect.addEventListener("change", function () {
+    resetRun();
+    if (groundMesh) groundMesh.material.color.setHex(world().ground);
+  });
   if (autopilotBtn) autopilotBtn.addEventListener("click", function () { setAutopilot(!state.autopilot); });
   setAutopilot(state.autopilot);
   updateEngineVisual();
@@ -1134,6 +1166,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   }
   input[type="range"] {
     accent-color: var(--card-label);
+  }
+  select {
+    background: transparent;
+    color: var(--headline-color);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 13px;
   }
   .controls button {
     background: transparent;
