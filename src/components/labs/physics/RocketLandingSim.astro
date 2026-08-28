@@ -88,7 +88,11 @@
               <dt>h</dt><dd>altitude of the engine bell</dd>
               <dt>t<sub>go</sub></dt><dd>time to go</dd>
             </dl>
-            <p class="rl-note">Every numeric value in this article comes from a working simulator with the vehicle's own parameters. Reproduce them, argue with them, change them.</p>
+            <p class="rl-note">The simulator tab is a work in progress -- these numbers are hand-computed from the vehicle's own constants, not pulled from a running model yet. Wiring the simulator up to produce them live is next.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Blackmore, L., "Autonomous Precision Landing of Space Rockets," <em>The Bridge</em> (National Academy of Engineering), 46(4), 2016.</li>
+            </ul>
           </aside>
         </section>
 
@@ -159,6 +163,11 @@
               <dt>Wind</dt><dd>aligned with airflow relative to the body. Aerodynamic forces live here.</dd>
             </dl>
             <p class="rl-note">Most integration bugs in flight software are a quantity expressed in one frame and used in another. Label your variables with their frame and the class of bug disappears.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Hughes, P. C., <em>Spacecraft Attitude Dynamics</em>, Wiley, 1986 (Dover reprint, 2004).</li>
+              <li>Shuster, M. D., "A Survey of Attitude Representations," <em>Journal of the Astronautical Sciences</em>, 41(4), 1993.</li>
+            </ul>
           </aside>
         </section>
 
@@ -232,6 +241,14 @@
               <tr><td>&Delta;v in tanks</td><td class="n">&asymp; 610 m/s</td></tr>
             </table>
             <p class="rl-note">Thrust-to-weight above one at minimum throttle is the defining feature of this vehicle. Design a lander with T/W below one at minimum throttle, as the Apollo LM had, and almost every hard problem in this article softens.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Tsiolkovsky, K. E., <em>Исследование мировых пространств реактивными приборами</em>, 1903 -- the original rocket equation.</li>
+              <li>Sutton, G. P. &amp; Biblarz, O., <em>Rocket Propulsion Elements</em>, 9th ed., Wiley, 2016.</li>
+              <li><em>U.S. Standard Atmosphere, 1976</em>, NOAA/NASA/USAF -- source of the exponential density model.</li>
+              <li>A&ccedil;&#305;kme&#351;e, B. &amp; Ploen, S. R., "Convex Programming Approach to Powered Descent Guidance for Mars Landing," <em>Journal of Guidance, Control, and Dynamics</em>, 30(5), 2007.</li>
+              <li>A&ccedil;&#305;kme&#351;e, B., Carson, J. M. &amp; Blackmore, L., "Lossless Convexification of Nonconvex Control Bound and Pointing Constraints...," <em>IEEE Trans. Control Systems Technology</em>, 21(6), 2013.</li>
+            </ul>
           </aside>
         </section>
       </article>
@@ -492,4 +509,8 @@
   .rl-table td { padding: 5px 6px; border-bottom: 1px solid var(--card-border); color: var(--headline-color); }
   .rl-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
   .rl-table tr:last-child td { border-bottom: 0; }
+
+  .rl-refs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .rl-refs li { font-family: var(--font-body); font-size: 12px; line-height: 1.55; color: var(--card-desc); }
+  .rl-refs em { font-style: italic; color: var(--headline-color); }
 </style>
