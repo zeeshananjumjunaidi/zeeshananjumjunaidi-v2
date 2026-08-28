@@ -1,6 +1,50 @@
 <div class="sim-root">
   <div class="sim-main">
     <div class="panel">
+      <h1>[WIP]</h1>
+      <h2>Problem Statement</h2>
+      <p>
+        A booster returning to a pad is a rigid body with one force it can point
+        and throttle, an atmosphere that pushes back, and a mass that shrinks as
+        it works. It has to arrive at a specific point on the ground with almost
+        no velocity, almost no tilt, and almost no rotation, using less
+        propellant than it has, and it gets exactly one attempt.
+      </p>
+      <p>
+        Four things make it genuinely hard, and they are worth naming before any
+        equations appear, because every design decision later is a response to
+        one of them.
+      </p>
+      <p>
+        <strong>The vehicle cannot hover.</strong> At the end of the flight it is
+        nearly empty, and the engine has a minimum throttle. If minimum thrust divided
+        by mass exceeds local gravity, then any lit engine accelerates the vehicle
+        upward. There is no steady state to settle into. You get one continuous braking
+        maneuver, and it has to end at the ground.
+      </p>
+      <p>
+        <strong>Propellant is the binding constraint.</strong> The fuel-optimal solution
+        is to fall as long as possible and brake as hard as possible at the last moment.
+        That solution is also the one with the least margin, because braking late
+        means every error has to be corrected with the authority left over from an
+        already saturated engine.
+      </p>
+      <p>
+        <strong
+          >Translation and rotation are coupled through the same actuator.</strong
+        > The only way to accelerate sideways is to tilt the whole vehicle, and the
+        only way to tilt is to point the engine off-axis, which steals thrust from
+        the vertical channel. Wanting to move left and wanting to slow down are the
+        same actuator fighting itself.
+      </p>
+      <p>
+        <strong>Control authority is not constant.</strong> It depends on thrust,
+        air density and speed, all of which change by orders of magnitude during the
+        descent. A controller tuned for the conditions at three kilometres is tuned
+        for a different vehicle than the one that exists at twenty metres.
+      </p>
+    </div>
+    <div class="panel">
       <h2>Descent camera</h2>
       <canvas id="scene"></canvas>
     </div>
