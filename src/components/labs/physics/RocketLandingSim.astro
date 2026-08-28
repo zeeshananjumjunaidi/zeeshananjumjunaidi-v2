@@ -26,6 +26,7 @@
             <div class="rl-hud-row"><span>Propellant</span><b id="fuel">100</b></div>
             <div class="rl-hud-row"><span>Tilt</span><b id="tiltHud">0.0&deg;</b></div>
             <div class="rl-hud-row"><span>Gimbal</span><b id="gimbalHud">0.0&deg; / 0.0&deg;</b></div>
+            <div class="rl-hud-row"><span>Fins</span><b id="finHud">0.0&deg; / 0.0&deg;</b></div>
           </div>
 
           <div class="rl-hudpanel rl-hud-bl">
@@ -53,6 +54,7 @@
             <span class="rl-field-label">Manual throttle</span>
             <input id="throttle" type="range" min="0" max="100" value="0" disabled />
           </div>
+          <p class="rl-hint">Manual: <kbd>W</kbd>/<kbd>S</kbd> throttle &middot; <kbd>A</kbd>/<kbd>D</kbd> steer X &middot; <kbd>Q</kbd>/<kbd>E</kbd> steer Z</p>
           <div class="rl-field">
             <span class="rl-field-label">Guidance law</span>
             <select id="guidance">
@@ -700,6 +702,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var phaseEl = document.getElementById("phaseChip");
   var tiltHudEl = document.getElementById("tiltHud");
   var gimbalHudEl = document.getElementById("gimbalHud");
+  var finHudEl = document.getElementById("finHud");
   var tplusEl = document.getElementById("tplus");
   var tgoHudEl = document.getElementById("tgoHud");
   var camNameEl = document.getElementById("camNameHud");
@@ -740,15 +743,20 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var STD_G0 = 9.80665; // standard gravity Isp is conventionally referenced to
   var VEH = {
     dry: 22200, fuel0: 5200, maxT: 845000, minThr: 0.4, L: 47, R: 1.85, arm: 16,
-    I: 4.9e6, maxGimbal: 15 * DEG, maxTilt: 32 * DEG, gimbalRate: 40 * DEG
+    maxGimbal: 15 * DEG, maxTilt: 32 * DEG, gimbalRate: 40 * DEG,
+    // Grid-fin geometry (Article §04's own numbers): lift-curve slope,
+    // reference area, moment arm from the CoM, and the fin actuator's
+    // own (faster, smaller-surface) limits.
+    finS: 16, finArm: 14, finCL: 2.0, maxFin: 20 * DEG, finRate: 120 * DEG
   };
 
   // Physics + guidance constants. Full translation (x,y,z) and attitude
-  // (phi,psi) now, RK4 with zero-order-hold control (Article 10), ZEM/ZEV
+  // (phi,psi), RK4 with zero-order-hold control (Article 10), ZEM/ZEV
   // terminal guidance for all three axes at once (Article 08) driving a
-  // PD attitude loop (Article 06) that commands the gimbal (Article 03).
-  // Grid-fin torque, the coast-phase actuator (Article 04), is not
-  // modelled -- attitude only has authority once the engine is lit.
+  // PD attitude loop (Article 06) that commands both actuators (Article
+  // §05: same signal, scaled and clipped to each one's own limits) --
+  // gimbal and grid fins, so the vehicle has attitude authority during
+  // the unpowered coast too, not just once the engine lights.
   var PHYS = {
     isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
     vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02,
@@ -759,7 +767,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     // Deceleration-profile law (Article §07's "reference profile" --
     // symbolic there, these two numbers are this port's own tuning, not
     // from the source).
-    aDec: 12, profileK: 0.8
+    aDec: 12, profileK: 0.8,
+    // Article §05's allocation: the fin command is the same PD signal as
+    // the gimbal's, just scaled up before its own clamp.
+    finGain: 1.4
   };
 
   // Article §04's own closing point, made selectable: gravity and the
@@ -804,7 +815,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       phase: "falling", // falling | landed | crashed
       ignited: false,
       autopilot: true,
-      thrustFrac: 0, defPhi: 0, defPsi: 0, // last-applied control, for the visuals
+      thrustFrac: 0, defPhi: 0, defPsi: 0, finPhi: 0, finPsi: 0, // last-applied control, for the visuals
       tPlus: 0, tGo: null, cut: false,
       verdict: null
     };
@@ -1087,13 +1098,59 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     return pct <= 0 ? 0 : Math.max(pct / 100, VEH.minThr);
   }
 
-  // Manual mode: vertical-only, straight off the throttle slider -- no
-  // gimbal, so lateral drift (if any) is uncorrected. That asymmetry with
-  // the autopilot is deliberate: it's the fastest way to feel why Article
-  // §04 says the vehicle needs a second actuator at all.
-  function manualControl() {
+  // Article §05: one PD-style signal per axis, scaled and clipped to
+  // each actuator's own limits and rate -- shared by the autopilot and
+  // manual attitude hold so both actuators respond the same way no
+  // matter who is asking for the torque.
+  function allocate(uPhi, uPsi) {
+    var maxGimbalStep = VEH.gimbalRate * PHYS.step;
+    var defPhi = clamp(clamp(uPhi, -VEH.maxGimbal, VEH.maxGimbal), state.defPhi - maxGimbalStep, state.defPhi + maxGimbalStep);
+    var defPsi = clamp(clamp(uPsi, -VEH.maxGimbal, VEH.maxGimbal), state.defPsi - maxGimbalStep, state.defPsi + maxGimbalStep);
+
+    var maxFinStep = VEH.finRate * PHYS.step;
+    var finPhi = clamp(clamp(PHYS.finGain * uPhi, -VEH.maxFin, VEH.maxFin), state.finPhi - maxFinStep, state.finPhi + maxFinStep);
+    var finPsi = clamp(clamp(PHYS.finGain * uPsi, -VEH.maxFin, VEH.maxFin), state.finPsi - maxFinStep, state.finPsi + maxFinStep);
+
+    return { defPhi: defPhi, defPsi: defPsi, finPhi: finPhi, finPsi: finPsi };
+  }
+
+  // Manual mode, full authority: throttle and both tilt axes are
+  // keyboard-driven (W/S throttle, A/D steer X, Q/E steer Z), matching
+  // what the reference file's own manual mode offers -- earlier this
+  // was vertical-only with no lateral or gimbal authority at all.
+  //
+  // "Attitude hold" is always on here (the reference makes it an
+  // optional assist you can switch off for raw open-loop gimbal
+  // instead): keys move a held target angle and the same PD loop the
+  // autopilot uses (Article §06) tracks it, through the same allocator
+  // (Article §05) that also drives the fins.
+  var manualKeys = {};
+  var manualPhiCmd = 0, manualPsiCmd = 0;
+  var MANUAL_TILT_RATE = 24 * DEG;
+  var MANUAL_THROTTLE_RATE = 70; // percent per second
+
+  function manualControl(dt) {
+    if (throttleInput) {
+      var pct = Number(throttleInput.value);
+      if (manualKeys.throttleUp) pct += MANUAL_THROTTLE_RATE * dt;
+      if (manualKeys.throttleDown) pct -= MANUAL_THROTTLE_RATE * dt;
+      throttleInput.value = String(clamp(pct, 0, 100));
+    }
     var frac = state.fuel > 0 ? throttleFraction() : 0;
-    return { thrust: frac * VEH.maxT, defPhi: 0, defPsi: 0 };
+
+    var tiltCap = tiltLimit(state.y);
+    if (manualKeys.left) manualPhiCmd += MANUAL_TILT_RATE * dt;
+    if (manualKeys.right) manualPhiCmd -= MANUAL_TILT_RATE * dt;
+    if (manualKeys.fwd) manualPsiCmd += MANUAL_TILT_RATE * dt;
+    if (manualKeys.back) manualPsiCmd -= MANUAL_TILT_RATE * dt;
+    manualPhiCmd = clamp(manualPhiCmd, -tiltCap, tiltCap);
+    manualPsiCmd = clamp(manualPsiCmd, -tiltCap, tiltCap);
+
+    var uPhi = -(PHYS.Kp * (manualPhiCmd - state.phi) - PHYS.Kd * state.wphi);
+    var uPsi = -(PHYS.Kp * (manualPsiCmd - state.psi) - PHYS.Kd * state.wpsi);
+    var alloc = allocate(uPhi, uPsi);
+
+    return { thrust: frac * VEH.maxT, defPhi: alloc.defPhi, defPsi: alloc.defPsi, finPhi: alloc.finPhi, finPsi: alloc.finPsi };
   }
 
   // Ported from the reference file's own guidance stack (deriv/rk4 +
@@ -1244,15 +1301,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
     var uPhi = -(PHYS.Kp * (phiCmd - state.phi) - PHYS.Kd * state.wphi);
     var uPsi = -(PHYS.Kp * (psiCmd - state.psi) - PHYS.Kd * state.wpsi);
-    var defPhi = clamp(uPhi, -VEH.maxGimbal, VEH.maxGimbal);
-    var defPsi = clamp(uPsi, -VEH.maxGimbal, VEH.maxGimbal);
-    // Rate-limited against the PREVIOUS step's gimbal angle, not just
-    // clamped in position -- the actuator can only slew so fast.
-    var maxStep = VEH.gimbalRate * PHYS.step;
-    defPhi = clamp(defPhi, state.defPhi - maxStep, state.defPhi + maxStep);
-    defPsi = clamp(defPsi, state.defPsi - maxStep, state.defPsi + maxStep);
+    var alloc = allocate(uPhi, uPsi);
 
-    return { thrust: thrustFrac * VEH.maxT, defPhi: defPhi, defPsi: defPsi };
+    return { thrust: thrustFrac * VEH.maxT, defPhi: alloc.defPhi, defPsi: alloc.defPsi, finPhi: alloc.finPhi, finPsi: alloc.finPsi };
   }
 
   // Article §01's state vector (x,y,z,vx,vy,vz,φ,ψ,ωφ,ωψ), Article §02's
@@ -1266,14 +1317,53 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var uy = Math.cos(totalPhi) * Math.cos(totalPsi);
     var uz = Math.cos(totalPhi) * Math.sin(totalPsi);
     var w = world();
+
+    // Altitude of the engine bell, not the CoM (Article §01) -- tilting
+    // raises the lowest point, and it's what the atmosphere around the
+    // fins actually sees too, not the raw y the HUD displays.
+    var bodyUy = Math.cos(s.phi) * Math.cos(s.psi);
+    var alt = Math.max(0, s.y - VEH.arm * bodyUy);
+
     // Drag depends on velocity RELATIVE to the air (Article §02), not
     // ground-relative velocity -- a crosswind along x is what actually
     // disturbs the vehicle, not the ground track.
     var windX = windInput ? Number(windInput.value) : 0;
     var relVx = s.vx - windX, relVy = s.vy, relVz = s.vz;
     var speed = Math.sqrt(relVx * relVx + relVy * relVy + relVz * relVz);
-    var rho = w.rho0 * Math.exp(-Math.max(s.y, 0) / w.H);
+    var rho = w.rho0 * Math.exp(-alt / w.H);
     var dragK = (0.5 * rho * PHYS.Cd * PHYS.A * speed) / mass;
+
+    // Grid-fin torque, weathervane stability and aerodynamic damping
+    // (Article §04) -- all proportional to dynamic pressure q, all
+    // previously missing here, which left the vehicle with zero
+    // attitude authority during the unpowered coast.
+    var q = 0.5 * rho * speed * speed;
+    var finK = q * VEH.finS * VEH.finCL * VEH.finArm;
+
+    // Moment of inertia from the mass that actually exists right now
+    // (Article §02), not the fixed constant this used to be -- it
+    // shrinks as propellant burns, so the same torque produces more
+    // angular acceleration late in the descent than early in it.
+    var I = (mass * VEH.L * VEH.L) / 12;
+
+    // Weathervane: a passive restoring torque toward the oncoming flow
+    // direction, fletching on an arrow -- only meaningful falling into
+    // the relative wind fast enough for the small-angle asin() below to
+    // stay well conditioned.
+    var wvPhi = 0, wvPsi = 0;
+    if (speed > 2 && relVy < 0) {
+      var wgt = clamp(-relVy / speed, 0, 1);
+      var phiFlow = Math.asin(clamp(relVx / speed, -1, 1));
+      var psiFlow = Math.asin(clamp(-relVz / speed, -1, 1));
+      wvPhi = finK * wgt * clamp(phiFlow - s.phi, -0.6, 0.6);
+      wvPsi = finK * wgt * clamp(psiFlow - s.psi, -0.6, 0.6);
+    }
+
+    // Aerodynamic damping: both the bare body and the fins resist
+    // rotation, fins by more than an order of magnitude for this
+    // geometry (Article §04).
+    var cD = 0.5 * rho * speed * PHYS.A * VEH.L * VEH.L * 0.03
+      + 0.5 * rho * speed * VEH.finS * VEH.finCL * VEH.finArm * VEH.finArm;
 
     return {
       x: s.vx, y: s.vy, z: s.vz,
@@ -1281,8 +1371,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       vy: (u.thrust * uy) / mass - w.g - dragK * relVy,
       vz: (u.thrust * uz) / mass - dragK * relVz,
       phi: s.wphi, psi: s.wpsi,
-      wphi: (-u.thrust * VEH.arm * Math.sin(u.defPhi)) / VEH.I,
-      wpsi: (-u.thrust * VEH.arm * Math.sin(u.defPsi)) / VEH.I
+      wphi: (-u.thrust * VEH.arm * Math.sin(u.defPhi) - finK * Math.sin(u.finPhi || 0) + wvPhi - cD * s.wphi) / I,
+      wpsi: (-u.thrust * VEH.arm * Math.sin(u.defPsi) - finK * Math.sin(u.finPsi || 0) + wvPsi - cD * s.wpsi) / I
     };
   }
   function advance(s, k, h) {
@@ -1305,7 +1395,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (state.phase !== "falling") return;
     state.tPlus += dt;
     var mass = VEH.dry + state.fuel;
-    var u = state.autopilot ? guidance() : manualControl();
+    var u = state.autopilot ? guidance() : manualControl(dt);
 
     rk4Step(state, u, dt, mass);
     // Isp is defined against standard Earth gravity by convention, not the
@@ -1314,6 +1404,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     state.thrustFrac = u.thrust / VEH.maxT;
     state.defPhi = u.defPhi;
     state.defPsi = u.defPsi;
+    state.finPhi = u.finPhi;
+    state.finPsi = u.finPsi;
 
     // Ground contact is the real y<=0, not a pragmatic stand-in for it --
     // that was only needed to paper over the vehicle hovering indefinitely
@@ -1369,6 +1461,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (lateralEl) lateralEl.textContent = Math.round(Math.sqrt(state.x * state.x + state.z * state.z));
     if (tiltHudEl) tiltHudEl.textContent = (Math.sqrt(state.phi * state.phi + state.psi * state.psi) / DEG).toFixed(1) + "°";
     if (gimbalHudEl) gimbalHudEl.textContent = (state.defPhi / DEG).toFixed(1) + "° / " + (state.defPsi / DEG).toFixed(1) + "°";
+    if (finHudEl) finHudEl.textContent = (state.finPhi / DEG).toFixed(1) + "° / " + (state.finPsi / DEG).toFixed(1) + "°";
     if (tplusEl) tplusEl.textContent = state.tPlus.toFixed(1) + " s";
     if (tgoHudEl) tgoHudEl.textContent = (state.ignited && state.tGo != null) ? state.tGo.toFixed(1) + " s" : "––";
     if (phaseEl) {
@@ -1384,6 +1477,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var autopilot = state.autopilot;
     state = defaultState();
     state.autopilot = autopilot;
+    manualPhiCmd = 0; manualPsiCmd = 0;
     if (throttleInput) throttleInput.value = "0";
     if (verdictEl) verdictEl.hidden = true;
     updateEngineVisual();
@@ -1499,7 +1593,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     applyWorldLook();
   });
   if (scenarioSelect) scenarioSelect.addEventListener("change", resetRun);
-  if (autopilotBtn) autopilotBtn.addEventListener("click", function () { setAutopilot(!state.autopilot); });
+  if (autopilotBtn) autopilotBtn.addEventListener("click", function () {
+    setAutopilot(!state.autopilot);
+    autopilotBtn.blur(); // don't leave the toggle holding focus over manual flight keys
+  });
   camButtons.forEach(function (btn) {
     btn.addEventListener("click", function () {
       camRig.mode = btn.dataset.cam;
@@ -1529,6 +1626,34 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     e.preventDefault();
     camRig.distMul = clamp(camRig.distMul * (1 + e.deltaY * 0.001), 0.2, 5);
   }, { passive: false });
+
+  // Manual flight keys -- only live once autopilot is off, and only when
+  // focus isn't already on a form control (so arrow keys still work
+  // normally on the wind slider, world/scenario selects, etc).
+  var MANUAL_KEY_MAP = {
+    KeyW: "throttleUp", ArrowUp: "throttleUp",
+    KeyS: "throttleDown", ArrowDown: "throttleDown",
+    KeyA: "left", ArrowLeft: "left",
+    KeyD: "right", ArrowRight: "right",
+    KeyQ: "back", KeyE: "fwd"
+  };
+  window.addEventListener("keydown", function (e) {
+    var action = MANUAL_KEY_MAP[e.code];
+    if (!action || state.autopilot) return;
+    // Guard against stealing arrow keys from the wind slider or the
+    // world/scenario selects -- but NOT from a focused button, or the
+    // autopilot toggle (the only way into manual mode) would keep focus
+    // after the click and eat every flight key typed right after it.
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    manualKeys[action] = true;
+    e.preventDefault();
+  });
+  window.addEventListener("keyup", function (e) {
+    var action = MANUAL_KEY_MAP[e.code];
+    if (action) manualKeys[action] = false;
+  });
+
   setAutopilot(state.autopilot);
   updateEngineVisual();
   updateHud();
@@ -1699,6 +1824,13 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     color: var(--card-desc); margin-bottom: 5px;
   }
   .rl-field-label b { font-family: var(--font-mono); font-size: 12px; color: var(--card-label); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+  .rl-hint {
+    margin: 8px 0 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--card-desc);
+  }
 
   input[type="range"] { width: 100%; accent-color: var(--card-label); }
   input[type="range"]:disabled { opacity: 0.35; cursor: not-allowed; }
