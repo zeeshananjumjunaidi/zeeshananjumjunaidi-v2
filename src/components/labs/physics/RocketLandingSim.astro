@@ -37,6 +37,20 @@
             <option value="upset">Upset attitude</option>
           </select>
         </div>
+        <div class="group">
+          <span class="tag">guidance</span>
+          <select id="guidance">
+            <option value="zemzev">ZEM/ZEV</option>
+            <option value="profile">Decel. profile + PD</option>
+          </select>
+        </div>
+        <div class="group">
+          <span class="tag">wind</span>
+          <div class="ctl">
+            <input id="wind" type="range" min="0" max="25" step="1" value="0" />
+            <span class="val" id="windV">0 m/s</span>
+          </div>
+        </div>
         <button id="autopilot" class="active">Autopilot: On</button>
         <button id="reset">Reset run</button>
       </div>
@@ -57,6 +71,14 @@
         <span>lateral <b id="lateral">190</b> m</span>
         <span>fuel <b id="fuel">100</b>%</span>
         <span>status <b id="phase">Coasting</b></span>
+      </div>
+
+      <div class="rl-verdict" id="verdict" hidden>
+        <span class="rl-verdict-title" id="verdictTitle">Landed</span>
+        <div class="rl-verdict-row"><span>Vertical speed</span><b id="vVy">--</b></div>
+        <div class="rl-verdict-row"><span>Lateral speed</span><b id="vVh">--</b></div>
+        <div class="rl-verdict-row"><span>Tilt at touchdown</span><b id="vTilt">--</b></div>
+        <div class="rl-verdict-row"><span>Miss distance</span><b id="vMiss">--</b></div>
       </div>
     </div>
 
@@ -647,12 +669,21 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var autopilotBtn = document.getElementById("autopilot");
   var worldSelect = document.getElementById("world");
   var scenarioSelect = document.getElementById("scenario");
+  var guidanceSelect = document.getElementById("guidance");
+  var windInput = document.getElementById("wind");
+  var windLabel = document.getElementById("windV");
   var camButtons = document.querySelectorAll(".rl-cambtn");
   var altEl = document.getElementById("alt");
   var vspeedEl = document.getElementById("vspeed");
   var fuelEl = document.getElementById("fuel");
   var lateralEl = document.getElementById("lateral");
   var phaseEl = document.getElementById("phase");
+  var verdictEl = document.getElementById("verdict");
+  var verdictTitleEl = document.getElementById("verdictTitle");
+  var vVyEl = document.getElementById("vVy");
+  var vVhEl = document.getElementById("vVh");
+  var vTiltEl = document.getElementById("vTilt");
+  var vMissEl = document.getElementById("vMiss");
 
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -691,7 +722,11 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // modelled -- attitude only has authority once the engine is lit.
   var PHYS = {
     isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
-    vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02
+    vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02,
+    // Deceleration-profile law (Article §07's "reference profile" --
+    // symbolic there, these two numbers are this port's own tuning, not
+    // from the source).
+    aDec: 12, profileK: 0.8
   };
 
   // Article §04's own closing point, made selectable: gravity and the
@@ -709,6 +744,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // "upset" is this port's own addition (not in the source data): a small
   // initial tilt/rotation, testing whether the attitude loop settles
   // before the guidance law needs real authority.
+  var LIMITS = { vy: PHYS.vTouch, vh: 5, tilt: 10 * DEG, miss: 25 };
+
   var SCENARIOS = {
     nominal: { name: "Nominal return", h: 900, vy: -85, x: 180, vx: -16, z: 60, vz: -6, fuel: 5200 },
     hifast: { name: "High and fast", h: 2400, vy: -190, x: 700, vx: -45, z: -200, vz: 12, fuel: 9000 },
@@ -728,7 +765,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       phase: "falling", // falling | landed | crashed
       ignited: false,
       autopilot: true,
-      thrustFrac: 0, defPhi: 0, defPsi: 0 // last-applied control, for the visuals
+      thrustFrac: 0, defPhi: 0, defPsi: 0, // last-applied control, for the visuals
+      verdict: null
     };
   }
   var state = defaultState();
@@ -948,9 +986,17 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var zemZ = -(state.z + state.vz * tGo);
     var az = (6 * zemZ) / (tGo * tGo) - (2 * -state.vz) / tGo;
 
-    var zemY = -(state.y + state.vy * tGo - 0.5 * g * tGo * tGo);
-    var zevY = -PHYS.vTarget - state.vy + g * tGo;
-    var ay = (6 * zemY) / (tGo * tGo) - (2 * zevY) / tGo;
+    // Lateral is always ZEM/ZEV (Article §09's crossrange divert); only
+    // the vertical channel changes with the guidance-law selector.
+    var ay;
+    if (guidanceSelect && guidanceSelect.value === "profile") {
+      var vRef = -Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * PHYS.aDec * Math.max(state.y, 0));
+      ay = g + PHYS.aDec + PHYS.profileK * (vRef - state.vy);
+    } else {
+      var zemY = -(state.y + state.vy * tGo - 0.5 * g * tGo * tGo);
+      var zevY = -PHYS.vTarget - state.vy + g * tGo;
+      ay = (6 * zemY) / (tGo * tGo) - (2 * zevY) / tGo;
+    }
 
     var mag = Math.sqrt(ax * ax + ay * ay + az * az);
     var thrust = clamp(mag * mass, VEH.minThr * VEH.maxT, VEH.maxT);
@@ -980,15 +1026,20 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var uy = Math.cos(totalPhi) * Math.cos(totalPsi);
     var uz = Math.cos(totalPhi) * Math.sin(totalPsi);
     var w = world();
-    var speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy + s.vz * s.vz);
+    // Drag depends on velocity RELATIVE to the air (Article §02), not
+    // ground-relative velocity -- a crosswind along x is what actually
+    // disturbs the vehicle, not the ground track.
+    var windX = windInput ? Number(windInput.value) : 0;
+    var relVx = s.vx - windX, relVy = s.vy, relVz = s.vz;
+    var speed = Math.sqrt(relVx * relVx + relVy * relVy + relVz * relVz);
     var rho = w.rho0 * Math.exp(-Math.max(s.y, 0) / w.H);
     var dragK = (0.5 * rho * PHYS.Cd * PHYS.A * speed) / mass;
 
     return {
       x: s.vx, y: s.vy, z: s.vz,
-      vx: (u.thrust * ux) / mass - dragK * s.vx,
-      vy: (u.thrust * uy) / mass - w.g - dragK * s.vy,
-      vz: (u.thrust * uz) / mass - dragK * s.vz,
+      vx: (u.thrust * ux) / mass - dragK * relVx,
+      vy: (u.thrust * uy) / mass - w.g - dragK * relVy,
+      vz: (u.thrust * uz) / mass - dragK * relVz,
       phi: s.wphi, psi: s.wpsi,
       wphi: (-u.thrust * VEH.arm * Math.sin(u.defPhi)) / VEH.I,
       wpsi: (-u.thrust * VEH.arm * Math.sin(u.defPsi)) / VEH.I
@@ -1025,14 +1076,44 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
     if (state.y <= 0) {
       state.y = 0;
+      var vLat = Math.sqrt(state.vx * state.vx + state.vz * state.vz);
       var touchSpeed = Math.sqrt(state.vx * state.vx + state.vy * state.vy + state.vz * state.vz);
+      var tilt = Math.sqrt(state.phi * state.phi + state.psi * state.psi);
+      var miss = Math.sqrt(state.x * state.x + state.z * state.z);
       state.phase = touchSpeed <= PHYS.vTouch ? "landed" : "crashed";
+      state.verdict = {
+        vy: Math.abs(state.vy), vh: vLat, tilt: tilt, miss: miss,
+        okVy: Math.abs(state.vy) <= LIMITS.vy, okVh: vLat <= LIMITS.vh,
+        okTilt: tilt <= LIMITS.tilt, okMiss: miss <= LIMITS.miss
+      };
       state.vx = state.vy = state.vz = 0;
       state.wphi = state.wpsi = 0;
       state.thrustFrac = 0;
       if (throttleInput) throttleInput.value = "0";
       updateEngineVisual();
+      showVerdict();
     }
+  }
+
+  function showVerdict() {
+    if (!state.verdict || !verdictEl) return;
+    var v = state.verdict;
+    if (verdictTitleEl) {
+      verdictTitleEl.textContent = state.phase === "landed" ? "Landed" : "Crashed";
+      verdictTitleEl.classList.toggle("tone-ok", state.phase === "landed");
+      verdictTitleEl.classList.toggle("tone-bad", state.phase === "crashed");
+    }
+    function fill(el, val, unit, ok) {
+      if (!el) return;
+      el.textContent = val.toFixed(1) + " " + unit;
+      el.classList.toggle("tone-ok", ok);
+      el.classList.toggle("tone-bad", !ok);
+    }
+    fill(vVyEl, v.vy, "m/s", v.okVy);
+    fill(vVhEl, v.vh, "m/s", v.okVh);
+    fill(vTiltEl, v.tilt / DEG, "deg", v.okTilt);
+    fill(vMissEl, v.miss, "m", v.okMiss);
+    verdictEl.hidden = false;
   }
 
   function updateHud() {
@@ -1054,6 +1135,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     state = defaultState();
     state.autopilot = autopilot;
     if (throttleInput) throttleInput.value = "0";
+    if (verdictEl) verdictEl.hidden = true;
     updateEngineVisual();
   }
 
@@ -1141,6 +1223,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
   if (throttleInput) throttleInput.addEventListener("input", updateEngineVisual);
   if (resetBtn) resetBtn.addEventListener("click", resetRun);
+  if (windInput) windInput.addEventListener("input", function () {
+    if (windLabel) windLabel.textContent = windInput.value + " m/s";
+  });
   // Gravity/atmosphere can't sensibly change mid-fall, so picking a new
   // world just starts the run over under it.
   if (worldSelect) worldSelect.addEventListener("change", function () {
@@ -1283,6 +1368,23 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   }
   .hud b.tone-ok { color: var(--tone-ok); }
   .hud b.tone-bad { color: var(--tone-bad); }
+
+  .rl-verdict {
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px;
+    padding: 12px 16px; margin-top: 12px;
+  }
+  .rl-verdict-title {
+    display: block; font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--headline-color);
+  }
+  .rl-verdict-title.tone-ok { color: var(--tone-ok); }
+  .rl-verdict-title.tone-bad { color: var(--tone-bad); }
+  .rl-verdict-row {
+    display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px;
+    padding: 3px 0; color: var(--card-desc);
+  }
+  .rl-verdict-row b { font-variant-numeric: tabular-nums; }
+  .rl-verdict-row b.tone-ok { color: var(--tone-ok); }
+  .rl-verdict-row b.tone-bad { color: var(--tone-bad); }
 
   /* Article tab reuses the site's own long-form reading typography
      (.writing-block in global.css) rather than importing a separate
