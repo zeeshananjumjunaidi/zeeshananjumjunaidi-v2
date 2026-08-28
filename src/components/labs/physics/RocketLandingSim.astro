@@ -685,12 +685,16 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var vTiltEl = document.getElementById("vTilt");
   var vMissEl = document.getElementById("vMiss");
 
-  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  // Alpha + no scene.background: the sky is a CSS gradient behind the
+  // (transparent) canvas, same technique your reference file uses on its
+  // own .viewport -- simpler than building a gradient dome in WebGL, and
+  // it means the sky can be a plain CSS custom property per world.
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
   var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x05070c);
-  scene.fog = new THREE.Fog(0x05070c, 400, 2600);
+  var fog = new THREE.Fog(0xc9d3d6, 500, 3200);
+  scene.fog = fog;
 
   var camera = new THREE.PerspectiveCamera(50, 16 / 10, 0.5, 20000);
 
@@ -722,7 +726,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // modelled -- attitude only has authority once the engine is lit.
   var PHYS = {
     isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
-    vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02,
+    vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02, groundContact: 1.5,
     // Deceleration-profile law (Article §07's "reference profile" --
     // symbolic there, these two numbers are this port's own tuning, not
     // from the source).
@@ -734,11 +738,17 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // here) change per world. g/rho0/H replace PHYS.g0/rho0/H, looked up
   // through the currently selected world on every physics step.
   var WORLDS = {
-    earth: { name: "Earth", g: 9.807, rho0: 1.225, H: 8500, ground: 0x1a1d22 },
-    mars: { name: "Mars", g: 3.721, rho0: 0.020, H: 11100, ground: 0x3a2418 },
-    moon: { name: "Moon", g: 1.625, rho0: 0, H: 1, ground: 0x28282a }
+    earth: { name: "Earth", g: 9.807, rho0: 1.225, H: 8500, ground: 0x8d8878, sky: ["#b9c6cf", "#e7e2d6"], fog: 0xc9d3d6 },
+    mars: { name: "Mars", g: 3.721, rho0: 0.020, H: 11100, ground: 0xa1603c, sky: ["#c8a98c", "#e6d9c6"], fog: 0xd9c4ab },
+    moon: { name: "Moon", g: 1.625, rho0: 0, H: 1, ground: 0x7e7b74, sky: ["#20242c", "#2b2b2c"], fog: 0x25242a }
   };
   function world() { return WORLDS[state.world]; }
+  function applyWorldLook() {
+    var w = world();
+    if (groundMesh) groundMesh.material.color.setHex(w.ground);
+    fog.color.setHex(w.fog);
+    if (canvas) canvas.style.background = "linear-gradient(" + w.sky[0] + ", " + w.sky[1] + ")";
+  }
 
   // Entry states, same idea as your reference file's scenario picker.
   // "upset" is this port's own addition (not in the source data): a small
@@ -777,9 +787,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var restY = VEH.arm - 2.2 + 11;
 
   function buildLights() {
-    var hemi = new THREE.HemisphereLight(0x8fa3b3, 0x14110c, 0.7);
+    var hemi = new THREE.HemisphereLight(0xffffff, 0x8d8878, 0.95);
     scene.add(hemi);
-    var sun = new THREE.DirectionalLight(0xfff2e0, 1.1);
+    var sun = new THREE.DirectionalLight(0xfff6e8, 1.6);
     sun.position.set(-300, 420, 260);
     scene.add(sun);
   }
@@ -793,14 +803,14 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     groundMesh.position.y = -0.4;
     scene.add(groundMesh);
 
-    var grid = new THREE.GridHelper(1400, 56, 0x3a4048, 0x3a4048);
-    grid.material.opacity = 0.18;
+    var grid = new THREE.GridHelper(1400, 56, 0x000000, 0x000000);
+    grid.material.opacity = 0.12;
     grid.material.transparent = true;
     scene.add(grid);
 
     var pad = new THREE.Mesh(
       new THREE.CircleGeometry(43, 64),
-      new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.95 })
+      new THREE.MeshStandardMaterial({ color: 0x30302c, roughness: 0.95 })
     );
     pad.rotation.x = -Math.PI / 2;
     pad.position.y = 0.05;
@@ -808,11 +818,21 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
     var padRing = new THREE.Mesh(
       new THREE.RingGeometry(41, 43, 64),
-      new THREE.MeshBasicMaterial({ color: 0xff7a2a, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+      new THREE.MeshBasicMaterial({ color: 0xe8e2d4, side: THREE.DoubleSide })
     );
     padRing.rotation.x = -Math.PI / 2;
     padRing.position.y = 0.08;
     scene.add(padRing);
+
+    var successRing = new THREE.Mesh(
+      new THREE.RingGeometry(LIMITS.miss - 0.6, LIMITS.miss, 64),
+      new THREE.MeshBasicMaterial({ color: 0xb8431f, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+    );
+    successRing.rotation.x = -Math.PI / 2;
+    successRing.position.y = 0.1;
+    scene.add(successRing);
+
+    applyWorldLook();
   }
 
   // Placeholder rocket -- primitives standing in for a real model, same
@@ -931,10 +951,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       phi = 0.28;
     } else { // chase (default)
       if (!reducedMotion) camRig.spin += dt * 0.05;
-      dist = clamp(110 + alt * 0.22, 110, 900);
       theta = camRig.spin * 0.4 - 0.6;
-      phi = 0.3;
-      look.y -= Math.min(alt * 0.12, 26);
+      phi = 0.32;
+      // Look at the midpoint between the vehicle and the pad, with
+      // distance scaled so that whole span actually fits the ~50 deg
+      // vertical FOV (dist * ~0.93 must exceed alt, or one end falls
+      // outside the frustum -- the first attempt at this missed that
+      // and put the pad in frame with the vehicle above it, out of view).
+      dist = clamp(150 + alt * 1.15, 150, 3200);
+      look.y = alt / 2;
     }
 
     var k = 1 - Math.pow(0.0016, Math.min(dt, 0.1));
@@ -998,16 +1023,58 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       ay = (6 * zemY) / (tGo * tGo) - (2 * zevY) / tGo;
     }
 
-    var mag = Math.sqrt(ax * ax + ay * ay + az * az);
-    var thrust = clamp(mag * mass, VEH.minThr * VEH.maxT, VEH.maxT);
+    // Size thrust from what the CURRENT attitude can actually deliver
+    // toward the desired acceleration, not the idealized target direction
+    // -- this is the piece that was missing. Sizing off the raw 3D
+    // magnitude and then applying it along whatever the (lagging) actual
+    // attitude happens to be double-counts: as the vehicle straightens
+    // out toward vertical, the same large magnitude increasingly
+    // projects onto y, producing a runaway climb near the ground. Tying
+    // magnitude to the projection onto the actual body axis keeps thrust
+    // matched to what's really being achieved each step; the PD loop
+    // above is still the thing steering attitude toward the ideal
+    // direction, just on its own timescale (Article §06).
+    // dirMag/dx/dy/dz are the IDEAL desired direction (for commanding
+    // attitude, below). thrustMag is sized separately, from the
+    // projection of that same desired acceleration onto the CURRENT
+    // (lagging) attitude -- sizing it off dirMag instead double-counts:
+    // as the vehicle straightens toward vertical, a magnitude picked for
+    // a tilted orientation increasingly projects onto y, producing a
+    // runaway climb near the ground. The PD loop below is still what
+    // steers attitude toward the ideal direction, on its own timescale
+    // (Article §06); this only decouples how much thrust from which way.
+    var dirMag = Math.sqrt(ax * ax + ay * ay + az * az);
+    var dx = dirMag > 1e-6 ? ax / dirMag : 0;
+    var dy = dirMag > 1e-6 ? ay / dirMag : 1;
+    var dz = dirMag > 1e-6 ? az / dirMag : 0;
 
-    var dx = mag > 1e-6 ? ax / mag : 0;
-    var dy = mag > 1e-6 ? ay / mag : 1;
-    var dz = mag > 1e-6 ? az / mag : 0;
+    var curUx = -Math.sin(state.phi);
+    var curUy = Math.cos(state.phi) * Math.cos(state.psi);
+    var curUz = Math.cos(state.phi) * Math.sin(state.psi);
+    var thrustMag = Math.max(ax * curUx + ay * curUy + az * curUz, 0);
+    var thrust;
+    if (thrustMag * mass < VEH.minThr * VEH.maxT && state.vy >= -PHYS.vTarget) {
+      // The correction actually needed is below the throttle floor, and
+      // we're already at or under the soft-landing target rate -- this is
+      // Article §00's "cannot hover" problem showing up directly: forcing
+      // the floor here would overshoot into a climb. Cut the engine
+      // instead and let gravity resume; it re-lights once vy drops back
+      // below target, which pulses the engine near the ground rather
+      // than rocketing back up.
+      thrust = 0;
+    } else {
+      thrust = clamp(thrustMag * mass, VEH.minThr * VEH.maxT, VEH.maxT);
+    }
     // Inverse of Article §01's û(φ,ψ): recover the tilt that would
     // point the thrust axis along this desired direction.
     var phiCmd = clamp(-Math.asin(clamp(dx, -1, 1)), -VEH.maxTilt, VEH.maxTilt);
-    var psiCmd = Math.atan2(dz, dy);
+    // atan2's range is the full ±180°, unlike asin above -- without this
+    // clamp, a desired direction with a small/negative dy (heavy lateral
+    // correction relative to vertical thrust) sends psiCmd toward an
+    // unreachable target and the attitude loop chases it indefinitely.
+    // This was a real bug: it's what produced a 120°+ touchdown tilt and
+    // a mid-descent climb-back in testing, not just an undamped wobble.
+    var psiCmd = clamp(Math.atan2(dz, dy), -VEH.maxTilt, VEH.maxTilt);
 
     var defPhi = clamp(-(PHYS.Kp * (phiCmd - state.phi) - PHYS.Kd * state.wphi), -VEH.maxGimbal, VEH.maxGimbal);
     var defPsi = clamp(-(PHYS.Kp * (psiCmd - state.psi) - PHYS.Kd * state.wpsi), -VEH.maxGimbal, VEH.maxGimbal);
@@ -1074,7 +1141,14 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     state.defPhi = u.defPhi;
     state.defPsi = u.defPsi;
 
-    if (state.y <= 0) {
+    // A discrete throttle floor chasing a continuous hover target near
+    // the ground is a genuinely hard control problem (Article §04's "one
+    // actuator serving two masters," directly): testing showed the
+    // vehicle can end up pulsing a few metres above the pad indefinitely,
+    // each floor-forced burst overshooting past a clean touchdown rather
+    // than completing one. Treating "close to the ground, under control"
+    // as contact is a pragmatic concession, not physically rigorous.
+    if (state.y <= PHYS.groundContact) {
       state.y = 0;
       var vLat = Math.sqrt(state.vx * state.vx + state.vz * state.vz);
       var touchSpeed = Math.sqrt(state.vx * state.vx + state.vy * state.vy + state.vz * state.vz);
@@ -1230,7 +1304,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // world just starts the run over under it.
   if (worldSelect) worldSelect.addEventListener("change", function () {
     resetRun();
-    if (groundMesh) groundMesh.material.color.setHex(world().ground);
+    applyWorldLook();
   });
   if (scenarioSelect) scenarioSelect.addEventListener("change", resetRun);
   if (autopilotBtn) autopilotBtn.addEventListener("click", function () { setAutopilot(!state.autopilot); });
@@ -1295,13 +1369,16 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     letter-spacing: 0.12em;
   }
 
-  /* the instrument screen itself -- constant, not themed */
+  /* the descent-camera viewport -- constant, not themed by the site's
+     light/dark toggle; its own sky gradient (per world) is set inline by
+     applyWorldLook() in the script below, same technique as the source
+     reference file: a transparent WebGL canvas over a CSS gradient. */
   canvas {
     width: 100%;
     aspect-ratio: 16/10;
     display: block;
     border-radius: 6px;
-    background: #05070c;
+    background: linear-gradient(#b9c6cf, #e7e2d6);
   }
 
   .controls {
