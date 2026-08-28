@@ -8,77 +8,96 @@
     <div class="rl-tab" data-tab="simulator">
       <div class="panel">
         <h2>Descent camera</h2>
-        <canvas id="scene"></canvas>
+        <div class="rl-viewport">
+          <canvas id="scene"></canvas>
+
+          <div class="rl-phasechip" id="phaseChip">Coasting</div>
+
+          <div class="rl-hudpanel rl-hud-tl">
+            <span class="rl-hud-k">Altitude</span>
+            <span class="rl-hud-v" id="alt">900</span>
+            <div class="rl-hud-row"><span>Vertical</span><b id="vspeed">-85.0</b></div>
+            <div class="rl-hud-row"><span>Lateral</span><b id="lateral">190</b></div>
+          </div>
+
+          <div class="rl-hudpanel rl-hud-tr">
+            <span class="rl-hud-k">Throttle</span>
+            <span class="rl-hud-v" id="throttleV">0%</span>
+            <div class="rl-hud-row"><span>Propellant</span><b id="fuel">100</b></div>
+            <div class="rl-hud-row"><span>Tilt</span><b id="tiltHud">0.0&deg;</b></div>
+            <div class="rl-hud-row"><span>Gimbal</span><b id="gimbalHud">0.0&deg; / 0.0&deg;</b></div>
+          </div>
+
+          <div class="rl-hudpanel rl-hud-bl">
+            <div class="rl-hud-row"><span>T+</span><b id="tplus">0.0 s</b></div>
+            <div class="rl-hud-row"><span>Time to go</span><b id="tgoHud">&ndash;&ndash;</b></div>
+          </div>
+
+          <div class="rl-hudpanel rl-hud-br" id="camNameHud">Chase</div>
+
+          <div class="rl-verdict" id="verdict" hidden>
+            <span class="rl-verdict-title" id="verdictTitle">Landed</span>
+            <div class="rl-verdict-row"><span>Vertical speed</span><b id="vVy">--</b></div>
+            <div class="rl-verdict-row"><span>Lateral speed</span><b id="vVh">--</b></div>
+            <div class="rl-verdict-row"><span>Tilt at touchdown</span><b id="vTilt">--</b></div>
+            <div class="rl-verdict-row"><span>Miss distance</span><b id="vMiss">--</b></div>
+          </div>
+        </div>
       </div>
 
-      <div class="controls">
-        <div class="group">
-          <span class="tag">throttle</span>
-          <div class="ctl">
+      <div class="rl-cpanels">
+        <div class="rl-cpanel">
+          <h3>Flight</h3>
+          <button id="autopilot" class="rl-cbtn active">Autopilot: On</button>
+          <div class="rl-field">
+            <span class="rl-field-label">Manual throttle</span>
             <input id="throttle" type="range" min="0" max="100" value="0" disabled />
-            <span class="val" id="throttleV">0%</span>
           </div>
+          <div class="rl-field">
+            <span class="rl-field-label">Guidance law</span>
+            <select id="guidance">
+              <option value="zemzev">ZEM/ZEV</option>
+              <option value="profile">Decel. profile + PD</option>
+            </select>
+          </div>
+          <button id="reset" class="rl-cbtn">Reset run</button>
         </div>
-        <div class="group">
-          <span class="tag">world</span>
-          <select id="world">
-            <option value="earth">Earth</option>
-            <option value="mars">Mars</option>
-            <option value="moon">Moon</option>
-          </select>
-        </div>
-        <div class="group">
-          <span class="tag">entry</span>
-          <select id="scenario">
-            <option value="nominal">Nominal return</option>
-            <option value="hifast">High and fast</option>
-            <option value="offset">Off-target divert</option>
-            <option value="late">Late start</option>
-            <option value="upset">Upset attitude</option>
-          </select>
-        </div>
-        <div class="group">
-          <span class="tag">guidance</span>
-          <select id="guidance">
-            <option value="zemzev">ZEM/ZEV</option>
-            <option value="profile">Decel. profile + PD</option>
-          </select>
-        </div>
-        <div class="group">
-          <span class="tag">wind</span>
-          <div class="ctl">
+
+        <div class="rl-cpanel">
+          <h3>Conditions</h3>
+          <div class="rl-field">
+            <span class="rl-field-label">World</span>
+            <select id="world">
+              <option value="earth">Earth</option>
+              <option value="mars">Mars</option>
+              <option value="moon">Moon</option>
+            </select>
+          </div>
+          <div class="rl-field">
+            <span class="rl-field-label">Entry state</span>
+            <select id="scenario">
+              <option value="nominal">Nominal return</option>
+              <option value="hifast">High and fast</option>
+              <option value="offset">Off-target divert</option>
+              <option value="late">Late start</option>
+              <option value="upset">Upset attitude</option>
+            </select>
+          </div>
+          <div class="rl-field">
+            <span class="rl-field-label">Wind <b id="windV">0 m/s</b></span>
             <input id="wind" type="range" min="0" max="25" step="1" value="0" />
-            <span class="val" id="windV">0 m/s</span>
           </div>
         </div>
-        <button id="autopilot" class="active">Autopilot: On</button>
-        <button id="reset">Reset run</button>
-      </div>
 
-      <div class="group">
-        <span class="tag">view</span>
-        <div class="rl-camrow">
-          <button type="button" class="rl-cambtn active" data-cam="chase">Chase</button>
-          <button type="button" class="rl-cambtn" data-cam="pad">Pad</button>
-          <button type="button" class="rl-cambtn" data-cam="orbit">Orbit</button>
-          <button type="button" class="rl-cambtn" data-cam="side">Side</button>
+        <div class="rl-cpanel">
+          <h3>View</h3>
+          <div class="rl-camrow">
+            <button type="button" class="rl-cambtn active" data-cam="chase">Chase</button>
+            <button type="button" class="rl-cambtn" data-cam="pad">Pad</button>
+            <button type="button" class="rl-cambtn" data-cam="orbit">Orbit</button>
+            <button type="button" class="rl-cambtn" data-cam="side">Side</button>
+          </div>
         </div>
-      </div>
-
-      <div class="hud">
-        <span>altitude <b id="alt">900</b> m</span>
-        <span>vertical speed <b id="vspeed">-85.0</b> m/s</span>
-        <span>lateral <b id="lateral">190</b> m</span>
-        <span>fuel <b id="fuel">100</b>%</span>
-        <span>status <b id="phase">Coasting</b></span>
-      </div>
-
-      <div class="rl-verdict" id="verdict" hidden>
-        <span class="rl-verdict-title" id="verdictTitle">Landed</span>
-        <div class="rl-verdict-row"><span>Vertical speed</span><b id="vVy">--</b></div>
-        <div class="rl-verdict-row"><span>Lateral speed</span><b id="vVh">--</b></div>
-        <div class="rl-verdict-row"><span>Tilt at touchdown</span><b id="vTilt">--</b></div>
-        <div class="rl-verdict-row"><span>Miss distance</span><b id="vMiss">--</b></div>
       </div>
     </div>
 
@@ -677,7 +696,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var vspeedEl = document.getElementById("vspeed");
   var fuelEl = document.getElementById("fuel");
   var lateralEl = document.getElementById("lateral");
-  var phaseEl = document.getElementById("phase");
+  var phaseEl = document.getElementById("phaseChip");
+  var tiltHudEl = document.getElementById("tiltHud");
+  var gimbalHudEl = document.getElementById("gimbalHud");
+  var tplusEl = document.getElementById("tplus");
+  var tgoHudEl = document.getElementById("tgoHud");
+  var camNameEl = document.getElementById("camNameHud");
   var verdictEl = document.getElementById("verdict");
   var verdictTitleEl = document.getElementById("verdictTitle");
   var vVyEl = document.getElementById("vVy");
@@ -780,6 +804,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       ignited: false,
       autopilot: true,
       thrustFrac: 0, defPhi: 0, defPsi: 0, // last-applied control, for the visuals
+      tPlus: 0, tGo: null,
       verdict: null
     };
   }
@@ -788,7 +813,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var rocket, nozzleGroup, flame, flameInner, glow, groundMesh, legParts = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
-  var restY = VEH.arm - 2.2 + 11;
+  // Deployed legs splay outward (real landing gear, not four cylinders
+  // hanging straight down under the body -- which was the actual bug:
+  // undeployed, they all pointed the same direction and looked like one).
+  var LEG_SPLAY = 30 * DEG;
+  var LEG_FOLD = -100 * DEG;
+  var restY = VEH.arm - 2.2 + 11 * Math.cos(LEG_SPLAY);
 
   function buildLights() {
     var hemi = new THREE.HemisphereLight(0xffffff, 0x8d8878, 0.95);
@@ -882,17 +912,30 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     placeholder.add(bay);
 
     for (var j = 0; j < 4; j++) {
-      var pivot = new THREE.Group();
-      pivot.position.set(0, -VEH.arm + 2.2, 0);
-      pivot.rotation.y = (j * Math.PI) / 2 + Math.PI / 4;
+      // Two levels, not one: a leg/foot sitting at local (0,y,0) is
+      // exactly ON the Y axis, so rotating a single pivot around Y to
+      // place it azimuthally is a no-op -- a point on a rotation axis
+      // never moves. All four legs ended up mathematically coincident
+      // this way (confirmed by reading their world positions back: all
+      // four identical). The mount carries the azimuth, with a real
+      // radial offset for that rotation to act on; the hinge (its
+      // child) carries the fold/splay independently.
+      var mount = new THREE.Group();
+      mount.position.set(0, -VEH.arm + 2.2, 0);
+      mount.rotation.y = (j * Math.PI) / 2 + Math.PI / 4;
+      placeholder.add(mount);
+
+      var hinge = new THREE.Group();
+      hinge.position.set(VEH.R, 0, 0);
+      mount.add(hinge);
+
       var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.5, 11, 10), dark);
       leg.position.set(0, -5.5, 0);
-      pivot.add(leg);
+      hinge.add(leg);
       var foot = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.5, 12), soot);
       foot.position.set(0, -11, 0);
-      pivot.add(foot);
-      placeholder.add(pivot);
-      legParts.push(pivot);
+      hinge.add(foot);
+      legParts.push(hinge);
     }
 
     nozzleGroup = new THREE.Group();
@@ -1008,6 +1051,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (!state.ignited || state.fuel <= 0) return { thrust: 0, defPhi: 0, defPsi: 0 };
 
     var tGo = Math.max(2 * Math.max(state.y, 0) / (Math.abs(state.vy) + PHYS.vTarget), PHYS.tGoFloor);
+    state.tGo = tGo;
 
     // Crossrange gets its OWN clock (Article §09), not tGo. Sharing tGo
     // between vertical and lateral was the actual bug behind poor
@@ -1149,6 +1193,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
   function stepPhysics(dt) {
     if (state.phase !== "falling") return;
+    state.tPlus += dt;
     var mass = VEH.dry + state.fuel;
     var u = state.autopilot ? guidance() : manualControl();
 
@@ -1214,8 +1259,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (vspeedEl) vspeedEl.textContent = state.vy.toFixed(1);
     if (fuelEl) fuelEl.textContent = Math.round((state.fuel / VEH.fuel0) * 100);
     if (lateralEl) lateralEl.textContent = Math.round(Math.sqrt(state.x * state.x + state.z * state.z));
+    if (tiltHudEl) tiltHudEl.textContent = (Math.sqrt(state.phi * state.phi + state.psi * state.psi) / DEG).toFixed(1) + "°";
+    if (gimbalHudEl) gimbalHudEl.textContent = (state.defPhi / DEG).toFixed(1) + "° / " + (state.defPsi / DEG).toFixed(1) + "°";
+    if (tplusEl) tplusEl.textContent = state.tPlus.toFixed(1) + " s";
+    if (tgoHudEl) tgoHudEl.textContent = (state.ignited && state.tGo != null) ? state.tGo.toFixed(1) + " s" : "––";
     if (phaseEl) {
-      var label = state.phase === "falling" ? (state.ignited ? "Braking" : "Coasting")
+      var label = state.phase === "falling" ? (state.ignited ? "Burn" : "Coast")
         : state.phase === "landed" ? "Landed" : "Crashed";
       phaseEl.textContent = label;
       phaseEl.classList.toggle("tone-ok", state.phase === "landed");
@@ -1276,8 +1325,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // no physics behind the deploy itself, just a cue tied to altitude.
   function updateLegs() {
     var deployed = 1 - clamp(state.y / 600, 0, 1);
-    var foldAngle = -0.62 * Math.PI * (1 - deployed);
-    for (var i = 0; i < legParts.length; i++) legParts[i].rotation.x = foldAngle;
+    var angle = LEG_FOLD + (LEG_SPLAY - LEG_FOLD) * deployed;
+    for (var i = 0; i < legParts.length; i++) legParts[i].rotation.x = angle;
   }
 
   var clock = new THREE.Clock();
@@ -1331,6 +1380,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     btn.addEventListener("click", function () {
       camRig.mode = btn.dataset.cam;
       camButtons.forEach(function (b) { b.classList.toggle("active", b === btn); });
+      if (camNameEl) camNameEl.textContent = btn.textContent;
     });
   });
   setAutopilot(state.autopilot);
@@ -1400,74 +1450,65 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     background: linear-gradient(#b9c6cf, #e7e2d6);
   }
 
-  .controls {
-    display: flex;
-    gap: 14px 26px;
-    flex-wrap: wrap;
-    align-items: center;
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 14px 18px;
-    margin-top: 16px;
-    font-size: 13px;
-  }
-  input[type="range"] {
-    accent-color: var(--card-label);
-  }
-  select {
-    background: transparent;
-    color: var(--headline-color);
+  /* ---- viewport overlay: HUD panels float on the canvas itself, same
+     spatial layout as the reference file (corner readouts, a centered
+     phase chip, a slide-up verdict), restyled onto this site's own
+     tokens rather than the reference's separate color system. */
+  .rl-viewport { position: relative; border-radius: 6px; overflow: hidden; }
+  .rl-viewport canvas { border-radius: 0; }
+
+  .rl-hudpanel {
+    position: absolute;
+    background: color-mix(in srgb, var(--card-bg) 80%, transparent);
     border: 1px solid var(--card-border);
     border-radius: 6px;
-    padding: 5px 8px;
-    font: inherit;
-    font-size: 13px;
-  }
-  .controls button {
-    background: transparent;
-    color: var(--headline-color);
-    border: 1px solid var(--card-border);
-    border-radius: 6px;
-    padding: 6px 14px;
-    font: inherit;
-    cursor: pointer;
-  }
-  .controls button:hover {
-    border-color: var(--card-label);
-  }
-  .controls button.active {
-    border-color: var(--card-label);
-    color: var(--card-label);
-  }
-  input[type="range"]:disabled { opacity: 0.35; cursor: not-allowed; }
-
-  .rl-camrow { display: flex; gap: 6px; margin-top: 6px; }
-  .rl-cambtn {
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
-    background: transparent; color: var(--card-desc); border: 1px solid var(--card-border);
-    border-radius: 6px; padding: 5px 10px; cursor: pointer; transition: border-color .2s ease, color .2s ease;
-  }
-  .rl-cambtn:hover { color: var(--headline-color); }
-  .rl-cambtn.active { color: var(--card-label); border-color: var(--card-label); }
-
-  .hud {
-    display: flex;
-    gap: 24px;
-    flex-wrap: wrap;
-    margin-top: 12px;
-    font-size: 13px;
+    padding: 8px 11px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    font-family: var(--font-mono);
+    font-size: 11px;
     color: var(--card-desc);
+    pointer-events: none;
   }
-  .hud b {
-    color: var(--headline-color);
+  .rl-hud-tl { top: 10px; left: 10px; }
+  .rl-hud-tr { top: 10px; right: 10px; text-align: right; }
+  .rl-hud-bl { bottom: 10px; left: 10px; }
+  .rl-hud-br {
+    bottom: 10px; right: 10px;
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
   }
-  .hud b.tone-ok { color: var(--tone-ok); }
-  .hud b.tone-bad { color: var(--tone-bad); }
+  .rl-hud-k {
+    display: block; font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--card-desc); opacity: 0.85; margin-bottom: 2px;
+  }
+  .rl-hud-v { display: block; font-size: 20px; color: var(--headline-color); font-variant-numeric: tabular-nums; }
+  .rl-hud-row {
+    display: flex; justify-content: space-between; gap: 14px;
+    margin-top: 5px; font-size: 11px;
+  }
+  .rl-hud-row b { color: var(--headline-color); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+  .rl-phasechip {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    background: color-mix(in srgb, var(--card-bg) 82%, transparent);
+    border: 1px solid var(--card-border);
+    border-radius: 999px; padding: 5px 14px;
+    color: var(--card-desc);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: none;
+  }
+  .rl-phasechip.tone-ok { color: var(--tone-ok); border-color: color-mix(in srgb, var(--tone-ok) 55%, transparent); }
+  .rl-phasechip.tone-bad { color: var(--tone-bad); border-color: color-mix(in srgb, var(--tone-bad) 55%, transparent); }
 
   .rl-verdict {
-    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px;
-    padding: 12px 16px; margin-top: 12px;
+    position: absolute; inset: auto 0 0 0;
+    background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+    border-top: 1px solid var(--card-border);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 14px 16px;
   }
   .rl-verdict-title {
     display: block; font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--headline-color);
@@ -1476,11 +1517,81 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   .rl-verdict-title.tone-bad { color: var(--tone-bad); }
   .rl-verdict-row {
     display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px;
-    padding: 3px 0; color: var(--card-desc);
+    padding: 3px 0; color: var(--card-desc); font-family: var(--font-mono);
   }
   .rl-verdict-row b { font-variant-numeric: tabular-nums; }
   .rl-verdict-row b.tone-ok { color: var(--tone-ok); }
   .rl-verdict-row b.tone-bad { color: var(--tone-bad); }
+
+  /* ---- control panels below the viewport ---- */
+  .rl-cpanels {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  @media (min-width: 760px) { .rl-cpanels { grid-template-columns: repeat(3, 1fr); align-items: start; } }
+
+  .rl-cpanel {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .rl-cpanel h3 {
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--card-desc); margin: 0 0 12px;
+  }
+
+  .rl-field { margin-top: 12px; }
+  .rl-cpanel > .rl-field:first-of-type { margin-top: 0; }
+  .rl-field-label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--card-desc); margin-bottom: 5px;
+  }
+  .rl-field-label b { font-family: var(--font-mono); font-size: 12px; color: var(--card-label); font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+  input[type="range"] { width: 100%; accent-color: var(--card-label); }
+  input[type="range"]:disabled { opacity: 0.35; cursor: not-allowed; }
+  select {
+    width: 100%;
+    background: transparent;
+    color: var(--headline-color);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: inherit;
+    font-size: 13px;
+  }
+  .rl-cbtn {
+    display: block;
+    width: 100%;
+    background: transparent;
+    color: var(--headline-color);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: border-color .2s ease, color .2s ease;
+    margin-top: 12px;
+  }
+  .rl-cpanel > .rl-cbtn:first-child { margin-top: 0; }
+  .rl-cbtn:hover { border-color: var(--card-label); }
+  .rl-cbtn.active { border-color: var(--card-label); color: var(--card-label); }
+
+  .rl-camrow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rl-cambtn {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    background: transparent; color: var(--card-desc); border: 1px solid var(--card-border);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: border-color .2s ease, color .2s ease;
+    flex: 1 1 auto;
+  }
+  .rl-cambtn:hover { color: var(--headline-color); }
+  .rl-cambtn.active { color: var(--card-label); border-color: var(--card-label); }
 
   /* Article tab reuses the site's own long-form reading typography
      (.writing-block in global.css) rather than importing a separate
