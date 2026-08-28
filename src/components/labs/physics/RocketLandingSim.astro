@@ -750,7 +750,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // modelled -- attitude only has authority once the engine is lit.
   var PHYS = {
     isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
-    vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02, groundContact: 1.5,
+    vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02,
     // Crossrange divert clock (Article §09): kill lateral drift by this
     // altitude, then just descend; the 11 s floor is the article's own
     // number, same vehicle as the reference file.
@@ -817,7 +817,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // hanging straight down under the body -- which was the actual bug:
   // undeployed, they all pointed the same direction and looked like one).
   var LEG_SPLAY = 30 * DEG;
-  var LEG_FOLD = -100 * DEG;
+  var LEG_FOLD = -90 * DEG;
   var restY = VEH.arm - 2.2 + 11 * Math.cos(LEG_SPLAY);
 
   function buildLights() {
@@ -1221,14 +1221,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     state.defPhi = u.defPhi;
     state.defPsi = u.defPsi;
 
-    // A discrete throttle floor chasing a continuous hover target near
-    // the ground is a genuinely hard control problem (Article §04's "one
-    // actuator serving two masters," directly): testing showed the
-    // vehicle can end up pulsing a few metres above the pad indefinitely,
-    // each floor-forced burst overshooting past a clean touchdown rather
-    // than completing one. Treating "close to the ground, under control"
-    // as contact is a pragmatic concession, not physically rigorous.
-    if (state.y <= PHYS.groundContact) {
+    // Ground contact is the real y<=0, not a pragmatic stand-in for it --
+    // that was only needed to paper over the vehicle hovering indefinitely
+    // just above the pad, which the earlier-ignition fix actually solved.
+    // Snapping to y=0 from a few metres up (the old workaround) looked
+    // exactly like what it was: a teleport, not a landing.
+    if (state.y <= 0) {
       state.y = 0;
       var vLat = Math.sqrt(state.vx * state.vx + state.vz * state.vz);
       var touchSpeed = Math.sqrt(state.vx * state.vx + state.vy * state.vy + state.vz * state.vz);
@@ -1342,7 +1340,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   function updateLegs() {
     var deployed = 1 - clamp(state.y / 600, 0, 1);
     var angle = LEG_FOLD + (LEG_SPLAY - LEG_FOLD) * deployed;
-    for (var i = 0; i < legParts.length; i++) legParts[i].rotation.x = angle;
+    // Rotate around the hinge's local Z (tangential axis), not X. Local X
+    // IS the radial (outward) direction once the mount's own Y-rotation
+    // is applied, so spinning around it swings the leg sideways/tangent
+    // to the body instead of outward-and-down -- that was the actual
+    // "twisting, opposite ends" bug.
+    for (var i = 0; i < legParts.length; i++) legParts[i].rotation.z = angle;
   }
 
   var clock = new THREE.Clock();
