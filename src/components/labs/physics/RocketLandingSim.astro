@@ -273,9 +273,18 @@
   // rocket telemetry to follow yet), with a slow auto-orbit so the empty
   // pad doesn't feel static. Once the vehicle exists, `camTarget` becomes
   // its position each frame and this same spherical math follows it.
-  var camTarget = new THREE.Vector3(0, 12, 0);
-  var camRig = { theta: -0.6, phi: 0.3, dist: 150, spin: 0 };
+  var camTarget = new THREE.Vector3(0, 20, 0);
+  var camRig = { theta: -0.6, phi: 0.3, dist: 130, spin: 0 };
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Vehicle constants, ported from the article's own numbers (dry mass,
+  // propellant, thrust, gimbal limits) -- the same values cited in the
+  // Article tab's "orders of magnitude" table. Only the dimensions used
+  // to place geometry are needed yet; g0/isp/Cd etc. wait for the physics
+  // integration.
+  var VEH = { dry: 22200, fuel0: 5200, maxT: 845000, minThr: 0.4, L: 47, R: 1.85, arm: 16 };
+
+  var rocket, nozzleGroup, flame, flameInner, glow;
 
   function buildLights() {
     var hemi = new THREE.HemisphereLight(0x8fa3b3, 0x14110c, 0.7);
@@ -316,6 +325,98 @@
     scene.add(padRing);
   }
 
+  // Placeholder rocket -- primitives standing in for a real model, same
+  // approach as the SLAM and Hybrid A* sims on this site. Body, soot band,
+  // interstage, fins and legs are static (no gimbal/leg-deploy animation
+  // yet); the nozzle is its own group so a future gimbal rotation only
+  // moves the engine, not the airframe.
+  function buildRocket() {
+    rocket = new THREE.Group();
+    scene.add(rocket);
+    var placeholder = new THREE.Group();
+    rocket.add(placeholder);
+
+    var white = new THREE.MeshStandardMaterial({ color: 0xdedad0, roughness: 0.55, metalness: 0.15 });
+    var dark = new THREE.MeshStandardMaterial({ color: 0x24231f, roughness: 0.7, metalness: 0.3 });
+    var soot = new THREE.MeshStandardMaterial({ color: 0x151412, roughness: 0.9 });
+
+    var bodyH = VEH.L - 6;
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(VEH.R, VEH.R, bodyH, 36), white);
+    body.position.y = bodyH / 2 - VEH.arm + 3;
+    placeholder.add(body);
+
+    var sootBand = new THREE.Mesh(new THREE.CylinderGeometry(VEH.R * 1.005, VEH.R * 1.005, 13, 36, 1, true), soot);
+    sootBand.position.y = -VEH.arm + 8;
+    placeholder.add(sootBand);
+
+    var inter = new THREE.Mesh(new THREE.CylinderGeometry(VEH.R, VEH.R, 3.2, 36), dark);
+    inter.position.y = bodyH - VEH.arm + 4.6;
+    placeholder.add(inter);
+
+    for (var i = 0; i < 4; i++) {
+      var fin = new THREE.Group();
+      var blade = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.6, 2.6), dark);
+      blade.position.set(VEH.R + 1.3, 0, 0);
+      fin.add(blade);
+      fin.position.y = bodyH - VEH.arm - 0.5;
+      fin.rotation.y = (i * Math.PI) / 2;
+      placeholder.add(fin);
+    }
+
+    var bay = new THREE.Mesh(new THREE.CylinderGeometry(VEH.R, VEH.R * 0.86, 3.4, 36), dark);
+    bay.position.y = -VEH.arm + 1.5;
+    placeholder.add(bay);
+
+    for (var j = 0; j < 4; j++) {
+      var pivot = new THREE.Group();
+      pivot.position.set(0, -VEH.arm + 2.2, 0);
+      pivot.rotation.y = (j * Math.PI) / 2 + Math.PI / 4;
+      var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.5, 11, 10), dark);
+      leg.position.set(0, -5.5, 0);
+      pivot.add(leg);
+      var foot = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 0.5, 12), soot);
+      foot.position.set(0, -11, 0);
+      pivot.add(foot);
+      placeholder.add(pivot);
+    }
+
+    nozzleGroup = new THREE.Group();
+    nozzleGroup.position.y = -VEH.arm;
+    rocket.add(nozzleGroup);
+    var bell = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.85, 1.55, 3.6, 24, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x2a2723, roughness: 0.5, metalness: 0.6, side: THREE.DoubleSide })
+    );
+    bell.position.y = -1.6;
+    nozzleGroup.add(bell);
+
+    flame = new THREE.Mesh(
+      new THREE.ConeGeometry(1.5, 20, 20, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xff7a25, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+    );
+    flame.rotation.x = Math.PI;
+    flame.position.y = -13;
+    nozzleGroup.add(flame);
+
+    flameInner = new THREE.Mesh(
+      new THREE.ConeGeometry(0.7, 11, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+    );
+    flameInner.rotation.x = Math.PI;
+    flameInner.position.y = -8;
+    nozzleGroup.add(flameInner);
+
+    glow = new THREE.PointLight(0xff7a2a, 0, 60, 2);
+    glow.position.y = -3;
+    nozzleGroup.add(glow);
+
+    // Resting pose: the leg pivot sits at local y = -arm+2.2, and the foot
+    // hangs 11 m further down, so the group needs to sit at y = arm-2.2+11
+    // for the feet to touch the pad. Fixed for now -- nothing here is
+    // driven by physics yet, this is the vehicle at rest before ignition.
+    rocket.position.set(0, VEH.arm - 2.2 + 11, 0);
+  }
+
   function updateCamera(dt) {
     if (!reducedMotion) camRig.spin += dt * 0.05;
     var theta = camRig.theta + camRig.spin * 0.4;
@@ -339,6 +440,7 @@
 
   buildLights();
   buildGround();
+  buildRocket();
   resize();
   if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
   else window.addEventListener("resize", resize);
@@ -353,6 +455,40 @@
     renderer.render(scene, camera);
   }
   tick();
+
+  // Throttle is wired to the flame/glow only so far -- moving the slider
+  // lights the engine visually, with nothing pushing the vehicle yet.
+  // Gravity/thrust/drag integration is the next increment.
+  var throttleInput = document.getElementById("throttle");
+  var throttleLabel = document.getElementById("throttleV");
+  var resetBtn = document.getElementById("reset");
+
+  function updateThrottleVisual(pct) {
+    var t = pct / 100;
+    if (throttleLabel) throttleLabel.textContent = pct + "%";
+    if (flame) {
+      flame.material.opacity = t > 0 ? 0.3 + t * 0.35 : 0;
+      flame.scale.set(0.5 + t * 0.6, 0.4 + t * 0.9, 0.5 + t * 0.6);
+    }
+    if (flameInner) {
+      flameInner.material.opacity = t > 0 ? 0.55 + t * 0.4 : 0;
+      flameInner.scale.set(0.5 + t * 0.6, 0.4 + t * 0.9, 0.5 + t * 0.6);
+    }
+    if (glow) glow.intensity = t * 3.5;
+  }
+
+  if (throttleInput) {
+    throttleInput.addEventListener("input", function () {
+      updateThrottleVisual(Number(throttleInput.value));
+    });
+    updateThrottleVisual(Number(throttleInput.value));
+  }
+  if (resetBtn) {
+    resetBtn.addEventListener("click", function () {
+      if (throttleInput) throttleInput.value = "0";
+      updateThrottleVisual(0);
+    });
+  }
 
   var tabs = document.querySelectorAll(".rl-tabbtn");
   var panels = document.querySelectorAll(".rl-tab");
