@@ -191,6 +191,19 @@ img { max-width: 100%; display: block; }
 @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes vehicleDrive { from { left: 8%; } to { left: 62%; } }
 @keyframes pingPulse { 0% { transform: scale(0.4); opacity: .8; } 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes rocketDescend { 0% { top: -40px; } 58% { top: 48px; } 82%, 100% { top: 70px; } }
+@keyframes rocketFlame {
+  0%, 100% { opacity: .7; transform: scaleY(.8); }
+  34% { opacity: .45; transform: scaleY(.5); }
+  60% { opacity: 1; transform: scaleY(1.4); }
+  81% { opacity: 0; transform: scaleY(.3); }
+  82% { opacity: 0; }
+}
+@keyframes rocketPadGlow {
+  0%, 79% { opacity: 0; transform: scale(.5); }
+  85% { opacity: .85; transform: scale(1.5); }
+  97%, 100% { opacity: 0; transform: scale(1.9); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
@@ -594,6 +607,42 @@ img { max-width: 100%; display: block; }
   position: absolute; right: -6px; top: -2px; width: 11px; height: 11px; border-radius: 50%;
   border: 1px solid var(--ember-1); opacity: 0;
   animation: pingPulse 2.2s ease-out infinite;
+}
+
+.preview-rocket { position: absolute; inset: 0; overflow: hidden; }
+.r-ground {
+  position: absolute; left: 0; right: 0; bottom: 20px; height: 2px;
+  background-image: repeating-linear-gradient(90deg, var(--card-preview-border) 0 8px, transparent 8px 16px);
+}
+.r-pad-glow {
+  position: absolute; left: 50%; bottom: 14px; width: 22px; height: 22px; margin-left: -11px;
+  border-radius: 50%; background: var(--ember-1); filter: blur(4px);
+  animation: rocketPadGlow 4.2s cubic-bezier(.32,.55,.2,1) infinite;
+}
+.r-ship {
+  position: absolute; left: 50%; top: -40px; width: 12px; height: 34px; margin-left: -6px;
+  animation: rocketDescend 4.2s cubic-bezier(.32,.55,.2,1) infinite;
+}
+.r-body {
+  position: absolute; left: 0; right: 0; top: 8px; bottom: 10px;
+  background: linear-gradient(var(--ember-1), var(--ember-2)); border-radius: 2px;
+}
+.r-nose {
+  position: absolute; left: 0; right: 0; top: 0; height: 9px;
+  background: linear-gradient(var(--ember-1), var(--ember-2));
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+.r-fin {
+  position: absolute; bottom: 8px; width: 5px; height: 11px;
+  background: var(--card-preview-border);
+}
+.r-fin.left { left: -4px; clip-path: polygon(100% 0%, 100% 100%, 0% 100%); }
+.r-fin.right { right: -4px; clip-path: polygon(0% 0%, 100% 100%, 0% 100%); }
+.r-flame {
+  position: absolute; left: 50%; bottom: -3px; width: 8px; height: 15px; margin-left: -4px;
+  background: linear-gradient(var(--ember-1), transparent);
+  border-radius: 0 0 50% 50%; transform-origin: top center;
+  animation: rocketFlame 4.2s cubic-bezier(.32,.55,.2,1) infinite;
 }
 
 /* ---- Ticker ---- */

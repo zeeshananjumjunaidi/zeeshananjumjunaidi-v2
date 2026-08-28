@@ -113,10 +113,15 @@
    attribute's state. */
 .dg-icon[hidden] { display: none; }
 
-.dg-body { display: flex; align-items: stretch; gap: 0; }
+/* --dg-canvas-h is the single source of truth for how tall this tool is --
+   both the canvas and the sidebar read it, so they can never end up two
+   different heights (the sidebar used to just grow past the canvas once it
+   had enough icon groups to need it, since align-items:stretch only grows
+   items that are shorter than the row, never shrinks one that's taller). */
+.dg-body { display: flex; align-items: stretch; gap: 0; --dg-canvas-h: 600px; }
 .dg-sidebar {
   width: 190px; flex-shrink: 0; border: 1px solid var(--card-border); border-right: 0;
-  background: var(--card-bg); overflow-y: auto;
+  background: var(--card-bg); overflow-y: auto; max-height: var(--dg-canvas-h);
   transition: width .2s ease, opacity .2s ease, border-width .2s ease;
 }
 .dg-sidebar.collapsed { width: 0; opacity: 0; border-width: 0; overflow: hidden; }
@@ -166,7 +171,7 @@
 }
 
 .dg-canvas-wrap {
-  position: relative; height: 600px; border: 1px solid var(--card-border); background: var(--card-bg);
+  position: relative; height: var(--dg-canvas-h); border: 1px solid var(--card-border); background: var(--card-bg);
   overflow: hidden; cursor: grab; touch-action: none; flex: 1 1 auto; min-width: 0;
   background-image: radial-gradient(color-mix(in srgb, var(--card-border) 70%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
@@ -393,9 +398,9 @@
 .dg-context-menu .dg-style-btn.active { border-color: var(--card-label); color: var(--card-label); }
 
 .dg-root:fullscreen { background: var(--page-bg); padding: 18px 22px; }
-.dg-root:fullscreen .dg-canvas-wrap { height: calc(100vh - 130px); }
+.dg-root:fullscreen .dg-body { --dg-canvas-h: calc(100vh - 130px); }
 .dg-root:-webkit-full-screen { background: var(--page-bg); padding: 18px 22px; }
-.dg-root:-webkit-full-screen .dg-canvas-wrap { height: calc(100vh - 130px); }
+.dg-root:-webkit-full-screen .dg-body { --dg-canvas-h: calc(100vh - 130px); }
 
 .dg-hint { margin-top: 10px; }
 </style>
