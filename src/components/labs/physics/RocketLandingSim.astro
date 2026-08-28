@@ -1043,15 +1043,31 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var mass = VEH.dry + state.fuel;
 
     var g = world().g;
+    var tGo = Math.max(2 * Math.max(state.y, 0) / (Math.abs(state.vy) + PHYS.vTarget), PHYS.tGoFloor);
+    state.tGo = tGo;
+
     if (!state.ignited) {
       var aReq = (state.vy * state.vy - PHYS.vTouch * PHYS.vTouch) / (2 * Math.max(state.y, 0.001));
       var aAvail = VEH.maxT / mass - g;
-      if (aReq / aAvail >= 0.98) state.ignited = true;
+      var vertTrigger = aReq / aAvail >= 0.4;
+
+      // Second, separate trigger the vertical-only check above was
+      // missing: ignite early if there isn't enough time left to ALSO
+      // finish the lateral divert. Without this, a high-drift entry can
+      // pass the vertical check comfortably late while the lateral
+      // correction never gets enough runway to complete -- which is
+      // exactly the residual-lateral-speed-at-touchdown failure this was
+      // producing. Bang-bang estimate of the time the divert needs
+      // (missLat / available lateral accel), same shape as the
+      // reference file's own second trigger.
+      var missLat = Math.hypot(state.x + state.vx * tGo, state.z + state.vz * tGo);
+      var aLatAvail = (VEH.maxT / mass) * Math.sin(VEH.maxTilt);
+      var tLatNeed = 2.4 * Math.sqrt(missLat / Math.max(aLatAvail, 0.01));
+      var latTrigger = tGo <= 2.2 * tLatNeed;
+
+      if (vertTrigger || latTrigger) state.ignited = true;
     }
     if (!state.ignited || state.fuel <= 0) return { thrust: 0, defPhi: 0, defPsi: 0 };
-
-    var tGo = Math.max(2 * Math.max(state.y, 0) / (Math.abs(state.vy) + PHYS.vTarget), PHYS.tGoFloor);
-    state.tGo = tGo;
 
     // Crossrange gets its OWN clock (Article §09), not tGo. Sharing tGo
     // between vertical and lateral was the actual bug behind poor
