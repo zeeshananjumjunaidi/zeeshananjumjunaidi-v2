@@ -21,10 +21,8 @@
           </div>
 
           <div class="rl-hudpanel rl-hud-tr">
-            <span class="rl-hud-k">Throttle</span>
-            <span class="rl-hud-v" id="throttleV">0%</span>
-            <div class="rl-hud-row"><span>Propellant</span><b id="fuel">100</b></div>
-            <div class="rl-hud-row"><span>Tilt</span><b id="tiltHud">0.0&deg;</b></div>
+            <span class="rl-hud-k">Propellant</span>
+            <span class="rl-hud-v" id="fuel">100%</span>
             <div class="rl-hud-row"><span>Gimbal</span><b id="gimbalHud">0.0&deg; / 0.0&deg;</b></div>
             <div class="rl-hud-row"><span>Fins</span><b id="finHud">0.0&deg; / 0.0&deg;</b></div>
           </div>
@@ -35,6 +33,52 @@
           </div>
 
           <div class="rl-hudpanel rl-hud-br" id="camNameHud">Chase</div>
+
+          <!-- Flight instruments. The two things you actually fly with:
+               where the vehicle is pointing, and how hard it is pushing. -->
+          <div class="rl-instruments" id="instruments">
+            <div class="rl-inst">
+              <svg class="rl-att" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="rl-att-safe-fill" id="attSafeFill" cx="50" cy="50" r="14" />
+                <circle class="rl-att-max" cx="50" cy="50" r="44" />
+                <circle class="rl-att-lim" id="attLimRing" cx="50" cy="50" r="44" />
+                <circle class="rl-att-safe" id="attSafeRing" cx="50" cy="50" r="14" />
+                <path class="rl-att-tick" d="M50 6 V12 M50 88 V94 M6 50 H12 M88 50 H94" />
+                <line class="rl-att-err" id="attErr" x1="50" y1="50" x2="50" y2="50" />
+                <g class="rl-att-cmd" id="attCmd" transform="translate(50 50)">
+                  <circle r="9" />
+                  <path d="M-13 0 H-6 M6 0 H13 M0 -13 V-6 M0 6 V13" />
+                </g>
+                <circle class="rl-att-dot" id="attDot" cx="50" cy="50" r="4.6" />
+              </svg>
+              <span class="rl-inst-v" id="tiltHud">0.0&deg;</span>
+              <span class="rl-inst-k">Tilt</span>
+            </div>
+
+            <div class="rl-inst">
+              <svg class="rl-thr" viewBox="0 0 26 100" aria-hidden="true">
+                <defs>
+                  <pattern id="rlHatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <line class="rl-thr-hatchline" x1="0" y1="0" x2="0" y2="4" />
+                  </pattern>
+                </defs>
+                <rect class="rl-thr-track" x="7" y="6" width="12" height="88" rx="2" />
+                <rect class="rl-thr-dead" id="thrDead" x="7" width="12" fill="url(#rlHatch)" />
+                <rect class="rl-thr-fill" id="thrFill" x="7" width="12" rx="2" />
+                <line class="rl-thr-min" id="thrMin" x1="3" x2="23" />
+                <line class="rl-thr-hover" id="thrHover" x1="1" x2="25" />
+                <rect class="rl-thr-frame" x="7" y="6" width="12" height="88" rx="2" />
+              </svg>
+              <span class="rl-inst-v" id="throttleV">0%</span>
+              <span class="rl-inst-k">Throttle</span>
+            </div>
+
+            <div class="rl-keys" id="keyLegend">
+              <div class="rl-keyrow"><kbd>W</kbd><kbd>S</kbd><span>thrust</span></div>
+              <div class="rl-keyrow"><kbd>A</kbd><kbd>D</kbd><span>lean X</span></div>
+              <div class="rl-keyrow"><kbd>Q</kbd><kbd>E</kbd><span>lean Z</span></div>
+            </div>
+          </div>
 
           <div class="rl-verdict" id="verdict" hidden>
             <span class="rl-verdict-title" id="verdictTitle">Landed</span>
@@ -703,6 +747,17 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var tiltHudEl = document.getElementById("tiltHud");
   var gimbalHudEl = document.getElementById("gimbalHud");
   var finHudEl = document.getElementById("finHud");
+  var instrumentsEl = document.getElementById("instruments");
+  var attDotEl = document.getElementById("attDot");
+  var attCmdEl = document.getElementById("attCmd");
+  var attLimEl = document.getElementById("attLimRing");
+  var attSafeEl = document.getElementById("attSafeRing");
+  var attSafeFillEl = document.getElementById("attSafeFill");
+  var attErrEl = document.getElementById("attErr");
+  var thrFillEl = document.getElementById("thrFill");
+  var thrDeadEl = document.getElementById("thrDead");
+  var thrMinEl = document.getElementById("thrMin");
+  var thrHoverEl = document.getElementById("thrHover");
   var tplusEl = document.getElementById("tplus");
   var tgoHudEl = document.getElementById("tgoHud");
   var camNameEl = document.getElementById("camNameHud");
@@ -816,6 +871,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       ignited: false,
       autopilot: true,
       thrustFrac: 0, defPhi: 0, defPsi: 0, finPhi: 0, finPsi: 0, // last-applied control, for the visuals
+      cmdPhi: 0, cmdPsi: 0, // attitude the controller is ASKING for -- the flight director needle
       tPlus: 0, tGo: null, cut: false,
       verdict: null
     };
@@ -1145,6 +1201,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (manualKeys.back) manualPsiCmd -= MANUAL_TILT_RATE * dt;
     manualPhiCmd = clamp(manualPhiCmd, -tiltCap, tiltCap);
     manualPsiCmd = clamp(manualPsiCmd, -tiltCap, tiltCap);
+    state.cmdPhi = manualPhiCmd; state.cmdPsi = manualPsiCmd;
 
     var uPhi = -(PHYS.Kp * (manualPhiCmd - state.phi) - PHYS.Kd * state.wphi);
     var uPsi = -(PHYS.Kp * (manualPsiCmd - state.psi) - PHYS.Kd * state.wpsi);
@@ -1298,6 +1355,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (dy < 0.25) { dx = 0; dy = 1; dz = 0; }
     var phiCmd = clamp(-Math.asin(clamp(dx, -1, 1)), -VEH.maxTilt, VEH.maxTilt);
     var psiCmd = clamp(Math.atan2(dz, Math.max(0.25, dy)), -VEH.maxTilt, VEH.maxTilt);
+    state.cmdPhi = phiCmd; state.cmdPsi = psiCmd;
 
     var uPhi = -(PHYS.Kp * (phiCmd - state.phi) - PHYS.Kd * state.wphi);
     var uPsi = -(PHYS.Kp * (psiCmd - state.psi) - PHYS.Kd * state.wpsi);
@@ -1457,7 +1515,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   function updateHud() {
     if (altEl) altEl.textContent = Math.round(state.y);
     if (vspeedEl) vspeedEl.textContent = state.vy.toFixed(1);
-    if (fuelEl) fuelEl.textContent = Math.round((state.fuel / VEH.fuel0) * 100);
+    if (fuelEl) fuelEl.textContent = Math.round((state.fuel / VEH.fuel0) * 100) + "%";
     if (lateralEl) lateralEl.textContent = Math.round(Math.sqrt(state.x * state.x + state.z * state.z));
     if (tiltHudEl) tiltHudEl.textContent = (Math.sqrt(state.phi * state.phi + state.psi * state.psi) / DEG).toFixed(1) + "°";
     if (gimbalHudEl) gimbalHudEl.textContent = (state.defPhi / DEG).toFixed(1) + "° / " + (state.defPsi / DEG).toFixed(1) + "°";
@@ -1470,6 +1528,77 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       phaseEl.textContent = label;
       phaseEl.classList.toggle("tone-ok", state.phase === "landed");
       phaseEl.classList.toggle("tone-bad", state.phase === "crashed");
+    }
+  }
+
+  // ---- flight instruments ----------------------------------------
+  // Two dials for the two things you actually fly with. Both read the
+  // same state the physics runs on; neither is decorative.
+  //
+  // Attitude: a top-down view of the tilt plane. Distance from the
+  // centre IS the tilt angle the readout shows, so the outer edge is
+  // VEH.maxTilt and the rings are the real limits -- the dashed one is
+  // tiltLimit(), which visibly shrinks as the vehicle descends and its
+  // authority folds toward vertical (Article §09), and the green one is
+  // the tilt you have to be inside of at touchdown to stay upright.
+  // The bright cross is the COMMANDED attitude: under autopilot it's
+  // what guidance wants, in manual it's what your keys are asking for,
+  // and the dot chasing it is the PD loop actually getting there.
+  var ATT_R = 44; // viewBox units at VEH.maxTilt
+  var THR_Y0 = 94, THR_H = 88; // throttle bar: y at 0%, and its full height
+
+  function attXY(phi, psi) {
+    var k = ATT_R / VEH.maxTilt;
+    return {
+      x: 50 + clamp(-phi * k, -ATT_R, ATT_R),
+      y: 50 - clamp(psi * k, -ATT_R, ATT_R)
+    };
+  }
+  function thrY(f) { return THR_Y0 - THR_H * clamp(f, 0, 1); }
+
+  // Static geometry: the landing tilt limit and the throttle floor don't
+  // move, so they're placed once rather than every frame.
+  function initInstruments() {
+    var safeR = ((ATT_R * LIMITS.tilt) / VEH.maxTilt).toFixed(2);
+    if (attSafeEl) attSafeEl.setAttribute("r", safeR);
+    if (attSafeFillEl) attSafeFillEl.setAttribute("r", safeR);
+    var yMin = thrY(VEH.minThr);
+    if (thrDeadEl) {
+      thrDeadEl.setAttribute("y", yMin.toFixed(2));
+      thrDeadEl.setAttribute("height", (THR_Y0 - yMin).toFixed(2));
+    }
+    if (thrMinEl) { thrMinEl.setAttribute("y1", yMin.toFixed(2)); thrMinEl.setAttribute("y2", yMin.toFixed(2)); }
+  }
+
+  function updateInstruments() {
+    var p = attXY(state.phi, state.psi);
+    if (attDotEl) {
+      attDotEl.setAttribute("cx", p.x.toFixed(2));
+      attDotEl.setAttribute("cy", p.y.toFixed(2));
+      attDotEl.classList.toggle("over", Math.hypot(state.phi, state.psi) > LIMITS.tilt);
+    }
+    var c = attXY(state.cmdPhi, state.cmdPsi);
+    if (attCmdEl) attCmdEl.setAttribute("transform", "translate(" + c.x.toFixed(2) + " " + c.y.toFixed(2) + ")");
+    if (attErrEl) {
+      attErrEl.setAttribute("x1", p.x.toFixed(2)); attErrEl.setAttribute("y1", p.y.toFixed(2));
+      attErrEl.setAttribute("x2", c.x.toFixed(2)); attErrEl.setAttribute("y2", c.y.toFixed(2));
+    }
+    if (attLimEl) attLimEl.setAttribute("r", ((ATT_R * tiltLimit(state.y)) / VEH.maxTilt).toFixed(2));
+
+    if (thrFillEl) {
+      var yTop = thrY(state.thrustFrac);
+      thrFillEl.setAttribute("y", yTop.toFixed(2));
+      thrFillEl.setAttribute("height", Math.max(0, THR_Y0 - yTop).toFixed(2));
+      thrFillEl.style.opacity = state.thrustFrac > 0 ? "1" : "0";
+    }
+    // Throttle that would exactly cancel weight right now. On Earth it
+    // sits *inside* the red band the engine can't run in, which is the
+    // whole "this vehicle cannot hover" constraint (Article §02) drawn
+    // rather than asserted -- and it drifts as propellant burns off.
+    if (thrHoverEl) {
+      var yh = thrY(((VEH.dry + state.fuel) * world().g) / VEH.maxT);
+      thrHoverEl.setAttribute("y1", yh.toFixed(2));
+      thrHoverEl.setAttribute("y2", yh.toFixed(2));
     }
   }
 
@@ -1569,6 +1698,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     updateCamera(dt);
     updateEngineVisual();
     updateHud();
+    updateInstruments();
     renderer.render(scene, camera);
   }
 
@@ -1579,6 +1709,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       autopilotBtn.textContent = on ? "Autopilot: On" : "Autopilot: Off";
       autopilotBtn.classList.toggle("active", on);
     }
+    // Manual: the instruments stop being a readout and start being the
+    // controls, so they get the accent treatment and the key legend.
+    if (instrumentsEl) instrumentsEl.classList.toggle("manual", !on);
+    if (!on) { manualPhiCmd = state.phi; manualPsiCmd = state.psi; }
   }
 
   if (throttleInput) throttleInput.addEventListener("input", updateEngineVisual);
@@ -1654,9 +1788,11 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (action) manualKeys[action] = false;
   });
 
+  initInstruments();
   setAutopilot(state.autopilot);
   updateEngineVisual();
   updateHud();
+  updateInstruments();
   tick();
 
   var tabs = document.querySelectorAll(".rl-tabbtn");
@@ -1773,6 +1909,73 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   }
   .rl-phasechip.tone-ok { color: var(--tone-ok); border-color: color-mix(in srgb, var(--tone-ok) 55%, transparent); }
   .rl-phasechip.tone-bad { color: var(--tone-bad); border-color: color-mix(in srgb, var(--tone-bad) 55%, transparent); }
+
+  /* ---- flight instruments (bottom centre) ----
+     Attitude director + throttle gauge. Same panel treatment as the
+     corner readouts, but they gain an accent border in manual mode
+     because that is when they stop being a readout and become the
+     thing you are flying with. */
+  .rl-instruments {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: flex-end; gap: 12px;
+    background: color-mix(in srgb, var(--card-bg) 80%, transparent);
+    border: 1px solid var(--card-border);
+    border-radius: 8px; padding: 9px 13px 7px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    pointer-events: none;
+    transition: border-color .3s ease;
+  }
+  .rl-instruments.manual { border-color: color-mix(in srgb, var(--card-label) 55%, transparent); }
+
+  .rl-inst { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .rl-att { width: 76px; height: 76px; display: block; }
+  .rl-thr { width: 26px; height: 76px; display: block; }
+  .rl-inst-v {
+    font-family: var(--font-mono); font-size: 12px; line-height: 1;
+    color: var(--headline-color); font-variant-numeric: tabular-nums;
+  }
+  .rl-inst-k {
+    font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--card-desc); opacity: 0.85; line-height: 1;
+  }
+
+  .rl-att-max, .rl-att-lim, .rl-att-safe, .rl-att-tick, .rl-att-cmd { fill: none; }
+  .rl-att-max { stroke: var(--card-border); stroke-width: 1.5; }
+  .rl-att-lim { stroke: var(--card-desc); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
+  .rl-att-safe { stroke: var(--tone-ok); stroke-width: 1.2; opacity: .7; }
+  .rl-att-safe-fill { fill: var(--tone-ok); opacity: .1; }
+  .rl-att-tick { stroke: var(--card-desc); stroke-width: 1.2; opacity: .4; }
+  /* The gap between "pointing here" and "asked to point there" -- the
+     error the attitude loop is closing, drawn as the line it is. */
+  .rl-att-err { stroke: var(--card-label); stroke-width: 1.2; opacity: .45; }
+  .rl-att-cmd { stroke: var(--card-label); stroke-width: 1.6; stroke-linecap: round; opacity: .5; transition: opacity .3s ease, stroke-width .3s ease; }
+  .rl-instruments.manual .rl-att-cmd { opacity: 1; stroke-width: 2; }
+  .rl-att-dot { fill: var(--headline-color); stroke: var(--card-bg); stroke-width: 1.2; transition: fill .2s ease; }
+  .rl-att-dot.over { fill: var(--tone-bad); }
+
+  .rl-thr-track { fill: color-mix(in srgb, var(--card-border) 35%, transparent); stroke: none; }
+  .rl-thr-frame { fill: none; stroke: var(--card-border); stroke-width: 1.2; }
+  .rl-thr-hatchline { stroke: var(--tone-bad); stroke-width: 1.4; opacity: .55; }
+  .rl-thr-fill { fill: var(--card-label); transition: opacity .15s ease; }
+  .rl-thr-min { stroke: var(--card-desc); stroke-width: 1.2; opacity: .8; }
+  .rl-thr-hover { stroke: var(--tone-bad); stroke-width: 1.4; stroke-dasharray: 2.5 2; }
+
+  /* Key legend: only meaningful when the keys actually do something. */
+  .rl-keys { display: none; flex-direction: column; gap: 4px; padding-bottom: 2px; }
+  .rl-instruments.manual .rl-keys { display: flex; }
+  .rl-keyrow {
+    display: flex; align-items: center; gap: 3px;
+    font-family: var(--font-mono); font-size: 9px; color: var(--card-desc);
+  }
+  .rl-keyrow kbd { font-size: 8.5px; padding: 1px 4px; border-radius: 3px; box-shadow: none; }
+  .rl-keyrow span { margin-left: 3px; letter-spacing: 0.06em; }
+
+  @media (max-width: 560px) {
+    .rl-att { width: 58px; height: 58px; }
+    .rl-thr { width: 20px; height: 58px; }
+    .rl-keys { display: none !important; }
+  }
 
   .rl-verdict {
     position: absolute; inset: auto 0 0 0;
