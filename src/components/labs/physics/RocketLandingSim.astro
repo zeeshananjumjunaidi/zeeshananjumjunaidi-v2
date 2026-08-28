@@ -15,18 +15,20 @@
         <div class="group">
           <span class="tag">throttle</span>
           <div class="ctl">
-            <input id="throttle" type="range" min="0" max="100" value="0" />
+            <input id="throttle" type="range" min="0" max="100" value="0" disabled />
             <span class="val" id="throttleV">0%</span>
           </div>
         </div>
+        <button id="autopilot" class="active">Autopilot: On</button>
         <button id="reset">Reset run</button>
       </div>
 
       <div class="hud">
         <span>altitude <b id="alt">900</b> m</span>
         <span>vertical speed <b id="vspeed">-85.0</b> m/s</span>
+        <span>lateral <b id="lateral">190</b> m</span>
         <span>fuel <b id="fuel">100</b>%</span>
-        <span>status <b id="phase">Falling</b></span>
+        <span>status <b id="phase">Coasting</b></span>
       </div>
     </div>
 
@@ -252,6 +254,356 @@
             </ul>
           </aside>
         </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">03</span>Rotational dynamics</h2>
+            <p>Treat the booster as a uniform slender rod of length L rotating about its centre:</p>
+            <div class="rl-eq">I = m&middot;L&sup2; / 12          I &asymp; 4.9 &times; 10&#8310; kg&middot;m&sup2;  for this vehicle</div>
+            <p class="rl-eqcap">A crude approximation. It is off by tens of percent for a real vehicle with dense engines at one end, and it is the right level of detail for understanding the behaviour.</p>
+            <p>
+              That number is large, and largeness is the point. The vehicle is a long thin
+              object rotating about its middle, so it responds to torque slowly. Angular
+              accelerations of a few tenths of a radian per second squared are typical,
+              which means attitude changes take seconds, which in turn means the attitude
+              loop must be much faster than the guidance loop or the two will interfere.
+              We will return to that in section 06.
+            </p>
+
+            <h3>Torque from the gimbal</h3>
+            <div class="rl-eq">M_gimbal = &minus;T &middot; L_arm &middot; sin &delta;_g</div>
+            <p class="rl-eqcap">L_arm is the distance from the centre of mass to the gimbal joint, 16 m here.</p>
+            <p>
+              The sign is negative because deflecting the nozzle to one side pushes the
+              tail the other way, rotating the nose <em>toward</em> the deflection. This is
+              the counterintuitive part of steering a rocket and it catches people out: the
+              vehicle rotates opposite to how a car turns.
+            </p>
+            <p>
+              The magnitude is worth putting numbers to. At full thrust and full gimbal,
+              <code>845 000 &times; 16 &times; sin 15&deg; = 3.5 &times; 10&#8310; N&middot;m</code>, giving about
+              0.71 rad/s&sup2;, roughly forty degrees per second squared. Respectable. And
+              exactly zero when the engine is off.
+            </p>
+
+            <div class="rl-limit">
+              <span class="rl-limit-tag">Dimensional analysis is not optional</span>
+              <p>The angular acceleration is torque divided by inertia. In an earlier version of the simulator behind this article, the aerodynamic damping term was added to the torque sum but never divided by <code>I</code>. The code ran. It produced numbers. Those numbers reached 10<sup>302</sup> within about three seconds of simulated time and then became NaN, and every downstream value silently became NaN with them.</p>
+              <p>The bug was invisible to inspection because the line looked correct, and invisible to unit tests that only checked that a landing was attempted. It was found by printing the state every tenth of a second and watching for the first value that stopped making sense. The lesson is cheap and worth internalising: every term you add to a sum must have the same units, and <code>[N&middot;m]</code> is not <code>[rad/s&sup2;]</code>. Write the units in a comment next to every physical constant.</p>
+            </div>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Rotational quantities</span>
+            <dl class="rl-dl">
+              <dt>I</dt><dd>4.9 &times; 10&#8310; kg&middot;m&sup2;</dd>
+              <dt>L_arm</dt><dd>16 m, CoM to gimbal</dd>
+              <dt>L_fin</dt><dd>14 m, CoM to fin CP</dd>
+              <dt>&delta;_g max</dt><dd>15&deg;, at 40&deg;/s</dd>
+              <dt>&delta;_fin max</dt><dd>20&deg;, at 120&deg;/s</dd>
+            </dl>
+            <p class="rl-note">Fins move faster than the gimbal because they are small aerodynamic surfaces on short actuators, while the gimbal swings an entire engine. Actuator rate limits are as real as position limits and are the usual cause of a controller that behaves in simulation but oscillates on hardware.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Goldstein, H., Poole, C. &amp; Safko, J., <em>Classical Mechanics</em>, 3rd ed., Addison-Wesley, 2002.</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">04</span>Two actuators, and why the vehicle needs both</h2>
+            <p>Here is the question that motivates this whole section. The booster already has a fully steerable engine capable of forty degrees per second squared of angular acceleration. Why bolt four heavy aerodynamic surfaces to the top of it?</p>
+            <p>Because for most of the descent, the engine is off.</p>
+            <p>The fuel-optimal strategy is to coast as long as possible and brake late. During that coast the vehicle is falling through thickening air at hundreds of metres per second with no thrust, and therefore no gimbal authority whatsoever. Without another actuator it is a lawn dart with no say in its own orientation.</p>
+
+            <h3>Grid fin torque</h3>
+            <p>A grid fin is a lattice of small aerofoils in a box. Compared to a flat plate of the same area it stalls at much higher angles of attack and has far lower hinge moment, which is why it can be small and still be moved quickly by a modest actuator. Model it as a lifting surface with an effective lift-curve slope:</p>
+            <div class="rl-eq">q = &frac12; &middot; &rho;(h) &middot; v&sup2;                          dynamic pressure, Pa
+M_fin = q &middot; S &middot; C_L,&alpha; &middot; L_fin &middot; sin &delta;_fin
+
+S = 16 m&sup2;    C_L,&alpha; = 2.0 per rad    L_fin = 14 m</div>
+            <p class="rl-eqcap">Every fin effect in this article is proportional to q. That is the whole story.</p>
+
+            <h3>The crossover</h3>
+            <p>Now compare the two actuators as functions of what they depend on:</p>
+            <div class="rl-eq">gimbal authority  &prop;  T          thrust
+fin authority     &prop;  q  =  &frac12;&rho;v&sup2;   dynamic pressure</div>
+            <p>Over a descent these are almost perfectly complementary. High and fast in dense air, q is enormous and the engine is off. In the last hundred metres the vehicle is slow, q has collapsed toward nothing, and the engine is lit and at full authority. The handover between them requires no logic, no mode switch, no scheduling. It falls out of the physics.</p>
+
+            <figure class="rl-figure">
+              <svg viewBox="0 0 720 340" role="img" aria-label="Chart of gimbal and grid fin control authority against altitude, showing fin authority peaking near three kilometres and gimbal authority appearing only after ignition below eight hundred metres.">
+                <g font-family="ui-monospace, monospace" font-size="11">
+                  <line x1="70" y1="20" x2="70" y2="278" stroke="currentColor" stroke-opacity=".45"></line>
+                  <line x1="70" y1="278" x2="690" y2="278" stroke="currentColor" stroke-opacity=".45"></line>
+                  <g stroke="currentColor" stroke-opacity=".12">
+                    <line x1="70" y1="214" x2="690" y2="214"></line><line x1="70" y1="150" x2="690" y2="150"></line>
+                    <line x1="70" y1="86" x2="690" y2="86"></line>
+                    <line x1="194" y1="20" x2="194" y2="278"></line><line x1="318" y1="20" x2="318" y2="278"></line>
+                    <line x1="442" y1="20" x2="442" y2="278"></line><line x1="566" y1="20" x2="566" y2="278"></line>
+                  </g>
+                  <g fill="currentColor" fill-opacity=".55">
+                    <text x="64" y="282" text-anchor="end">0</text>
+                    <text x="64" y="218" text-anchor="end">0.15</text>
+                    <text x="64" y="154" text-anchor="end">0.30</text>
+                    <text x="64" y="90" text-anchor="end">0.45</text>
+                    <text x="70" y="298">8 km</text><text x="194" y="298">5 km</text>
+                    <text x="318" y="298">3 km</text><text x="442" y="298">800 m</text>
+                    <text x="566" y="298">120 m</text><text x="686" y="298" text-anchor="end">0</text>
+                    <text x="20" y="150" transform="rotate(-90 20 150)" text-anchor="middle">rad/s&sup2;</text>
+                  </g>
+                  <path class="rl-trace-anim" d="M70,132 C130,100 170,84 240,80 C280,78 300,86 330,104 C370,128 400,178 442,224 C500,252 540,262 600,268 C640,271 665,272 690,272"
+                        fill="none" stroke="var(--card-label)" stroke-width="2.2"></path>
+                  <path d="M70,278 L440,278" fill="none" stroke="var(--tone-bad)" stroke-width="2.2" stroke-dasharray="3 4"></path>
+                  <path d="M442,278 L442,96 C500,88 560,78 620,70 C650,66 672,64 690,63"
+                        fill="none" stroke="var(--tone-bad)" stroke-width="2.2"></path>
+                  <line x1="442" y1="20" x2="442" y2="278" stroke="var(--tone-bad)" stroke-opacity=".5" stroke-width="1"></line>
+                  <text x="448" y="34" fill="var(--tone-bad)">ignition</text>
+                  <text x="240" y="66" fill="var(--card-label)">grid fins  &prop; q</text>
+                  <text x="560" y="52" fill="var(--tone-bad)">gimbal  &prop; T</text>
+                  <text x="150" y="266" fill="currentColor" fill-opacity=".5">gimbal: engine off, zero authority</text>
+                </g>
+              </svg>
+              <figcaption class="rl-figcap">Control authority against altitude for an Earth descent, measured from the simulator. Fin authority peaks near 0.44 rad/s&sup2; around three kilometres, where the product of density and speed is largest, then collapses to 0.05 rad/s&sup2; by twenty metres. Gimbal authority is identically zero until ignition and then dominates. Neither actuator covers the descent alone. Together they leave no gap.</figcaption>
+            </figure>
+
+            <p>Read the shape of the accent trace carefully, because it is not obvious. Fin authority does not increase monotonically as the vehicle descends into thicker air. It peaks and then falls, because <code>q = &frac12;&rho;v&sup2;</code> is a product of a rising term and a falling one: density climbs as the vehicle descends, while speed drops once braking begins. The maximum sits where their product does, near three kilometres. Aerospace engineers call this region max-q, and on an ascending launch vehicle it is the moment of peak structural loading for exactly the same reason.</p>
+
+            <h3>Weathervane stability</h3>
+            <p>The fins produce torque even when they are not deflected at all, and this effect is arguably more important than their control authority.</p>
+            <p>Consider a booster falling engine-first with its body axis at some angle to the oncoming airflow. The fins sit at the top, which on a vehicle falling tail-first means they sit <em>downstream</em>. Air hits them at that angle of attack, they generate lift, and because they are downstream of the centre of mass that lift produces a torque that rotates the body toward alignment with the flow. It is fletching on an arrow, and it is passive: no sensor, no actuator, no controller.</p>
+            <div class="rl-eq">M_weathervane = q &middot; S &middot; C_L,&alpha; &middot; L_fin &middot; (&theta;_flow &minus; &theta;_body)</div>
+            <p class="rl-eqcap">A restoring moment proportional to angle of attack. This is a spring.</p>
+            <p>Move the same surfaces <em>below</em> the centre of mass and the sign flips. The lift now torques the body <em>away</em> from alignment, small disturbances grow, and the vehicle tumbles. Static stability in atmospheric flight is entirely a question of whether the aerodynamic centre of pressure sits behind the centre of mass along the direction of travel, and since a booster travels engine-first on the way down and nose-first on the way up, a vehicle that is stable in one phase is unstable in the other.</p>
+
+            <h3>Aerodynamic damping</h3>
+            <p>There is a third effect, and it is easy to miss because nothing in the geometry moves to cause it. A rotating vehicle sweeps its fins through the air at speed <code>&omega; &middot; L_fin</code>. That transverse motion adds an angle of attack of <code>&omega;&middot;L_fin / v</code>, purely because the fins are rotating. The resulting lift opposes the rotation:</p>
+            <div class="rl-eq">M_damp = q &middot; S &middot; C_L,&alpha; &middot; L_fin &middot; (&omega;&middot;L_fin / v)
+        = &frac12; &middot; &rho; &middot; v &middot; S &middot; C_L,&alpha; &middot; L_fin&sup2; &middot; &omega;</div>
+            <p class="rl-eqcap">One factor of v cancels. Damping scales with &rho;&middot;v, not &rho;&middot;v&sup2;.</p>
+            <p>So the atmosphere provides a spring (weathervane) and a damper (this term), which together make the vehicle a second-order system with real dynamics of its own before any controller is attached. The fins contribute roughly <code>&rho; v S C_L,&alpha; L_fin&sup2;</code> to the damping coefficient, which for this geometry dwarfs the contribution of the bare cylindrical body by more than an order of magnitude.</p>
+
+            <div class="rl-limit">
+              <span class="rl-limit-tag">Consequence: the vehicle is a different plant on every world</span>
+              <p>On the Moon, &rho; is zero. Dynamic pressure is zero at every altitude and every speed. The fins produce no control torque, no weathervane restoring moment, and no damping. They are dead weight, and the vehicle is an undamped double integrator in attitude that will hold whatever rotation rate you leave it with, forever.</p>
+              <p>On Mars, &rho;&#8320; is about 1.6 percent of Earth's. Fin effects are present but weak, and the throttle floor problem is worse because gravity is only 3.7 m/s&sup2;, so the ratio of minimum thrust to weight is far above one. Mars landings are the hard case in this model and in reality, which is part of why every successful Mars lander so far has used a fundamentally different terminal strategy.</p>
+            </div>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Fin authority, measured</span>
+            <table class="rl-table">
+              <tr><th>Altitude</th><th>rad/s&sup2;</th></tr>
+              <tr><td>8 000 m</td><td class="n">0.344</td></tr>
+              <tr><td>3 000 m</td><td class="n">0.437</td></tr>
+              <tr><td>800 m</td><td class="n">0.128</td></tr>
+              <tr><td>120 m</td><td class="n">0.061</td></tr>
+              <tr><td>20 m</td><td class="n">0.052</td></tr>
+              <tr><td>Moon, any</td><td class="n">0.000</td></tr>
+            </table>
+            <span class="rl-rail-label">Why a grid, not a plate</span>
+            <p class="rl-note">The lattice keeps flow attached to many short chords instead of one long one, so the surface stalls far later. It also puts the centre of pressure near the hinge line, which collapses the hinge moment and lets a small actuator move a large surface against high dynamic pressure. The cost is drag, roughly double a flat plate of equal area. On a booster that is already trying to slow down, that cost is a benefit.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Washington, W. D. &amp; Miller, M. S., "Grid Fins -- A New Concept for Missile Stability and Control," AIAA-93-0035, 1993.</li>
+              <li>Barrowman, J., "The Theoretical Prediction of the Center of Pressure," NARAM-8, 1966.</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">05</span>Allocation: one signal, two actuators</h2>
+            <p>Given a desired torque, how do you split it between gimbal and fins? The general problem is control allocation and it can get sophisticated, with weighted pseudo-inverses and constrained optimisation running every cycle.</p>
+            <p>For this vehicle there is a simpler answer that is worth understanding before reaching for anything clever. Send the same command to both, scaled and clipped to each actuator's limits:</p>
+            <div class="rl-eq">u        = &minus;( K_p&middot;(&theta;_cmd &minus; &theta;)  &minus;  K_d&middot;&omega; )
+&delta;_gimbal = clamp( u,        &plusmn;15&deg; )   rate limited to  40&deg;/s
+&delta;_fin    = clamp( 1.4&middot;u,    &plusmn;20&deg; )   rate limited to 120&deg;/s</div>
+            <p class="rl-eqcap">No scheduling, no blending, no mode logic.</p>
+            <p>This works precisely because of the crossover established in section 04. When the engine is off, the gimbal command has no effect on anything, because the torque it produces is multiplied by <code>T = 0</code>. When q is negligible, the fin command has no effect, because its torque is multiplied by <code>q &asymp; 0</code>. Each actuator automatically ignores commands it cannot execute, and the physics performs the blend that you would otherwise have to schedule by hand.</p>
+            <p>The lesson generalises well beyond rockets. When two actuators have naturally disjoint regions of authority, commanding both and letting the plant sort it out is more robust than writing logic to decide which one is in charge. Mode-switching logic is where systems fail, because the switch happens at a specific moment and something is always in the wrong state at that moment.</p>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">When this trick fails</span>
+            <p class="rl-note">It relies on the actuators being complementary rather than overlapping. If both have full authority at the same time, commanding both produces double the intended torque, and if their dynamics differ they will fight each other in the overlap region. Check the product of authority curves before assuming you can skip allocation.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Johansen, T. A. &amp; Fossen, T. I., "Control Allocation -- A Survey," <em>Automatica</em>, 49(5), 2013.</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">06</span>Control: two loops, two timescales</h2>
+            <p>Guidance decides where to point. Attitude control gets the vehicle pointed there. Keeping those as separate loops is the single most important structural decision in the whole stack.</p>
+
+            <h3>The inner loop</h3>
+            <div class="rl-eq">&delta; = &minus;clamp( K_p&middot;(&theta;_cmd &minus; &theta;)  &minus;  K_d&middot;&omega; ,  &plusmn;&delta;_max )      K_p = 2.4,  K_d = 5.2</div>
+            <p class="rl-eqcap">Proportional on angle error, derivative on rate. No integral term.</p>
+            <p>The derivative term does the real work here. The plant is a double integrator: torque produces angular acceleration, which integrates to rate, which integrates to angle. Proportional feedback alone on a double integrator gives you an undamped oscillator, which will ring at <code>&radic;(K_p &middot; T &middot; L_arm / I)</code> forever and never settle. The derivative term is what makes it a damped second-order response.</p>
+            <p>There is no integral term, deliberately. Integral action accumulates error over time to defeat steady-state bias, but a landing lasts under a minute, has no meaningful steady state, and any integrator that winds up while the actuator is saturated will keep pushing after the error has reversed. Integral windup during saturation is a classic failure and the cheapest defence is not to have the integrator.</p>
+
+            <h3>Timescale separation</h3>
+            <table class="rl-table">
+              <tr><th>Loop</th><th>Rate</th><th>Decides</th></tr>
+              <tr><td>Guidance</td><td class="n">~10 Hz</td><td>Direction and magnitude of desired acceleration</td></tr>
+              <tr><td>Attitude</td><td class="n">100 Hz</td><td>Actuator deflections to achieve that direction</td></tr>
+              <tr><td>Integration</td><td class="n">100 Hz</td><td>The physics, unaware of either</td></tr>
+            </table>
+            <p>Cascade control is valid only when the inner loop settles faster than the outer loop changes its mind. The attitude loop takes roughly a second to swing fifteen degrees; the guidance loop must therefore not meaningfully revise its command faster than that, or it will be issuing corrections based on an attitude the vehicle has not reached yet and will never reach.</p>
+            <p>Break the separation and the two loops start arguing, producing an oscillation that looks like an instability in either loop taken alone but is actually a property of the coupling. If you have access to the simulator, this is worth causing deliberately: slow the attitude loop or speed up guidance and watch a stable system come apart.</p>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Why no integrator</span>
+            <p class="rl-note">PID is a reflex, not a requirement. Ask what each term is for. P responds to present error, D anticipates using rate, I remembers past error to cancel persistent bias. Landings have no time for memory and plenty of saturation, so I is a liability.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>&Aring;str&ouml;m, K. J. &amp; Murray, R. M., <em>Feedback Systems: An Introduction for Scientists and Engineers</em>, Princeton University Press, 2008.</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">07</span>Guidance: when to light the engine</h2>
+            <p>This is the decision that determines whether the vehicle lands or arrives. Light too early and you burn propellant fighting gravity at altitude, then run dry. Light too late and no amount of thrust can stop you.</p>
+            <p>Start from constant-acceleration kinematics, the same expression from a first mechanics course, and ask what deceleration is required to arrive at the ground at the touchdown speed:</p>
+            <div class="rl-eq">v_t&sup2;  =  v&sup2;  &minus;  2 &middot; a_req &middot; h
+
+a_req  =  ( v&sup2; &minus; v_t&sup2; ) / ( 2h )</div>
+            <p>Divide by what the vehicle can actually produce, and you have a single dimensionless number that describes the entire situation:</p>
+            <div class="rl-eq">&kappa;  =  a_req / a_available  =  ( v&sup2; &minus; v_t&sup2; ) / ( 2 &middot; a_avail &middot; h )</div>
+            <p class="rl-eqcap">Light the engine when &kappa; reaches 1.</p>
+            <p>&kappa; below one means you are falling more slowly than you need to, and could afford to fall further. &kappa; at one means braking at full authority will exactly reach the ground at the target speed. &kappa; above one means the situation is already unrecoverable and no control input exists that prevents a crash.</p>
+            <p>The popular name for triggering at &kappa; = 1 is the suicide burn, and the name is honest. It is fuel-optimal, because it delays the burn as long as physics permits. It also has, by construction, exactly zero margin: at the moment of ignition, full thrust is the only survivable input, so any subsequent disturbance, modelling error or actuator lag eats into a budget that is already empty.</p>
+            <p>Real vehicles trigger at &kappa; somewhat below one and hold the reserve. Deciding how much reserve is the central engineering trade of the whole descent, and it is a trade, not a calculation: propellant spent on margin is propellant unavailable for payload.</p>
+
+            <h3>A reference profile</h3>
+            <p>Once lit, one approach is to track a reference descent rate derived from the same kinematics, and use feedback to stay on it:</p>
+            <div class="rl-eq">v_ref(h)  =  &minus;&radic;( v_t&sup2;  +  2 &middot; a_dec &middot; h )
+
+a_cmd     =  g  +  a_dec  +  K &middot; ( v_ref &minus; v )</div>
+            <p class="rl-eqcap">A feedforward term that knows the physics, plus a feedback term that fixes the difference.</p>
+            <p>This is easy to reason about and easy to tune, which are real virtues. Its weakness is that it controls altitude and vertical speed as a decoupled problem and treats horizontal position as an afterthought, so it lands with more residual horizontal velocity than it should.</p>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Reading &kappa;</span>
+            <dl class="rl-dl">
+              <dt>&kappa; &lt; 1</dt><dd>coasting is still affordable</dd>
+              <dt>&kappa; = 1</dt><dd>full thrust exactly suffices</dd>
+              <dt>&kappa; &gt; 1</dt><dd>no input saves it</dd>
+            </dl>
+            <p class="rl-note">&kappa; is the whole descent compressed into one number. Watching it climb toward one during a coast is watching the vehicle's options close.</p>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Klumpp, A. R., "Apollo Lunar Descent Guidance," <em>Automatica</em>, 10(2), 1974.</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">08</span>ZEM/ZEV guidance</h2>
+            <p>The more capable law asks a different question. Not "am I on the right descent rate" but "given where I am and where I need to be, what acceleration profile gets me there".</p>
+            <p>Define two quantities. <strong>Zero-effort miss</strong> is where you will be at arrival if you do nothing from now on. <strong>Zero-effort velocity</strong> is the velocity error you will have under the same assumption.</p>
+            <div class="rl-eq">ZEM  =  r_f  &minus;  ( r  +  v&middot;t_go  +  &frac12;&middot;g&middot;t_go&sup2; )
+ZEV  =  v_f  &minus;  ( v  +  g&middot;t_go )</div>
+            <p class="rl-eqcap">Both include gravity, because gravity acts whether or not you do.</p>
+            <p>Now pose the optimisation: find the acceleration history that nulls both, while minimising <code>&int; |a|&sup2; dt</code>. Calculus of variations gives a two-point boundary value problem whose solution has a striking property: the optimal acceleration is <em>linear in time</em>. Write <code>a(t) = c&#8320; + c&#8321;t</code>, integrate twice, impose the terminal conditions on position and velocity, and solve the resulting 2&times;2 system. The command at the current instant is:</p>
+            <div class="rl-eq">a  =  6&middot;ZEM / t_go&sup2;  &minus;  2&middot;ZEV / t_go</div>
+            <p class="rl-eqcap">Three lines of code, and it handles all three axes simultaneously with no separate lateral controller.</p>
+            <p>Several things are worth noticing. It is a feedback law, not a trajectory: recompute it every cycle against the current state and it corrects for everything that has gone wrong since the last cycle. It is also the same structure as Apollo's E-Guidance and as proportional navigation in missile guidance, which is not a coincidence. Terminal guidance problems keep producing this form because minimising integrated square acceleration subject to fixed endpoint conditions is a recurring shape.</p>
+            <p>Minimising <code>&int;|a|&sup2;dt</code> is not the same as minimising propellant, which would be <code>&int;|a|dt</code>. The quadratic cost is chosen because it is analytically tractable, and it produces smooth commands that respect actuator limits better. The fuel-optimal solution is bang-bang, all or nothing, which is harsh on hardware and offers no margin.</p>
+
+            <h3>The term everyone gets wrong</h3>
+            <p>Notice that <code>t_go</code> appears in a denominator, squared. As the vehicle approaches touchdown, <code>t_go &rarr; 0</code> and the commanded acceleration goes to infinity. Every implementation needs a floor on <code>t_go</code> and a saturation on the output, and the terminal phase is where these laws are most fragile.</p>
+            <p>There is a deeper trap. It is tempting to treat <code>t_go</code> as a free variable and solve for the value that minimises cost. In practice that optimisation tends to select aggressive short times, produce large commands, and run the tanks dry. Estimating <code>t_go</code> from simple geometry, <code>t_go &asymp; 2h / (|v| + v_t)</code>, works better than optimising it, which is an uncomfortable but repeatable result.</p>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Why linear in time</span>
+            <p class="rl-note">Minimising &int;a&sup2; with fixed endpoints on position and velocity makes the Euler-Lagrange equation d&sup2;a/dt&sup2; = 0, whose solutions are exactly the linear functions. The elegance of ZEM/ZEV is that a variational problem collapses to fitting a straight line.</p>
+            <span class="rl-rail-label">Same family</span>
+            <dl class="rl-dl">
+              <dt>E-Guidance</dt><dd>Apollo powered descent</dd>
+              <dt>PN</dt><dd>missile intercept</dd>
+              <dt>LQR terminal</dt><dd>finite-horizon regulator</dd>
+            </dl>
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Battin, R. H., <em>An Introduction to the Mathematics and Methods of Astrodynamics</em>, AIAA Education Series, 1999.</li>
+              <li>D'Souza, C., "An Optimal Guidance Law for Planetary Landing," AIAA-97-3709, 1997.</li>
+            </ul>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">09</span>Crossrange: the phase with its own deadline</h2>
+            <p>Flying sideways is not a small correction added to the descent. It is a separate problem with a separate deadline, and getting that deadline wrong is the most common way a well-implemented guidance law still misses the pad.</p>
+            <p>The naive approach targets zero lateral offset at touchdown. It fails, and the reason is a hard constraint rather than a tuning issue. In the last thirty metres the tilt limit must fold toward vertical, because a booster that arrives leaning lands on one leg and falls over. Folding the tilt limit removes lateral authority at exactly the moment the naive law is relying on it. The arithmetic is unforgiving: about 3 m/s&sup2; of remaining lateral acceleration over under two seconds is roughly 5 m/s of steering, total. Arrive at thirty metres with 12 m/s of drift and no control law saves it. The geometry decided the outcome several seconds earlier.</p>
+            <p>The fix is to give the crossrange problem an earlier deadline than touchdown:</p>
+            <div class="rl-eq">H_div  =  45 m
+t_div  =  2 &middot; ( h &minus; H_div ) / ( |v_y| + v_ref(H_div) )
+t_lat  =  max( 11 s,  t_div )
+
+a_lat  =  &minus;6&middot;( r_lat + v_lat&middot;t_lat ) / t_lat&sup2;  +  2&middot;v_lat / t_lat</div>
+            <p class="rl-eqcap">The same ZEM/ZEV algebra, restricted to the horizontal plane, on a different clock.</p>
+            <p>Kill the crossrange by forty-five metres, then descend. Real landers sequence it the same way, and once you see the authority argument it is hard to imagine sequencing it otherwise.</p>
+
+            <div class="rl-limit">
+              <span class="rl-limit-tag">Counterintuitive: the slow clock wins</span>
+              <p>The floor of eleven seconds looks wrong. Why would you deliberately give the controller a horizon longer than the time it actually has?</p>
+              <p>Because a short horizon makes the law hot. With <code>t_go</code> in the denominator squared, a short clock demands acceleration far beyond what the tilt limit can deliver. The command saturates, the vehicle overshoots the pad, comes back, overshoots again, and arrives with more lateral velocity than it started with. Slowing the clock keeps the command inside the achievable envelope, so the divert converges monotonically instead of ringing. In the reference implementation, that one change moved Earth landing success from three of seven entry states to six of seven.</p>
+              <p>The general principle: a controller that asks for more than the plant can deliver is not aggressive, it is <em>open loop</em>. Once saturated, feedback has stopped functioning, and the sign of the error no longer influences the output.</p>
+            </div>
+
+            <h3>Trigger on projected miss, not present offset</h3>
+            <p>One more subtlety in the ignition logic. The decision to light early for a divert must be based on where drift will have carried the vehicle by arrival, not where it is now:</p>
+            <div class="rl-eq">miss_lat  =  | r_lat  +  v_lat &middot; t_go |</div>
+            <p>A booster drifting at 12 m/s with eight seconds remaining will be a hundred metres off target even while it is directly above the pad at this instant. Triggering on present offset says everything is fine right up until it is not.</p>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Authority budget, last 30 m</span>
+            <dl class="rl-dl">
+              <dt>a_lat</dt><dd>&asymp; 3 m/s&sup2;</dd>
+              <dt>time</dt><dd>&asymp; 1.8 s</dd>
+              <dt>&Delta;v available</dt><dd>&asymp; 5 m/s</dd>
+            </dl>
+            <p class="rl-note">Write this budget down for any terminal phase you design. It converts a vague worry about margin into a number you can compare against.</p>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">10</span>Numerics: where good physics goes to die</h2>
+            <p>Everything above is continuous mathematics. A computer must approximate it in discrete steps, and the approximation has failure modes of its own that look exactly like physical instabilities.</p>
+
+            <h3>Integrator choice</h3>
+            <p>Forward Euler is the obvious method and the wrong one. Its local error is second order, its global error first order, and for oscillatory systems it does not merely lose accuracy, it injects energy. An undamped oscillator integrated with forward Euler will grow in amplitude without any physical reason. On a vehicle whose attitude dynamics <em>are</em> a lightly damped oscillator, that is fatal.</p>
+            <p>Classical fourth-order Runge-Kutta evaluates the derivative four times per step and combines them so that error terms through fourth order cancel:</p>
+            <div class="rl-eq">k&#8321; = f(x, u)
+k&#8322; = f(x + h&middot;k&#8321;/2, u)
+k&#8323; = f(x + h&middot;k&#8322;/2, u)
+k&#8324; = f(x + h&middot;k&#8323;,   u)
+
+x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
+            <p class="rl-eqcap">Four derivative evaluations, fourth-order global accuracy. At h = 0.01 s the truncation error is far below anything else in the model.</p>
+
+            <h3>Fixed step, and why</h3>
+            <p>Adaptive integrators shrink the step where the solution moves fast and are more efficient for the same accuracy. They are also non-deterministic in wall-clock time, which means a simulation is not exactly reproducible, and reproducibility is worth more than efficiency when you are hunting a bug that appears once in forty runs. Fixed step also matches how flight software actually executes, on a fixed-rate scheduler.</p>
+
+            <h3>Zero-order hold</h3>
+            <p>The control input <code>u</code> does not appear inside the four stages above. It is computed once at the start of the step and held constant throughout, which is what real digital control does: the actuator command changes only at sample instants.</p>
+            <p>This has a consequence people frequently miss. The plant is integrated to fourth-order accuracy, but the control is only piecewise constant, which is first-order accurate.</p>
+            <p class="rl-note" style="border-left:2px solid var(--tone-bad); padding-left:10px; font-style:italic;">This section is unfinished in the source draft -- it cuts off mid-sentence here. Picking it back up (and whatever came after it) is a future increment.</p>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Further reading</span>
+            <ul class="rl-refs">
+              <li>Press, W. H., Teukolsky, S. A., Vetterling, W. T. &amp; Flannery, B. P., <em>Numerical Recipes</em>, 3rd ed., Cambridge University Press, 2007.</li>
+              <li>&Aring;str&ouml;m, K. J. &amp; Wittenmark, B., <em>Computer-Controlled Systems: Theory and Design</em>, 3rd ed., Prentice Hall, 1997.</li>
+            </ul>
+          </aside>
+        </section>
       </article>
     </div>
   </div>
@@ -264,9 +616,11 @@
   var throttleInput = document.getElementById("throttle");
   var throttleLabel = document.getElementById("throttleV");
   var resetBtn = document.getElementById("reset");
+  var autopilotBtn = document.getElementById("autopilot");
   var altEl = document.getElementById("alt");
   var vspeedEl = document.getElementById("vspeed");
   var fuelEl = document.getElementById("fuel");
+  var lateralEl = document.getElementById("lateral");
   var phaseEl = document.getElementById("phase");
 
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -291,17 +645,38 @@
   // Article tab's "orders of magnitude" table. Only the dimensions used
   // to place geometry are needed yet; g0/isp/Cd etc. wait for the physics
   // integration.
-  var VEH = { dry: 22200, fuel0: 5200, maxT: 845000, minThr: 0.4, L: 47, R: 1.85, arm: 16 };
+  var DEG = Math.PI / 180;
+  var VEH = {
+    dry: 22200, fuel0: 5200, maxT: 845000, minThr: 0.4, L: 47, R: 1.85, arm: 16,
+    I: 4.9e6, maxGimbal: 15 * DEG, maxTilt: 32 * DEG
+  };
 
-  // Physics constants (Article 02: exponential atmosphere, mass-flow from
-  // I_sp) and the run state. 1-DOF vertical fall only -- no lateral drift,
-  // gimbal or tilt yet, so drag and gravity act straight up the y axis.
-  // Semi-implicit Euler at a fixed sub-step; swapping in RK4 (Article 10)
-  // is a listed follow-up, not required for a stable vertical fall.
-  var PHYS = { g0: 9.80665, isp: 282, rho0: 1.225, H: 8500, Cd: 0.82, A: Math.PI * VEH.R * VEH.R, vTouch: 6, step: 0.02 };
-  var state = { alt: 900, vy: -85, fuel: VEH.fuel0, phase: "falling" }; // falling | landed | crashed
+  // Physics + guidance constants. Full translation (x,y,z) and attitude
+  // (phi,psi) now, RK4 with zero-order-hold control (Article 10), ZEM/ZEV
+  // terminal guidance for all three axes at once (Article 08) driving a
+  // PD attitude loop (Article 06) that commands the gimbal (Article 03).
+  // Grid-fin torque, the coast-phase actuator (Article 04), is not
+  // modelled -- attitude only has authority once the engine is lit.
+  var PHYS = {
+    g0: 9.80665, isp: 282, rho0: 1.225, H: 8500, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
+    vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02
+  };
 
-  var rocket, nozzleGroup, flame, flameInner, glow;
+  function defaultState() {
+    return {
+      x: 180, y: 900, z: 60,
+      vx: -16, vy: -85, vz: -6,
+      phi: 0, psi: 0, wphi: 0, wpsi: 0,
+      fuel: VEH.fuel0,
+      phase: "falling", // falling | landed | crashed
+      ignited: false,
+      autopilot: true,
+      thrustFrac: 0, defPhi: 0, defPsi: 0 // last-applied control, for the visuals
+    };
+  }
+  var state = defaultState();
+
+  var rocket, nozzleGroup, flame, flameInner, glow, legParts = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
   var restY = VEH.arm - 2.2 + 11;
@@ -398,6 +773,7 @@
       foot.position.set(0, -11, 0);
       pivot.add(foot);
       placeholder.add(pivot);
+      legParts.push(pivot);
     }
 
     nozzleGroup = new THREE.Group();
@@ -430,9 +806,9 @@
     glow.position.y = -3;
     nozzleGroup.add(glow);
 
-    // Position is driven every frame from `state.alt` in tick() -- see
-    // `restY` above for the rest-on-pad offset this is built around.
-    rocket.position.set(0, restY + state.alt, 0);
+    // Position/rotation are driven every frame from `state` in tick() --
+    // see `restY` above for the rest-on-pad offset this is built around.
+    rocket.position.set(state.x, restY + state.y, state.z);
   }
 
   function updateCamera(dt) {
@@ -441,7 +817,7 @@
     var phi = camRig.phi;
     // Pull back as altitude climbs so a 900 m fall still frames the
     // vehicle, and close in for the last few metres of a landing.
-    var dist = clamp(110 + Math.max(state.alt, 0) * 0.22, 110, 900);
+    var dist = clamp(110 + Math.max(state.y, 0) * 0.22, 110, 900);
     camTarget.lerp(rocket.position, 1 - Math.pow(0.001, Math.min(dt, 0.1)));
     camera.position.set(
       camTarget.x + dist * Math.cos(phi) * Math.cos(theta),
@@ -458,48 +834,141 @@
     return pct <= 0 ? 0 : Math.max(pct / 100, VEH.minThr);
   }
 
-  function stepPhysics(dt) {
-    if (state.phase !== "falling") return;
-    var thrustFrac = state.fuel > 0 ? throttleFraction() : 0;
-    var thrust = thrustFrac * VEH.maxT;
+  // Manual mode: vertical-only, straight off the throttle slider -- no
+  // gimbal, so lateral drift (if any) is uncorrected. That asymmetry with
+  // the autopilot is deliberate: it's the fastest way to feel why Article
+  // §04 says the vehicle needs a second actuator at all.
+  function manualControl() {
+    var frac = state.fuel > 0 ? throttleFraction() : 0;
+    return { thrust: frac * VEH.maxT, defPhi: 0, defPsi: 0 };
+  }
+
+  // ZEM/ZEV terminal guidance (Article §08) for all three axes on one
+  // clock, feeding a PD attitude loop (Article §06) that commands the
+  // gimbal (Article §03). Ignition itself waits for the κ trigger
+  // (Article §07); before that the vehicle free-falls.
+  function guidance() {
     var mass = VEH.dry + state.fuel;
-    var rho = PHYS.rho0 * Math.exp(-Math.max(state.alt, 0) / PHYS.H);
-    var drag = 0.5 * rho * PHYS.Cd * PHYS.A * state.vy * Math.abs(state.vy);
-    var accel = thrust / mass - PHYS.g0 - drag / mass;
 
-    state.vy += accel * dt;
-    state.alt += state.vy * dt;
-    if (thrust > 0) state.fuel = Math.max(0, state.fuel - (thrust / (PHYS.isp * PHYS.g0)) * dt);
+    if (!state.ignited) {
+      var aReq = (state.vy * state.vy - PHYS.vTouch * PHYS.vTouch) / (2 * Math.max(state.y, 0.001));
+      var aAvail = VEH.maxT / mass - PHYS.g0;
+      if (aReq / aAvail >= 0.98) state.ignited = true;
+    }
+    if (!state.ignited || state.fuel <= 0) return { thrust: 0, defPhi: 0, defPsi: 0 };
 
-    if (state.alt <= 0) {
-      state.alt = 0;
-      state.phase = Math.abs(state.vy) <= PHYS.vTouch ? "landed" : "crashed";
-      state.vy = 0;
-      if (throttleInput) throttleInput.value = "0";
-      updateThrottleVisual();
+    var tGo = Math.max(2 * Math.max(state.y, 0) / (Math.abs(state.vy) + PHYS.vTarget), PHYS.tGoFloor);
+
+    var zemX = -(state.x + state.vx * tGo);
+    var ax = (6 * zemX) / (tGo * tGo) - (2 * -state.vx) / tGo;
+
+    var zemZ = -(state.z + state.vz * tGo);
+    var az = (6 * zemZ) / (tGo * tGo) - (2 * -state.vz) / tGo;
+
+    var zemY = -(state.y + state.vy * tGo - 0.5 * PHYS.g0 * tGo * tGo);
+    var zevY = -PHYS.vTarget - state.vy + PHYS.g0 * tGo;
+    var ay = (6 * zemY) / (tGo * tGo) - (2 * zevY) / tGo;
+
+    var mag = Math.sqrt(ax * ax + ay * ay + az * az);
+    var thrust = clamp(mag * mass, VEH.minThr * VEH.maxT, VEH.maxT);
+
+    var dx = mag > 1e-6 ? ax / mag : 0;
+    var dy = mag > 1e-6 ? ay / mag : 1;
+    var dz = mag > 1e-6 ? az / mag : 0;
+    // Inverse of Article §01's û(φ,ψ): recover the tilt that would
+    // point the thrust axis along this desired direction.
+    var phiCmd = clamp(-Math.asin(clamp(dx, -1, 1)), -VEH.maxTilt, VEH.maxTilt);
+    var psiCmd = Math.atan2(dz, dy);
+
+    var defPhi = clamp(-(PHYS.Kp * (phiCmd - state.phi) - PHYS.Kd * state.wphi), -VEH.maxGimbal, VEH.maxGimbal);
+    var defPsi = clamp(-(PHYS.Kp * (psiCmd - state.psi) - PHYS.Kd * state.wpsi), -VEH.maxGimbal, VEH.maxGimbal);
+
+    return { thrust: thrust, defPhi: defPhi, defPsi: defPsi };
+  }
+
+  // Article §01's state vector (x,y,z,vx,vy,vz,φ,ψ,ωφ,ωψ), Article §02's
+  // force balance, Article §03's gimbal torque. Fuel/mass is treated as
+  // constant across one RK4 step's four evaluations (zero-order hold,
+  // Article §10) and only burned once per step, after integrating.
+  var RK4_FIELDS = ["x", "y", "z", "vx", "vy", "vz", "phi", "psi", "wphi", "wpsi"];
+  function derivatives(s, u, mass) {
+    var totalPhi = s.phi + u.defPhi, totalPsi = s.psi + u.defPsi;
+    var ux = -Math.sin(totalPhi);
+    var uy = Math.cos(totalPhi) * Math.cos(totalPsi);
+    var uz = Math.cos(totalPhi) * Math.sin(totalPsi);
+    var speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy + s.vz * s.vz);
+    var rho = PHYS.rho0 * Math.exp(-Math.max(s.y, 0) / PHYS.H);
+    var dragK = (0.5 * rho * PHYS.Cd * PHYS.A * speed) / mass;
+
+    return {
+      x: s.vx, y: s.vy, z: s.vz,
+      vx: (u.thrust * ux) / mass - dragK * s.vx,
+      vy: (u.thrust * uy) / mass - PHYS.g0 - dragK * s.vy,
+      vz: (u.thrust * uz) / mass - dragK * s.vz,
+      phi: s.wphi, psi: s.wpsi,
+      wphi: (-u.thrust * VEH.arm * Math.sin(u.defPhi)) / VEH.I,
+      wpsi: (-u.thrust * VEH.arm * Math.sin(u.defPsi)) / VEH.I
+    };
+  }
+  function advance(s, k, h) {
+    var out = {};
+    for (var i = 0; i < RK4_FIELDS.length; i++) { var f = RK4_FIELDS[i]; out[f] = s[f] + k[f] * h; }
+    return out;
+  }
+  function rk4Step(s, u, dt, mass) {
+    var k1 = derivatives(s, u, mass);
+    var k2 = derivatives(advance(s, k1, dt / 2), u, mass);
+    var k3 = derivatives(advance(s, k2, dt / 2), u, mass);
+    var k4 = derivatives(advance(s, k3, dt), u, mass);
+    for (var i = 0; i < RK4_FIELDS.length; i++) {
+      var f = RK4_FIELDS[i];
+      s[f] += (dt / 6) * (k1[f] + 2 * k2[f] + 2 * k3[f] + k4[f]);
     }
   }
 
-  var PHASE_LABEL = { falling: "Falling", landed: "Landed", crashed: "Crashed" };
+  function stepPhysics(dt) {
+    if (state.phase !== "falling") return;
+    var mass = VEH.dry + state.fuel;
+    var u = state.autopilot ? guidance() : manualControl();
+
+    rk4Step(state, u, dt, mass);
+    if (u.thrust > 0) state.fuel = Math.max(0, state.fuel - (u.thrust / (PHYS.isp * PHYS.g0)) * dt);
+    state.thrustFrac = u.thrust / VEH.maxT;
+    state.defPhi = u.defPhi;
+    state.defPsi = u.defPsi;
+
+    if (state.y <= 0) {
+      state.y = 0;
+      var touchSpeed = Math.sqrt(state.vx * state.vx + state.vy * state.vy + state.vz * state.vz);
+      state.phase = touchSpeed <= PHYS.vTouch ? "landed" : "crashed";
+      state.vx = state.vy = state.vz = 0;
+      state.wphi = state.wpsi = 0;
+      state.thrustFrac = 0;
+      if (throttleInput) throttleInput.value = "0";
+      updateEngineVisual();
+    }
+  }
 
   function updateHud() {
-    if (altEl) altEl.textContent = Math.round(state.alt);
+    if (altEl) altEl.textContent = Math.round(state.y);
     if (vspeedEl) vspeedEl.textContent = state.vy.toFixed(1);
     if (fuelEl) fuelEl.textContent = Math.round((state.fuel / VEH.fuel0) * 100);
+    if (lateralEl) lateralEl.textContent = Math.round(Math.sqrt(state.x * state.x + state.z * state.z));
     if (phaseEl) {
-      phaseEl.textContent = PHASE_LABEL[state.phase];
+      var label = state.phase === "falling" ? (state.ignited ? "Braking" : "Coasting")
+        : state.phase === "landed" ? "Landed" : "Crashed";
+      phaseEl.textContent = label;
       phaseEl.classList.toggle("tone-ok", state.phase === "landed");
       phaseEl.classList.toggle("tone-bad", state.phase === "crashed");
     }
   }
 
   function resetRun() {
-    state.alt = 900;
-    state.vy = -85;
-    state.fuel = VEH.fuel0;
-    state.phase = "falling";
+    var autopilot = state.autopilot;
+    state = defaultState();
+    state.autopilot = autopilot;
     if (throttleInput) throttleInput.value = "0";
-    updateThrottleVisual();
+    updateEngineVisual();
   }
 
   function resize() {
@@ -517,9 +986,13 @@
   if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
   else window.addEventListener("resize", resize);
 
-  function updateThrottleVisual() {
-    var pct = throttleInput ? Number(throttleInput.value) : 0;
-    var t = throttleFraction(); // post-floor fraction -- see VEH.minThr
+  // Reflects the ACTUAL last-applied thrust/gimbal (state.thrustFrac/
+  // defPhi/defPsi), not the slider -- under autopilot the slider is
+  // disabled, and the flame should show what the guidance law is really
+  // commanding, not whatever the control happens to display.
+  function updateEngineVisual() {
+    var pct = state.autopilot ? Math.round(state.thrustFrac * 100) : (throttleInput ? Number(throttleInput.value) : 0);
+    var t = state.thrustFrac;
     if (throttleLabel) throttleLabel.textContent = pct + "%";
     if (flame) {
       flame.material.opacity = t > 0 ? 0.3 + t * 0.35 : 0;
@@ -530,6 +1003,20 @@
       flameInner.scale.set(0.5 + t * 0.6, 0.4 + t * 0.9, 0.5 + t * 0.6);
     }
     if (glow) glow.intensity = t * 3.5;
+    if (nozzleGroup) {
+      nozzleGroup.rotation.set(0, 0, 0);
+      nozzleGroup.rotation.x = state.defPsi;
+      nozzleGroup.rotation.z = -state.defPhi;
+    }
+  }
+
+  // Legs fold flush against the body at altitude and swing down to the
+  // fixed resting pose (built in buildRocket()) over the last 600 m --
+  // no physics behind the deploy itself, just a cue tied to altitude.
+  function updateLegs() {
+    var deployed = 1 - clamp(state.y / 600, 0, 1);
+    var foldAngle = -0.62 * Math.PI * (1 - deployed);
+    for (var i = 0; i < legParts.length; i++) legParts[i].rotation.x = foldAngle;
   }
 
   var clock = new THREE.Clock();
@@ -544,16 +1031,33 @@
       stepPhysics(h);
       remaining -= h;
     }
-    rocket.position.set(0, restY + state.alt, 0);
+    rocket.position.set(state.x, restY + state.y, state.z);
+    // Visual-only tilt -- an approximation of Article §01's û(φ,ψ) frame,
+    // not a rederivation of it; good enough for a placeholder body.
+    rocket.rotation.set(0, 0, 0);
+    rocket.rotation.z = -state.phi;
+    rocket.rotation.x = state.psi;
+    updateLegs();
     updateCamera(dt);
-    updateThrottleVisual();
+    updateEngineVisual();
     updateHud();
     renderer.render(scene, camera);
   }
 
-  if (throttleInput) throttleInput.addEventListener("input", updateThrottleVisual);
+  function setAutopilot(on) {
+    state.autopilot = on;
+    if (throttleInput) throttleInput.disabled = on;
+    if (autopilotBtn) {
+      autopilotBtn.textContent = on ? "Autopilot: On" : "Autopilot: Off";
+      autopilotBtn.classList.toggle("active", on);
+    }
+  }
+
+  if (throttleInput) throttleInput.addEventListener("input", updateEngineVisual);
   if (resetBtn) resetBtn.addEventListener("click", resetRun);
-  updateThrottleVisual();
+  if (autopilotBtn) autopilotBtn.addEventListener("click", function () { setAutopilot(!state.autopilot); });
+  setAutopilot(state.autopilot);
+  updateEngineVisual();
   updateHud();
   tick();
 
@@ -643,6 +1147,11 @@
   .controls button:hover {
     border-color: var(--card-label);
   }
+  .controls button.active {
+    border-color: var(--card-label);
+    color: var(--card-label);
+  }
+  input[type="range"]:disabled { opacity: 0.35; cursor: not-allowed; }
   .hud {
     display: flex;
     gap: 24px;
@@ -798,4 +1307,16 @@
   .rl-refs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   .rl-refs li { font-family: var(--font-body); font-size: 12px; line-height: 1.55; color: var(--card-desc); }
   .rl-refs em { font-style: italic; color: var(--headline-color); }
+
+  .rl-figure { margin: 18px 0 6px; }
+  .rl-figure svg {
+    width: 100%; height: auto; display: block;
+    border: 1px solid var(--card-border); border-radius: 6px; background: var(--card-bg);
+    color: var(--card-desc);
+  }
+  .rl-figcap { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); margin: 8px 0 18px; line-height: 1.6; }
+  @media (prefers-reduced-motion: no-preference) {
+    .rl-trace-anim { stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: rl-draw 2.4s ease-out .3s forwards; }
+    @keyframes rl-draw { to { stroke-dashoffset: 0; } }
+  }
 </style>
