@@ -31,47 +31,209 @@
 
     <div class="rl-tab" data-tab="article" hidden>
       <article class="rl-article">
-        <p class="rl-eyebrow">00 &middot; The shape of the problem</p>
-        <h2>Landing a booster</h2>
-        <p>
-          A booster returning to a pad is a rigid body with one force it can point
-          and throttle, an atmosphere that pushes back, and a mass that shrinks as
-          it works. It has to arrive at a specific point on the ground with almost
-          no velocity, almost no tilt, and almost no rotation, using less
-          propellant than it has, and it gets exactly one attempt.
-        </p>
-        <p>
-          Four things make it genuinely hard, and they are worth naming before any
-          equations appear, because every design decision later is a response to
-          one of them.
-        </p>
-        <p>
-          <strong>The vehicle cannot hover.</strong> At the end of the flight it is
-          nearly empty, and the engine has a minimum throttle. If minimum thrust divided
-          by mass exceeds local gravity, then any lit engine accelerates the vehicle
-          upward. There is no steady state to settle into. You get one continuous braking
-          maneuver, and it has to end at the ground.
-        </p>
-        <p>
-          <strong>Propellant is the binding constraint.</strong> The fuel-optimal solution
-          is to fall as long as possible and brake as hard as possible at the last moment.
-          That solution is also the one with the least margin, because braking late
-          means every error has to be corrected with the authority left over from an
-          already saturated engine.
-        </p>
-        <p>
-          <strong>Translation and rotation are coupled through the same actuator.</strong>
-          The only way to accelerate sideways is to tilt the whole vehicle, and the
-          only way to tilt is to point the engine off-axis, which steals thrust from
-          the vertical channel. Wanting to move left and wanting to slow down are the
-          same actuator fighting itself.
-        </p>
-        <p>
-          <strong>Control authority is not constant.</strong> It depends on thrust,
-          air density and speed, all of which change by orders of magnitude during the
-          descent. A controller tuned for the conditions at three kilometres is tuned
-          for a different vehicle than the one that exists at twenty metres.
-        </p>
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">00</span>The shape of the problem</h2>
+            <p>
+              A booster returning to a pad is a rigid body with one force it can point
+              and throttle, an atmosphere that pushes back, and a mass that shrinks as
+              it works. It has to arrive at a specific point on the ground with almost
+              no velocity, almost no tilt, and almost no rotation, using less
+              propellant than it has, and it gets exactly one attempt.
+            </p>
+            <p>
+              Four things make it genuinely hard, and they are worth naming before any
+              equations appear, because every design decision later is a response to
+              one of them.
+            </p>
+            <p>
+              <strong>The vehicle cannot hover.</strong> At the end of the flight it is
+              nearly empty, and the engine has a minimum throttle. If minimum thrust divided
+              by mass exceeds local gravity, then any lit engine accelerates the vehicle
+              upward. There is no steady state to settle into. You get one continuous braking
+              maneuver, and it has to end at the ground.
+            </p>
+            <p>
+              <strong>Propellant is the binding constraint.</strong> The fuel-optimal solution
+              is to fall as long as possible and brake as hard as possible at the last moment.
+              That solution is also the one with the least margin, because braking late
+              means every error has to be corrected with the authority left over from an
+              already saturated engine.
+            </p>
+            <p>
+              <strong>Translation and rotation are coupled through the same actuator.</strong>
+              The only way to accelerate sideways is to tilt the whole vehicle, and the
+              only way to tilt is to point the engine off-axis, which steals thrust from
+              the vertical channel. Wanting to move left and wanting to slow down are the
+              same actuator fighting itself.
+            </p>
+            <p>
+              <strong>Control authority is not constant.</strong> It depends on thrust,
+              air density and speed, all of which change by orders of magnitude during the
+              descent. A controller tuned for the conditions at three kilometres is tuned
+              for a different vehicle than the one that exists at twenty metres.
+            </p>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Notation used throughout</span>
+            <dl class="rl-dl">
+              <dt>r</dt><dd>position of the centre of mass</dd>
+              <dt>v</dt><dd>velocity, inertial frame</dd>
+              <dt>&phi;, &psi;</dt><dd>tilt about two horizontal axes</dd>
+              <dt>&omega;</dt><dd>angular rate</dd>
+              <dt>m</dt><dd>total mass, time varying</dd>
+              <dt>T</dt><dd>thrust magnitude</dd>
+              <dt>&delta;</dt><dd>actuator deflection</dd>
+              <dt>q</dt><dd>dynamic pressure</dd>
+              <dt>h</dt><dd>altitude of the engine bell</dd>
+              <dt>t<sub>go</sub></dt><dd>time to go</dd>
+            </dl>
+            <p class="rl-note">Every numeric value in this article comes from a working simulator with the vehicle's own parameters. Reproduce them, argue with them, change them.</p>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">01</span>Kinematics: choosing what to track</h2>
+            <p>
+              Kinematics is the bookkeeping of motion without asking what causes it. It
+              sounds like the easy part. It is where most of the subtle mistakes live,
+              because kinematics is where you choose what the numbers <em>mean</em>, and
+              a wrong choice there is invisible until it produces a landing that is off
+              by fifteen metres for no apparent reason.
+            </p>
+
+            <h3>The state vector</h3>
+            <p>Pick the smallest set of numbers that determines the future. For a booster with a single centred engine:</p>
+            <div class="rl-eq">x = [ rx, ry, rz,  vx, vy, vz,  &phi;, &psi;,  &omega;_&phi;, &omega;_&psi;,  m_prop ]</div>
+            <p class="rl-eqcap">Eleven numbers. Everything the vehicle knows about itself.</p>
+            <p>
+              Three position, three velocity, two attitude angles, two angular rates, one
+              propellant mass. Notice what is missing: there is no roll angle and no roll rate.
+            </p>
+
+            <h3>Why two attitude angles and not three</h3>
+            <p>
+              A single engine on the centreline produces a force through the centreline.
+              Rotate the vehicle about its own long axis and nothing about that force
+              changes. The engine has no lever arm to produce roll torque, so roll is
+              uncontrollable with this actuator, and worse, it is unobservable in the
+              dynamics that matter. Real boosters solve roll separately with cold gas
+              thrusters or differential fin deflection, which is a different subsystem
+              with a different bandwidth.
+            </p>
+            <p>
+              Dropping it is not laziness. Carrying an unactuated third angle would let the
+              vehicle drift into orientations where the two remaining angles stop being
+              independent, which is gimbal lock: a coordinate singularity where two of your
+              three rotation parameters describe the same physical rotation and the
+              equations lose a degree of freedom. Two angles about two fixed horizontal axes
+              cannot lock, and for a vehicle that never intentionally tilts past about thirty
+              degrees they are exact enough.
+            </p>
+            <p>
+              If you did need full three-axis attitude, the standard answer is quaternions,
+              which have no singularities at the cost of one redundant parameter and a
+              normalisation constraint you must enforce every step.
+            </p>
+
+            <h3>The body axis as a unit vector</h3>
+            <p>Both angles collapse into one useful object, the direction the vehicle is pointing:</p>
+            <div class="rl-eq">&ucirc;(&phi;, &psi;) = ( &minus;sin &phi;,  cos &phi; &middot; cos &psi;,  cos &phi; &middot; sin &psi; )</div>
+            <p class="rl-eqcap">Thrust acts along +&ucirc;. Everything else is bookkeeping around this vector.</p>
+
+            <div class="rl-limit">
+              <span class="rl-limit-tag">The mistake worth making once</span>
+              <p>The state tracks the <em>centre of mass</em>, but the vehicle touches the ground with its <em>engine bell</em>, which sits roughly sixteen metres below the centre of mass along the body axis. Altitude is therefore not <code>ry</code>:</p>
+              <div class="rl-eq">h = ry &minus; L_arm &middot; &ucirc;_y = ry &minus; L_arm &middot; cos &phi; &middot; cos &psi;</div>
+              <p>Tilting the vehicle <em>raises</em> its lowest point, because the bell swings up on its arm. A booster leaning ten degrees has about twenty-five centimetres more clearance than the same booster upright. Get this wrong and every altitude-triggered event fires at the wrong moment, in a way that scales with tilt, which is precisely when you can least afford it.</p>
+            </div>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Why the state is the design</span>
+            <p class="rl-note">Every controller you write can only regulate quantities that exist in the state. If a physical effect is not represented, no amount of gain tuning will handle it. Adding a state later means revisiting every equation that touches it.</p>
+            <span class="rl-rail-label">Frames</span>
+            <dl class="rl-dl">
+              <dt>Inertial</dt><dd>origin at the pad, +y up. Position, velocity and gravity live here.</dd>
+              <dt>Body</dt><dd>fixed to the vehicle, +y along the nose. Thrust and fin deflections live here.</dd>
+              <dt>Wind</dt><dd>aligned with airflow relative to the body. Aerodynamic forces live here.</dd>
+            </dl>
+            <p class="rl-note">Most integration bugs in flight software are a quantity expressed in one frame and used in another. Label your variables with their frame and the class of bug disappears.</p>
+          </aside>
+        </section>
+
+        <section class="rl-section">
+          <div class="rl-body">
+            <h2><span class="rl-num">02</span>Translational dynamics</h2>
+            <p>Now the causes. Three forces act on the centre of mass: thrust along the deflected body axis, gravity down, drag opposing motion through the air.</p>
+            <div class="rl-eq">m &middot; dv/dt = T &middot; &ucirc;(&phi; + &delta;_&phi;, &psi; + &delta;_&psi;)  &minus;  m&middot;g&middot;&yacute;  &minus;  &frac12; &rho;(h) &middot; |v_rel| &middot; v_rel &middot; C_d &middot; A</div>
+            <p class="rl-eqcap">Drag is written with |v|&middot;v rather than v&sup2; so the sign follows the direction automatically in all three components.</p>
+            <p>Two details in that line carry real weight.</p>
+            <p>
+              First, thrust points along the <em>deflected</em> axis,
+              <code>&ucirc;(&phi; + &delta;_&phi;, &psi; + &delta;_&psi;)</code>, not the body axis.
+              The gimbal angle is small, at most fifteen degrees, but it is the entire
+              steering mechanism, so it belongs in the force equation and not just the
+              torque equation.
+            </p>
+            <p>
+              Second, the relative velocity <code>v_rel = v &minus; v_wind</code> is what
+              generates drag, not ground-relative velocity. A vehicle descending vertically
+              in a crosswind is flying at an angle of attack and feels a sideways force,
+              which is how wind actually disturbs a booster: not by pushing on it directly,
+              but by changing the direction of the air it is moving through.
+            </p>
+
+            <h3>Air density is not a constant</h3>
+            <div class="rl-eq">&rho;(h) = &rho;&#8320; &middot; exp( &minus;h / H )        H &asymp; 8500 m on Earth</div>
+            <p class="rl-eqcap">Scale height H is the altitude over which density falls by a factor of e.</p>
+            <p>
+              An exponential atmosphere is the simplest model that gets the physics right,
+              and the consequence is stark. At eight kilometres the density is about a
+              third of sea level. Every aerodynamic quantity in this article, drag, fin
+              authority, damping, weathervane stiffness, is proportional to &rho;, so all
+              of them vary by a factor of three over a stretch of descent that takes under
+              a minute.
+            </p>
+
+            <h3>Mass is a state, not a parameter</h3>
+            <div class="rl-eq">dm/dt = &minus;T / (I_sp &middot; g&#8320;)</div>
+            <p class="rl-eqcap">Integrated over a burn, this is the Tsiolkovsky rocket equation.</p>
+            <p>
+              Specific impulse <code>I_sp</code> is exhaust velocity expressed in seconds,
+              a convention that survives because it is unit-system independent. The vehicle
+              in the header carries 5 200 kg of propellant on a 22 200 kg dry mass, so it
+              burns about nineteen percent of its total mass during a landing.
+            </p>
+            <p>
+              This matters more than it first appears. Available acceleration is
+              <code>T/m</code>, and as mass falls, the same throttle setting produces more
+              acceleration. A controller that is well behaved at the start of the burn is
+              more aggressive at the end of it, and a pure feedforward plan computed at
+              ignition will overshoot. The mass state is what lets the guidance law
+              recompute against the vehicle that actually exists right now.
+            </p>
+
+            <div class="rl-limit">
+              <span class="rl-limit-tag">Hard limit: the throttle floor</span>
+              <p>The engine cannot run below about forty percent. The set of achievable thrust magnitudes is <code>{0} &cup; [T_min, T_max]</code>, which is <em>not convex</em>, and that single fact is why powered descent guidance is a research area rather than a textbook exercise.</p>
+              <p>Concretely: near the end of the burn the vehicle masses about 24 000 kg, so minimum thrust gives 338 kN, or 14.1 m/s&sup2; of acceleration against 9.81 m/s&sup2; of gravity. A lit engine cannot descend gently. It cannot descend at all. The only options are shut down and accelerate downward at g, or light up and accelerate upward at 4.3 m/s&sup2;. Landing softly means threading between two unstable behaviours.</p>
+              <p>The modern treatment is <em>lossless convexification</em> (A&ccedil;&#305;kme&#351;e and Ploen, 2007), which introduces a slack variable for thrust magnitude, relaxes the non-convex constraint to a convex one, and then proves the relaxation is tight, meaning the optimal solution of the easy problem is the optimal solution of the hard one. It is one of the genuinely elegant results in the field and it is what made real-time onboard trajectory optimisation practical.</p>
+            </div>
+          </div>
+          <aside class="rl-rail">
+            <span class="rl-rail-label">Orders of magnitude</span>
+            <table class="rl-table">
+              <tr><th>Quantity</th><th>Value</th></tr>
+              <tr><td>Weight at touchdown</td><td class="n">236 kN</td></tr>
+              <tr><td>Thrust at 40 %</td><td class="n">338 kN</td></tr>
+              <tr><td>Thrust at 100 %</td><td class="n">845 kN</td></tr>
+              <tr><td>Max deceleration</td><td class="n">3.6 g</td></tr>
+              <tr><td>&Delta;v in tanks</td><td class="n">&asymp; 610 m/s</td></tr>
+            </table>
+            <p class="rl-note">Thrust-to-weight above one at minimum throttle is the defining feature of this vehicle. Design a lander with T/W below one at minimum throttle, as the Apollo LM had, and almost every hard problem in this article softens.</p>
+          </aside>
+        </section>
       </article>
     </div>
   </div>
@@ -195,26 +357,41 @@
 
   /* Article tab reuses the site's own long-form reading typography
      (.writing-block in global.css) rather than importing a separate
-     theme, so it tracks the light/dark toggle like everything else. */
+     theme, so it tracks the light/dark toggle like everything else.
+     Each numbered section is a two-column grid above 860px: prose in
+     .rl-body, a margin rail of notation/frames/tables in .rl-rail --
+     ported from the source article's own masthead+rail layout, restyled
+     onto this site's tokens. */
   .rl-article {
-    max-width: 68ch;
+    max-width: 940px;
     margin: 0 auto;
     padding: 8px 4px 24px;
   }
-  .rl-eyebrow {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--card-label);
-    margin: 0 0 10px;
+  .rl-section {
+    padding-top: 30px;
+    margin-top: 30px;
+    border-top: 1px solid var(--card-border);
   }
+  .rl-section:first-child { padding-top: 0; margin-top: 0; border-top: 0; }
+  @media (min-width: 860px) {
+    .rl-section { display: grid; grid-template-columns: minmax(0, 66ch) 1fr; gap: 32px; align-items: start; }
+  }
+  .rl-body { max-width: 68ch; }
+  .rl-num { color: var(--card-label); font-weight: 700; margin-right: 10px; }
   .rl-article h2 {
     font-family: var(--font-body);
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 600;
     color: var(--headline-color);
-    margin: 0 0 18px;
+    margin: 0 0 16px;
+  }
+  .rl-article h3 {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--headline-color);
+    margin: 26px 0 8px;
   }
   .rl-article p {
     font-family: var(--font-body);
@@ -226,4 +403,93 @@
   }
   .rl-article p:last-child { margin-bottom: 0; }
   .rl-article strong { color: var(--headline-color); font-weight: 600; }
+  .rl-article em { font-style: italic; }
+  .rl-article code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--card-label);
+  }
+
+  .rl-eq {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.8;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin: 4px 0 8px;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--headline-color);
+  }
+  .rl-eqcap {
+    font-family: var(--font-body);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--card-desc);
+    margin: 0 0 18px;
+  }
+
+  .rl-limit {
+    border-left: 3px solid var(--tone-bad);
+    background: color-mix(in srgb, var(--tone-bad) 6%, transparent);
+    padding: 14px 16px;
+    margin: 20px 0;
+  }
+  .rl-limit-tag {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--tone-bad);
+    margin-bottom: 8px;
+  }
+  .rl-limit p { margin: 0 0 10px; }
+  .rl-limit p:last-child { margin-bottom: 0; }
+
+  .rl-rail {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--card-desc);
+    margin-top: 22px;
+  }
+  @media (min-width: 860px) { .rl-rail { margin-top: 2px; } }
+  .rl-rail-label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--card-desc);
+    opacity: 0.85;
+    margin: 0 0 8px;
+  }
+  .rl-rail-label:not(:first-child) { margin-top: 18px; }
+  .rl-dl { margin: 0 0 16px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+  .rl-dl dt { color: var(--headline-color); }
+  .rl-dl dd { margin: 0; color: var(--card-desc); }
+  .rl-note {
+    border-left: 2px solid var(--card-label);
+    padding-left: 10px;
+    margin: 0 0 16px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    color: var(--card-desc);
+    line-height: 1.6;
+  }
+
+  .rl-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12px; margin: 0 0 10px; }
+  .rl-table th {
+    text-align: left; padding: 5px 6px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--card-desc); border-bottom: 1px solid var(--card-border);
+  }
+  .rl-table td { padding: 5px 6px; border-bottom: 1px solid var(--card-border); color: var(--headline-color); }
+  .rl-table td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .rl-table tr:last-child td { border-bottom: 0; }
 </style>
