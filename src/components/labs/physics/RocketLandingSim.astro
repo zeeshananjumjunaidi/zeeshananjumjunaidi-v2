@@ -680,6 +680,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
 <script>
   import * as THREE from "three";
+  import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
   var canvas = document.getElementById("scene");
   var throttleInput = document.getElementById("throttle");
@@ -727,7 +728,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // pad doesn't feel static. Once the vehicle exists, `camTarget` becomes
   // its position each frame and this same spherical math follows it.
   var camTarget = new THREE.Vector3(0, 20, 0);
-  var camRig = { mode: "chase", spin: 0 };
+  var camRig = { mode: "chase", spin: 0, userTheta: 0, userPhi: 0, distMul: 1 };
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // Vehicle constants, ported from the article's own numbers (dry mass,
@@ -739,7 +740,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var STD_G0 = 9.80665; // standard gravity Isp is conventionally referenced to
   var VEH = {
     dry: 22200, fuel0: 5200, maxT: 845000, minThr: 0.4, L: 47, R: 1.85, arm: 16,
-    I: 4.9e6, maxGimbal: 15 * DEG, maxTilt: 32 * DEG
+    I: 4.9e6, maxGimbal: 15 * DEG, maxTilt: 32 * DEG, gimbalRate: 40 * DEG
   };
 
   // Physics + guidance constants. Full translation (x,y,z) and attitude
@@ -804,13 +805,13 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       ignited: false,
       autopilot: true,
       thrustFrac: 0, defPhi: 0, defPsi: 0, // last-applied control, for the visuals
-      tPlus: 0, tGo: null,
+      tPlus: 0, tGo: null, cut: false,
       verdict: null
     };
   }
   var state = defaultState();
 
-  var rocket, nozzleGroup, flame, flameInner, glow, groundMesh, legParts = [];
+  var rocket, placeholder, nozzleGroup, flame, flameInner, glow, groundMesh, legParts = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
   // Deployed legs splay outward (real landing gear, not four cylinders
@@ -877,7 +878,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   function buildRocket() {
     rocket = new THREE.Group();
     scene.add(rocket);
-    var placeholder = new THREE.Group();
+    placeholder = new THREE.Group();
     rocket.add(placeholder);
 
     var white = new THREE.MeshStandardMaterial({ color: 0xdedad0, roughness: 0.55, metalness: 0.15 });
@@ -968,9 +969,45 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     glow.position.y = -3;
     nozzleGroup.add(glow);
 
+    loadRocketModel();
+
     // Position/rotation are driven every frame from `state` in tick() --
     // see `restY` above for the rest-on-pad offset this is built around.
     rocket.position.set(state.x, restY + state.y, state.z);
+  }
+
+  // Swaps the primitive placeholder for the real model once it's loaded,
+  // same hook pattern as the reference file's own ROCKET_MODEL: load,
+  // scale/offset onto the same CoM-relative origin, hide the primitives.
+  // The flame/glow/nozzle group stay independent of the model either way.
+  function loadRocketModel() {
+    new GLTFLoader().load(
+      "/lab/3dModels/rocket_model_v1.glb",
+      function (gltf) {
+        var model = gltf.scene;
+        var box = new THREE.Box3().setFromObject(model);
+        var size = new THREE.Vector3();
+        box.getSize(size);
+        // Scale so the model's tallest dimension matches the placeholder's
+        // own length (VEH.L), then re-center horizontally and sit its
+        // base at the same -VEH.arm+... datum the placeholder used.
+        var scale = size.y > 0 ? VEH.L / size.y : 1;
+        model.scale.setScalar(scale);
+        box.setFromObject(model);
+        var center = new THREE.Vector3();
+        box.getCenter(center);
+        model.position.x -= center.x;
+        model.position.z -= center.z;
+        model.position.y -= box.min.y;
+        model.position.y -= VEH.arm;
+        rocket.add(model);
+        if (placeholder) placeholder.visible = false;
+      },
+      undefined,
+      function (err) {
+        console.warn("Rocket model failed to load, keeping the placeholder.", err);
+      }
+    );
   }
 
   // Four rigs, all the same spherical theta/phi/dist-around-a-look-point
@@ -1009,6 +1046,13 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       look.y = alt / 2;
     }
 
+    // Drag-to-orbit / scroll-to-zoom, layered on top of whichever rig is
+    // active above -- same idea as the reference file's own CAM.userTheta/
+    // userPhi/distMul, so every view mode stays adjustable by hand.
+    theta += camRig.userTheta;
+    phi = clamp(phi + camRig.userPhi, -0.25, 1.35);
+    dist *= camRig.distMul;
+
     var k = 1 - Math.pow(0.0016, Math.min(dt, 0.1));
     camTarget.lerp(look, camRig.mode === "orbit" ? 1 : k);
     camera.position.set(
@@ -1035,130 +1079,163 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     return { thrust: frac * VEH.maxT, defPhi: 0, defPsi: 0 };
   }
 
-  // ZEM/ZEV terminal guidance (Article §08) for all three axes on one
-  // clock, feeding a PD attitude loop (Article §06) that commands the
-  // gimbal (Article §03). Ignition itself waits for the κ trigger
-  // (Article §07); before that the vehicle free-falls.
+  // Ported from the reference file's own guidance stack (deriv/rk4 +
+  // §1-2 of its guidance section), not just re-derived from the article.
+  // Kept this codebase's own state shape (named fields) and VEH/PHYS/
+  // WORLDS objects, but the algorithm -- refProfile, tiltLimit,
+  // lateralCap, divertClock, lateralGuide, the two guidance laws, and
+  // the autopilot's throttle-cut hysteresis + gimbal rate limiting -- is
+  // a faithful port, not a rewrite. It performs noticeably better than
+  // this file's own earlier hand-derived version.
+
+  // One combined reference: how hard to brake (aDec/kapReq), and how
+  // long the crossrange divert has (tLat), from the same base numbers.
+  function refProfile(alt, aMax, g) {
+    var base = Math.max(0.5, (0.88 * aMax - g) * 0.8);
+    var aLat = Math.max(1, 0.34 * aMax * Math.sin(VEH.maxTilt));
+    var h = Math.max(1, alt);
+    var tgo = (2 * h) / (Math.abs(state.vy) + PHYS.vTarget + 1e-3);
+    var latMiss = Math.hypot(state.x + state.vx * tgo, state.z + state.vz * tgo);
+    var tLat = Math.min(26, 3.2 * Math.sqrt(latMiss / aLat));
+    var kMin = clamp((VEH.minThr * aMax - g + 0.8) / base, 0.1, 0.95);
+    var kapReq = (state.vy * state.vy - PHYS.vTarget * PHYS.vTarget) / (2 * base * h);
+    var aDec = Math.max(0.5, base * clamp(kapReq, kMin, 1));
+    return {
+      vRef: -Math.min(200, Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * aDec * Math.max(0, alt))),
+      aDec: aDec, kapReq: kapReq, tLat: tLat, kMin: kMin, tgo: tgo
+    };
+  }
+
+  // Tilt authority folds toward vertical near the ground so the vehicle
+  // arrives upright instead of leaning on one leg -- never below 45% of
+  // max, or there'd be no steering left at all in the last few metres.
+  function tiltLimit(alt) { return VEH.maxTilt * clamp(alt / 40, 0.45, 1); }
+
+  // Lateral acceleration the tilt limit actually allows, given how much
+  // of it the vertical channel is already using. The floor term matters
+  // on low-gravity worlds: a lit engine is producing at least minThr
+  // regardless of what the vertical channel asked for, and that thrust
+  // is available for steering whether or not vertical wanted it.
+  function lateralCap(ay, aMax, tiltCap) {
+    return Math.max(ay * Math.tan(tiltCap), VEH.minThr * aMax * Math.sin(tiltCap));
+  }
+
+  // Crossrange divert clock (Article §09): the vehicle must have killed
+  // its drift by PHYS.hDiv, not by touchdown -- below that altitude the
+  // tilt limit is already folding and there's no authority left to fix
+  // a late miss. PHYS.tLatFloor keeps the command inside the tilt
+  // budget so the divert converges instead of saturating and ringing.
+  function divertClock(alt, aDec) {
+    if (alt <= PHYS.hDiv) return Math.max(PHYS.tLatFloor, (2 * alt) / (Math.abs(state.vy) + PHYS.vTarget + 1e-3));
+    var vAtDiv = Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * Math.max(0.5, aDec) * PHYS.hDiv);
+    return Math.max(PHYS.tLatFloor, (2 * (alt - PHYS.hDiv)) / (Math.abs(state.vy) + vAtDiv + 1e-3));
+  }
+
+  // ZEM/ZEV on the horizontal plane alone, capped to what lateralCap
+  // says the tilt limit can actually deliver.
+  function lateralGuide(tLat, cap) {
+    var t2 = tLat * tLat;
+    var ax = (-6 * (state.x + state.vx * tLat)) / t2 + (2 * state.vx) / tLat;
+    var az = (-6 * (state.z + state.vz * tLat)) / t2 + (2 * state.vz) / tLat;
+    var am = Math.hypot(ax, az);
+    if (am > cap) { ax *= cap / am; az *= cap / am; }
+    return { ax: ax, az: az };
+  }
+
+  function guideProfile(alt, aMax, g, pr) {
+    var ay = g + pr.aDec + 1.6 * (pr.vRef - state.vy);
+    var tiltCap = tiltLimit(alt);
+    var L = lateralGuide(divertClock(alt, pr.aDec), lateralCap(ay, aMax, tiltCap));
+    return { ax: L.ax, ay: clamp(ay, 0, aMax), az: L.az };
+  }
+
+  function guideZemZev(alt, aMax, g, pr) {
+    var t = clamp((2 * Math.max(alt, 0)) / (Math.abs(state.vy) + PHYS.vTarget + 1e-3), 0.6, 150);
+    var t2 = t * t;
+    var zemY = -(alt + state.vy * t - 0.5 * g * t2);
+    var zevY = -PHYS.vTarget - (state.vy - g * t);
+    var ay = (6 * zemY) / t2 - (2 * zevY) / t;
+    var tiltCap = tiltLimit(alt);
+    var L = lateralGuide(divertClock(alt, pr.aDec), lateralCap(ay, aMax, tiltCap));
+    var ax = L.ax, az = L.az;
+    var am = Math.hypot(ax, ay, az);
+    if (am > aMax) { ax = (ax * aMax) / am; ay = (ay * aMax) / am; az = (az * aMax) / am; }
+    return { ax: ax, ay: ay, az: az };
+  }
+
+  // Full autopilot: trigger, guidance law, throttle + attitude command,
+  // rate-limited gimbal. state.cut is the controller's own memory for
+  // the throttle hysteresis below.
   function guidance() {
     var mass = VEH.dry + state.fuel;
-
+    var aMax = VEH.maxT / mass;
     var g = world().g;
-    var tGo = Math.max(2 * Math.max(state.y, 0) / (Math.abs(state.vy) + PHYS.vTarget), PHYS.tGoFloor);
-    state.tGo = tGo;
+    var alt = state.y;
+    var pr = refProfile(alt, aMax, g);
+    state.tGo = pr.tgo;
 
+    // Ignite early for a divert only if the resulting profile is still
+    // flyable (kapReq>=kMin) -- on a low-gravity world the throttle
+    // floor makes a shallow descent impossible, and lighting early there
+    // just costs control authority for nothing.
+    if (!state.ignited && state.vy < 0 &&
+      (pr.kapReq >= 0.98 || (pr.tgo <= 2.2 * pr.tLat && pr.kapReq >= pr.kMin))) {
+      state.ignited = true;
+    }
+
+    var ax, ay, az, thrustFrac;
     if (!state.ignited) {
-      var aReq = (state.vy * state.vy - PHYS.vTouch * PHYS.vTouch) / (2 * Math.max(state.y, 0.001));
-      var aAvail = VEH.maxT / mass - g;
-      var vertTrigger = aReq / aAvail >= 0.4;
-
-      // Second, separate trigger the vertical-only check above was
-      // missing: ignite early if there isn't enough time left to ALSO
-      // finish the lateral divert. Without this, a high-drift entry can
-      // pass the vertical check comfortably late while the lateral
-      // correction never gets enough runway to complete -- which is
-      // exactly the residual-lateral-speed-at-touchdown failure this was
-      // producing. Bang-bang estimate of the time the divert needs
-      // (missLat / available lateral accel), same shape as the
-      // reference file's own second trigger.
-      var missLat = Math.hypot(state.x + state.vx * tGo, state.z + state.vz * tGo);
-      var aLatAvail = (VEH.maxT / mass) * Math.sin(VEH.maxTilt);
-      var tLatNeed = 2.4 * Math.sqrt(missLat / Math.max(aLatAvail, 0.01));
-      var latTrigger = tGo <= 2.2 * tLatNeed;
-
-      if (vertTrigger || latTrigger) state.ignited = true;
-    }
-    if (!state.ignited || state.fuel <= 0) return { thrust: 0, defPhi: 0, defPsi: 0 };
-
-    // Crossrange gets its OWN clock (Article §09), not tGo. Sharing tGo
-    // between vertical and lateral was the actual bug behind poor
-    // touchdown accuracy: near the ground tGo swings with every cycle of
-    // the throttle-floor pulsing (state.y/vy oscillate as the engine
-    // cuts and re-lights), so lateral gain was erratic exactly when it
-    // mattered most. A long, mostly-fixed horizon here is the
-    // counterintuitive part the article calls out -- it trades a short,
-    // "hot" clock (which saturates the tilt limit and overshoots) for
-    // one that stays inside what the vehicle can actually deliver, so
-    // the divert converges instead of ringing.
-    var vRefHdiv = -Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * PHYS.aDec * PHYS.hDiv);
-    var tDiv = (2 * (state.y - PHYS.hDiv)) / (Math.abs(state.vy) + Math.abs(vRefHdiv));
-    var tLat = Math.max(PHYS.tLatFloor, tDiv, PHYS.tGoFloor);
-
-    var zemX = -(state.x + state.vx * tLat);
-    var ax = (6 * zemX) / (tLat * tLat) - (2 * -state.vx) / tLat;
-
-    var zemZ = -(state.z + state.vz * tLat);
-    var az = (6 * zemZ) / (tLat * tLat) - (2 * -state.vz) / tLat;
-
-    // Lateral is always ZEM/ZEV (Article §09's crossrange divert), on
-    // the tLat clock above; only the vertical channel changes with the
-    // guidance-law selector.
-    var ay;
-    if (guidanceSelect && guidanceSelect.value === "profile") {
-      var vRef = -Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * PHYS.aDec * Math.max(state.y, 0));
-      ay = g + PHYS.aDec + PHYS.profileK * (vRef - state.vy);
+      // Hold retrograde attitude during the coast so the vehicle is
+      // already pointed the right way at ignition, without actually
+      // burning anything.
+      var sp = Math.hypot(state.vx, state.vy, state.vz) || 1;
+      ax = (-state.vx / sp) * 0.02;
+      ay = Math.max(0.02, (-state.vy / sp) * 0.02);
+      az = (-state.vz / sp) * 0.02;
+      thrustFrac = 0;
+    } else if (state.fuel <= 0) {
+      ax = 0; ay = 0; az = 0; thrustFrac = 0;
     } else {
-      var zemY = -(state.y + state.vy * tGo - 0.5 * g * tGo * tGo);
-      var zevY = -PHYS.vTarget - state.vy + g * tGo;
-      ay = (6 * zemY) / (tGo * tGo) - (2 * zevY) / tGo;
+      var g2 = (guidanceSelect && guidanceSelect.value === "profile")
+        ? guideProfile(alt, aMax, g, pr) : guideZemZev(alt, aMax, g, pr);
+      ax = g2.ax; ay = g2.ay; az = g2.az;
+      var am2 = Math.hypot(ax, ay, az);
+      var thr = clamp(am2 / aMax, 0, 1);
+      // Hysteresis, not a hard cutoff: once cut, stays cut until the
+      // command climbs back above the floor, or a command sitting right
+      // at the floor would chatter the engine on/off every step.
+      if (state.cut) { if (thr > VEH.minThr) state.cut = false; }
+      else if (thr < 0.85 * VEH.minThr && alt > 20) state.cut = true;
+      thrustFrac = state.cut ? 0 : Math.max(thr, VEH.minThr);
+      if (alt < 18 && state.vy > -0.6) thrustFrac = 0; // don't float
     }
 
-    // Size thrust from what the CURRENT attitude can actually deliver
-    // toward the desired acceleration, not the idealized target direction
-    // -- this is the piece that was missing. Sizing off the raw 3D
-    // magnitude and then applying it along whatever the (lagging) actual
-    // attitude happens to be double-counts: as the vehicle straightens
-    // out toward vertical, the same large magnitude increasingly
-    // projects onto y, producing a runaway climb near the ground. Tying
-    // magnitude to the projection onto the actual body axis keeps thrust
-    // matched to what's really being achieved each step; the PD loop
-    // above is still the thing steering attitude toward the ideal
-    // direction, just on its own timescale (Article §06).
-    // dirMag/dx/dy/dz are the IDEAL desired direction (for commanding
-    // attitude, below). thrustMag is sized separately, from the
-    // projection of that same desired acceleration onto the CURRENT
-    // (lagging) attitude -- sizing it off dirMag instead double-counts:
-    // as the vehicle straightens toward vertical, a magnitude picked for
-    // a tilted orientation increasingly projects onto y, producing a
-    // runaway climb near the ground. The PD loop below is still what
-    // steers attitude toward the ideal direction, on its own timescale
-    // (Article §06); this only decouples how much thrust from which way.
-    var dirMag = Math.sqrt(ax * ax + ay * ay + az * az);
-    var dx = dirMag > 1e-6 ? ax / dirMag : 0;
-    var dy = dirMag > 1e-6 ? ay / dirMag : 1;
-    var dz = dirMag > 1e-6 ? az / dirMag : 0;
-
-    var curUx = -Math.sin(state.phi);
-    var curUy = Math.cos(state.phi) * Math.cos(state.psi);
-    var curUz = Math.cos(state.phi) * Math.sin(state.psi);
-    var thrustMag = Math.max(ax * curUx + ay * curUy + az * curUz, 0);
-    var thrust;
-    if (thrustMag * mass < VEH.minThr * VEH.maxT && state.vy >= -PHYS.vTarget) {
-      // The correction actually needed is below the throttle floor, and
-      // we're already at or under the soft-landing target rate -- this is
-      // Article §00's "cannot hover" problem showing up directly: forcing
-      // the floor here would overshoot into a climb. Cut the engine
-      // instead and let gravity resume; it re-lights once vy drops back
-      // below target, which pulses the engine near the ground rather
-      // than rocketing back up.
-      thrust = 0;
-    } else {
-      thrust = clamp(thrustMag * mass, VEH.minThr * VEH.maxT, VEH.maxT);
+    // Fold the commanded tilt toward vertical over the last 28 m --
+    // separate from tiltLimit() above, which caps the PD target; this
+    // scales the commanded lateral accel directly so the vehicle visibly
+    // straightens on approach rather than arriving leaned over.
+    if (state.ignited && alt < 28) {
+      var b = clamp(alt / 28, 0.3, 1);
+      ax *= b; az *= b;
     }
-    // Inverse of Article §01's û(φ,ψ): recover the tilt that would
-    // point the thrust axis along this desired direction.
+
+    var dirMag = Math.hypot(ax, ay, az) || 1;
+    var dx = ax / dirMag, dy = ay / dirMag, dz = az / dirMag;
+    if (dy < 0.25) { dx = 0; dy = 1; dz = 0; }
     var phiCmd = clamp(-Math.asin(clamp(dx, -1, 1)), -VEH.maxTilt, VEH.maxTilt);
-    // atan2's range is the full ±180°, unlike asin above -- without this
-    // clamp, a desired direction with a small/negative dy (heavy lateral
-    // correction relative to vertical thrust) sends psiCmd toward an
-    // unreachable target and the attitude loop chases it indefinitely.
-    // This was a real bug: it's what produced a 120°+ touchdown tilt and
-    // a mid-descent climb-back in testing, not just an undamped wobble.
-    var psiCmd = clamp(Math.atan2(dz, dy), -VEH.maxTilt, VEH.maxTilt);
+    var psiCmd = clamp(Math.atan2(dz, Math.max(0.25, dy)), -VEH.maxTilt, VEH.maxTilt);
 
-    var defPhi = clamp(-(PHYS.Kp * (phiCmd - state.phi) - PHYS.Kd * state.wphi), -VEH.maxGimbal, VEH.maxGimbal);
-    var defPsi = clamp(-(PHYS.Kp * (psiCmd - state.psi) - PHYS.Kd * state.wpsi), -VEH.maxGimbal, VEH.maxGimbal);
+    var uPhi = -(PHYS.Kp * (phiCmd - state.phi) - PHYS.Kd * state.wphi);
+    var uPsi = -(PHYS.Kp * (psiCmd - state.psi) - PHYS.Kd * state.wpsi);
+    var defPhi = clamp(uPhi, -VEH.maxGimbal, VEH.maxGimbal);
+    var defPsi = clamp(uPsi, -VEH.maxGimbal, VEH.maxGimbal);
+    // Rate-limited against the PREVIOUS step's gimbal angle, not just
+    // clamped in position -- the actuator can only slew so fast.
+    var maxStep = VEH.gimbalRate * PHYS.step;
+    defPhi = clamp(defPhi, state.defPhi - maxStep, state.defPhi + maxStep);
+    defPsi = clamp(defPsi, state.defPsi - maxStep, state.defPsi + maxStep);
 
-    return { thrust: thrust, defPhi: defPhi, defPsi: defPsi };
+    return { thrust: thrustFrac * VEH.maxT, defPhi: defPhi, defPsi: defPsi };
   }
 
   // Article §01's state vector (x,y,z,vx,vy,vz,φ,ψ,ωφ,ωψ), Article §02's
@@ -1402,6 +1479,28 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       if (camNameEl) camNameEl.textContent = btn.textContent;
     });
   });
+
+  // Drag to orbit, wheel/pinch to zoom -- on every view mode, same as the
+  // reference file. Pointer Events cover mouse, touch and pen in one path.
+  var dragging = false, lastPX = 0, lastPY = 0;
+  canvas.addEventListener("pointerdown", function (e) {
+    dragging = true; lastPX = e.clientX; lastPY = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (!dragging) return;
+    camRig.userTheta += (e.clientX - lastPX) * -0.006;
+    camRig.userPhi += (e.clientY - lastPY) * 0.006;
+    lastPX = e.clientX; lastPY = e.clientY;
+  });
+  canvas.addEventListener("pointerup", function (e) {
+    dragging = false;
+    try { canvas.releasePointerCapture(e.pointerId); } catch (err) {}
+  });
+  canvas.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    camRig.distMul = clamp(camRig.distMul * (1 + e.deltaY * 0.001), 0.2, 5);
+  }, { passive: false });
   setAutopilot(state.autopilot);
   updateEngineVisual();
   updateHud();
@@ -1474,7 +1573,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
      phase chip, a slide-up verdict), restyled onto this site's own
      tokens rather than the reference's separate color system. */
   .rl-viewport { position: relative; border-radius: 6px; overflow: hidden; }
-  .rl-viewport canvas { border-radius: 0; }
+  .rl-viewport canvas { border-radius: 0; cursor: grab; touch-action: none; }
+  .rl-viewport canvas:active { cursor: grabbing; }
 
   .rl-hudpanel {
     position: absolute;
