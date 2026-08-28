@@ -812,6 +812,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var state = defaultState();
 
   var rocket, placeholder, nozzleGroup, flame, flameInner, glow, groundMesh, legParts = [];
+  var modelMixer, modelActions = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
   // Deployed legs splay outward (real landing gear, not four cylinders
@@ -1002,6 +1003,22 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
         model.position.y -= VEH.arm;
         rocket.add(model);
         if (placeholder) placeholder.visible = false;
+
+        // GridFinAction + LandingPadAnim(.001): 121 keyframes, 0-5s (120
+        // frames at 24fps). Frame 0 is closed, frame 120 is deployed --
+        // scrubbed by the same altitude-driven deploy fraction the
+        // placeholder's procedural fold/splay used, not played back as a
+        // timed loop.
+        if (gltf.animations && gltf.animations.length) {
+          modelMixer = new THREE.AnimationMixer(model);
+          modelActions = gltf.animations.map(function (clip) {
+            var action = modelMixer.clipAction(clip);
+            action.play();
+            action.paused = true;
+            action.clampWhenFinished = true;
+            return action;
+          });
+        }
       },
       undefined,
       function (err) {
@@ -1416,6 +1433,17 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // no physics behind the deploy itself, just a cue tied to altitude.
   function updateLegs() {
     var deployed = 1 - clamp(state.y / 600, 0, 1);
+
+    if (modelMixer) {
+      // Model loaded: scrub its own baked animations instead of driving
+      // the placeholder's procedural rotation.
+      for (var j = 0; j < modelActions.length; j++) {
+        modelActions[j].time = deployed * modelActions[j].getClip().duration;
+      }
+      modelMixer.update(0);
+      return;
+    }
+
     var angle = LEG_FOLD + (LEG_SPLAY - LEG_FOLD) * deployed;
     // Rotate around the hinge's local Z (tangential axis), not X. Local X
     // IS the radial (outward) direction once the mount's own Y-rotation
