@@ -1,69 +1,78 @@
 <div class="sim-root">
   <div class="sim-main">
-    <div class="panel">
-      <h1>[WIP]</h1>
-      <h2>Problem Statement</h2>
-      <p>
-        A booster returning to a pad is a rigid body with one force it can point
-        and throttle, an atmosphere that pushes back, and a mass that shrinks as
-        it works. It has to arrive at a specific point on the ground with almost
-        no velocity, almost no tilt, and almost no rotation, using less
-        propellant than it has, and it gets exactly one attempt.
-      </p>
-      <p>
-        Four things make it genuinely hard, and they are worth naming before any
-        equations appear, because every design decision later is a response to
-        one of them.
-      </p>
-      <p>
-        <strong>The vehicle cannot hover.</strong> At the end of the flight it is
-        nearly empty, and the engine has a minimum throttle. If minimum thrust divided
-        by mass exceeds local gravity, then any lit engine accelerates the vehicle
-        upward. There is no steady state to settle into. You get one continuous braking
-        maneuver, and it has to end at the ground.
-      </p>
-      <p>
-        <strong>Propellant is the binding constraint.</strong> The fuel-optimal solution
-        is to fall as long as possible and brake as hard as possible at the last moment.
-        That solution is also the one with the least margin, because braking late
-        means every error has to be corrected with the authority left over from an
-        already saturated engine.
-      </p>
-      <p>
-        <strong
-          >Translation and rotation are coupled through the same actuator.</strong
-        > The only way to accelerate sideways is to tilt the whole vehicle, and the
-        only way to tilt is to point the engine off-axis, which steals thrust from
-        the vertical channel. Wanting to move left and wanting to slow down are the
-        same actuator fighting itself.
-      </p>
-      <p>
-        <strong>Control authority is not constant.</strong> It depends on thrust,
-        air density and speed, all of which change by orders of magnitude during the
-        descent. A controller tuned for the conditions at three kilometres is tuned
-        for a different vehicle than the one that exists at twenty metres.
-      </p>
-    </div>
-    <div class="panel">
-      <h2>Descent camera</h2>
-      <canvas id="scene"></canvas>
+    <div class="rl-tabs">
+      <button type="button" class="rl-tabbtn active" data-tab="simulator">Simulator</button>
+      <button type="button" class="rl-tabbtn" data-tab="article">Article</button>
     </div>
 
-    <div class="controls">
-      <div class="group">
-        <span class="tag">throttle</span>
-        <div class="ctl">
-          <input id="throttle" type="range" min="0" max="100" value="0" />
-          <span class="val" id="throttleV">0%</span>
-        </div>
+    <div class="rl-tab" data-tab="simulator">
+      <div class="panel">
+        <h2>Descent camera</h2>
+        <canvas id="scene"></canvas>
       </div>
-      <button id="reset">Reset run</button>
+
+      <div class="controls">
+        <div class="group">
+          <span class="tag">throttle</span>
+          <div class="ctl">
+            <input id="throttle" type="range" min="0" max="100" value="0" />
+            <span class="val" id="throttleV">0%</span>
+          </div>
+        </div>
+        <button id="reset">Reset run</button>
+      </div>
+
+      <div class="hud">
+        <span>altitude <b id="alt">0</b> m</span>
+        <span>vertical speed <b id="vspeed">0</b> m/s</span>
+        <span>fuel <b id="fuel">100</b>%</span>
+      </div>
     </div>
 
-    <div class="hud">
-      <span>altitude <b id="alt">0</b> m</span>
-      <span>vertical speed <b id="vspeed">0</b> m/s</span>
-      <span>fuel <b id="fuel">100</b>%</span>
+    <div class="rl-tab" data-tab="article" hidden>
+      <article class="rl-article">
+        <p class="rl-eyebrow">00 &middot; The shape of the problem</p>
+        <h2>Landing a booster</h2>
+        <p>
+          A booster returning to a pad is a rigid body with one force it can point
+          and throttle, an atmosphere that pushes back, and a mass that shrinks as
+          it works. It has to arrive at a specific point on the ground with almost
+          no velocity, almost no tilt, and almost no rotation, using less
+          propellant than it has, and it gets exactly one attempt.
+        </p>
+        <p>
+          Four things make it genuinely hard, and they are worth naming before any
+          equations appear, because every design decision later is a response to
+          one of them.
+        </p>
+        <p>
+          <strong>The vehicle cannot hover.</strong> At the end of the flight it is
+          nearly empty, and the engine has a minimum throttle. If minimum thrust divided
+          by mass exceeds local gravity, then any lit engine accelerates the vehicle
+          upward. There is no steady state to settle into. You get one continuous braking
+          maneuver, and it has to end at the ground.
+        </p>
+        <p>
+          <strong>Propellant is the binding constraint.</strong> The fuel-optimal solution
+          is to fall as long as possible and brake as hard as possible at the last moment.
+          That solution is also the one with the least margin, because braking late
+          means every error has to be corrected with the authority left over from an
+          already saturated engine.
+        </p>
+        <p>
+          <strong>Translation and rotation are coupled through the same actuator.</strong>
+          The only way to accelerate sideways is to tilt the whole vehicle, and the
+          only way to tilt is to point the engine off-axis, which steals thrust from
+          the vertical channel. Wanting to move left and wanting to slow down are the
+          same actuator fighting itself.
+        </p>
+        <p>
+          <strong>Control authority is not constant.</strong> It depends on thrust,
+          air density and speed, all of which change by orders of magnitude during the
+          descent. A controller tuned for the conditions at three kilometres is tuned
+          for a different vehicle than the one that exists at twenty metres.
+        </p>
+      </article>
     </div>
   </div>
 </div>
@@ -85,6 +94,16 @@
     renderer.render(scene, camera);
   }
   tick();
+
+  var tabs = document.querySelectorAll(".rl-tabbtn");
+  var panels = document.querySelectorAll(".rl-tab");
+  tabs.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var target = btn.dataset.tab;
+      tabs.forEach(function (b) { b.classList.toggle("active", b === btn); });
+      panels.forEach(function (p) { p.hidden = p.dataset.tab !== target; });
+    });
+  });
 </script>
 
 <style>
@@ -100,6 +119,16 @@
     max-width: 1240px;
     margin: 0 auto;
   }
+
+  .rl-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); }
+  .rl-tabbtn {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--card-desc); background: transparent; border: 0; border-bottom: 2px solid transparent;
+    padding: 8px 4px; margin-bottom: -1px; cursor: pointer; transition: color .3s ease, border-color .3s ease;
+  }
+  .rl-tabbtn + .rl-tabbtn { margin-left: 18px; }
+  .rl-tabbtn:hover { color: var(--headline-color); }
+  .rl-tabbtn.active { color: var(--card-label); border-bottom-color: var(--card-label); }
 
   .panel {
     background: var(--card-bg);
@@ -140,7 +169,7 @@
   input[type="range"] {
     accent-color: var(--card-label);
   }
-  button {
+  .controls button {
     background: transparent;
     color: var(--headline-color);
     border: 1px solid var(--card-border);
@@ -149,7 +178,7 @@
     font: inherit;
     cursor: pointer;
   }
-  button:hover {
+  .controls button:hover {
     border-color: var(--card-label);
   }
   .hud {
@@ -163,4 +192,38 @@
   .hud b {
     color: var(--headline-color);
   }
+
+  /* Article tab reuses the site's own long-form reading typography
+     (.writing-block in global.css) rather than importing a separate
+     theme, so it tracks the light/dark toggle like everything else. */
+  .rl-article {
+    max-width: 68ch;
+    margin: 0 auto;
+    padding: 8px 4px 24px;
+  }
+  .rl-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--card-label);
+    margin: 0 0 10px;
+  }
+  .rl-article h2 {
+    font-family: var(--font-body);
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--headline-color);
+    margin: 0 0 18px;
+  }
+  .rl-article p {
+    font-family: var(--font-body);
+    font-weight: 300;
+    font-size: 16px;
+    line-height: 1.85;
+    color: var(--subhead-color);
+    margin: 0 0 16px;
+  }
+  .rl-article p:last-child { margin-bottom: 0; }
+  .rl-article strong { color: var(--headline-color); font-weight: 600; }
 </style>
