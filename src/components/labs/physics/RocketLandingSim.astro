@@ -260,16 +260,96 @@
   import * as THREE from "three";
 
   var canvas = document.getElementById("scene");
-  var scene = new THREE.Scene();
-  var camera = new THREE.PerspectiveCamera(50, 1, 0.1, 2000);
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
-  // -- your rocket, your gravity/thrust/drag integration, your camera rig --
-  // this is the part you're building yourself
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x05070c);
+  scene.fog = new THREE.Fog(0x05070c, 400, 2600);
 
+  var camera = new THREE.PerspectiveCamera(50, 16 / 10, 0.5, 20000);
+
+  // Camera rig -- a fixed chase-style framing around the pad for now (no
+  // rocket telemetry to follow yet), with a slow auto-orbit so the empty
+  // pad doesn't feel static. Once the vehicle exists, `camTarget` becomes
+  // its position each frame and this same spherical math follows it.
+  var camTarget = new THREE.Vector3(0, 12, 0);
+  var camRig = { theta: -0.6, phi: 0.3, dist: 150, spin: 0 };
+  var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function buildLights() {
+    var hemi = new THREE.HemisphereLight(0x8fa3b3, 0x14110c, 0.7);
+    scene.add(hemi);
+    var sun = new THREE.DirectionalLight(0xfff2e0, 1.1);
+    sun.position.set(-300, 420, 260);
+    scene.add(sun);
+  }
+
+  function buildGround() {
+    var ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(20000, 20000),
+      new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: 1, metalness: 0 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.4;
+    scene.add(ground);
+
+    var grid = new THREE.GridHelper(1400, 56, 0x3a4048, 0x3a4048);
+    grid.material.opacity = 0.18;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    var pad = new THREE.Mesh(
+      new THREE.CircleGeometry(43, 64),
+      new THREE.MeshStandardMaterial({ color: 0x22262c, roughness: 0.95 })
+    );
+    pad.rotation.x = -Math.PI / 2;
+    pad.position.y = 0.05;
+    scene.add(pad);
+
+    var padRing = new THREE.Mesh(
+      new THREE.RingGeometry(41, 43, 64),
+      new THREE.MeshBasicMaterial({ color: 0xff7a2a, side: THREE.DoubleSide, transparent: true, opacity: 0.85 })
+    );
+    padRing.rotation.x = -Math.PI / 2;
+    padRing.position.y = 0.08;
+    scene.add(padRing);
+  }
+
+  function updateCamera(dt) {
+    if (!reducedMotion) camRig.spin += dt * 0.05;
+    var theta = camRig.theta + camRig.spin * 0.4;
+    var phi = camRig.phi;
+    var dist = camRig.dist;
+    camera.position.set(
+      camTarget.x + dist * Math.cos(phi) * Math.cos(theta),
+      camTarget.y + dist * Math.sin(phi),
+      camTarget.z + dist * Math.cos(phi) * Math.sin(theta)
+    );
+    camera.lookAt(camTarget);
+  }
+
+  function resize() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+
+  buildLights();
+  buildGround();
+  resize();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
+  else window.addEventListener("resize", resize);
+
+  var clock = new THREE.Clock();
   function tick() {
     requestAnimationFrame(tick);
-    // step physics, update rocket.position, render
+    var dt = Math.min(clock.getDelta(), 0.1);
+    updateCamera(dt);
+    // -- physics (gravity/thrust/drag integration) and the rocket itself
+    // are the part still to build; the scene, camera and pad are live.
     renderer.render(scene, camera);
   }
   tick();
