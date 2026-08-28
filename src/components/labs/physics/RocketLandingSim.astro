@@ -27,8 +27,28 @@
             <option value="moon">Moon</option>
           </select>
         </div>
+        <div class="group">
+          <span class="tag">entry</span>
+          <select id="scenario">
+            <option value="nominal">Nominal return</option>
+            <option value="hifast">High and fast</option>
+            <option value="offset">Off-target divert</option>
+            <option value="late">Late start</option>
+            <option value="upset">Upset attitude</option>
+          </select>
+        </div>
         <button id="autopilot" class="active">Autopilot: On</button>
         <button id="reset">Reset run</button>
+      </div>
+
+      <div class="group">
+        <span class="tag">view</span>
+        <div class="rl-camrow">
+          <button type="button" class="rl-cambtn active" data-cam="chase">Chase</button>
+          <button type="button" class="rl-cambtn" data-cam="pad">Pad</button>
+          <button type="button" class="rl-cambtn" data-cam="orbit">Orbit</button>
+          <button type="button" class="rl-cambtn" data-cam="side">Side</button>
+        </div>
       </div>
 
       <div class="hud">
@@ -626,6 +646,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var resetBtn = document.getElementById("reset");
   var autopilotBtn = document.getElementById("autopilot");
   var worldSelect = document.getElementById("world");
+  var scenarioSelect = document.getElementById("scenario");
+  var camButtons = document.querySelectorAll(".rl-cambtn");
   var altEl = document.getElementById("alt");
   var vspeedEl = document.getElementById("vspeed");
   var fuelEl = document.getElementById("fuel");
@@ -646,7 +668,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // pad doesn't feel static. Once the vehicle exists, `camTarget` becomes
   // its position each frame and this same spherical math follows it.
   var camTarget = new THREE.Vector3(0, 20, 0);
-  var camRig = { theta: -0.6, phi: 0.3, dist: 130, spin: 0 };
+  var camRig = { mode: "chase", spin: 0 };
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // Vehicle constants, ported from the article's own numbers (dry mass,
@@ -683,13 +705,26 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   };
   function world() { return WORLDS[state.world]; }
 
+  // Entry states, same idea as your reference file's scenario picker.
+  // "upset" is this port's own addition (not in the source data): a small
+  // initial tilt/rotation, testing whether the attitude loop settles
+  // before the guidance law needs real authority.
+  var SCENARIOS = {
+    nominal: { name: "Nominal return", h: 900, vy: -85, x: 180, vx: -16, z: 60, vz: -6, fuel: 5200 },
+    hifast: { name: "High and fast", h: 2400, vy: -190, x: 700, vx: -45, z: -200, vz: 12, fuel: 9000 },
+    offset: { name: "Off-target divert", h: 900, vy: -70, x: -320, vx: 5, z: 220, vz: 0, fuel: 7000 },
+    late: { name: "Late start", h: 300, vy: -45, x: 45, vx: -4, z: 0, vz: 0, fuel: 5200 },
+    upset: { name: "Upset attitude", h: 700, vy: -75, x: 110, vx: -10, z: 0, vz: 0, fuel: 5200, phi: 18 * DEG, wphi: 0.25 }
+  };
+
   function defaultState() {
+    var sc = SCENARIOS[scenarioSelect ? scenarioSelect.value : "nominal"] || SCENARIOS.nominal;
     return {
       world: worldSelect ? worldSelect.value : "earth",
-      x: 180, y: 900, z: 60,
-      vx: -16, vy: -85, vz: -6,
-      phi: 0, psi: 0, wphi: 0, wpsi: 0,
-      fuel: VEH.fuel0,
+      x: sc.x, y: sc.h, z: sc.z,
+      vx: sc.vx, vy: sc.vy, vz: sc.vz,
+      phi: sc.phi || 0, psi: sc.psi || 0, wphi: sc.wphi || 0, wpsi: sc.wpsi || 0,
+      fuel: sc.fuel,
       phase: "falling", // falling | landed | crashed
       ignited: false,
       autopilot: true,
@@ -833,14 +868,39 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     rocket.position.set(state.x, restY + state.y, state.z);
   }
 
+  // Four rigs, all the same spherical theta/phi/dist-around-a-look-point
+  // math, just different sources for those three numbers per mode.
   function updateCamera(dt) {
-    if (!reducedMotion) camRig.spin += dt * 0.05;
-    var theta = camRig.theta + camRig.spin * 0.4;
-    var phi = camRig.phi;
-    // Pull back as altitude climbs so a 900 m fall still frames the
-    // vehicle, and close in for the last few metres of a landing.
-    var dist = clamp(110 + Math.max(state.y, 0) * 0.22, 110, 900);
-    camTarget.lerp(rocket.position, 1 - Math.pow(0.001, Math.min(dt, 0.1)));
+    var alt = Math.max(state.y, 0);
+    var look = new THREE.Vector3(state.x, state.y, state.z);
+    var dist, theta, phi;
+
+    if (camRig.mode === "pad") {
+      var d = Math.hypot(state.x, state.z);
+      dist = clamp(Math.hypot(d, state.y) * 0.55 + 70, 90, 2600);
+      theta = Math.atan2(state.z, state.x) + 2.2;
+      phi = clamp(0.1 + alt / 9000, 0.1, 0.55);
+      look.set(0, 25, 0);
+    } else if (camRig.mode === "side") {
+      dist = clamp(Math.max(alt * 1.25, Math.hypot(state.x, state.z) * 1.5) + 130, 180, 4200);
+      theta = Math.atan2(state.z, state.x || 1e-3) + Math.PI / 2;
+      phi = 0.06;
+      look.set(state.x * 0.55, Math.max(alt * 0.5, 20), state.z * 0.55);
+    } else if (camRig.mode === "orbit") {
+      if (!reducedMotion) camRig.spin += dt * 0.05;
+      dist = clamp(150 + alt * 0.22, 150, 2200);
+      theta = camRig.spin * 0.4 - 0.6;
+      phi = 0.28;
+    } else { // chase (default)
+      if (!reducedMotion) camRig.spin += dt * 0.05;
+      dist = clamp(110 + alt * 0.22, 110, 900);
+      theta = camRig.spin * 0.4 - 0.6;
+      phi = 0.3;
+      look.y -= Math.min(alt * 0.12, 26);
+    }
+
+    var k = 1 - Math.pow(0.0016, Math.min(dt, 0.1));
+    camTarget.lerp(look, camRig.mode === "orbit" ? 1 : k);
     camera.position.set(
       camTarget.x + dist * Math.cos(phi) * Math.cos(theta),
       camTarget.y + dist * Math.sin(phi),
@@ -1087,7 +1147,14 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     resetRun();
     if (groundMesh) groundMesh.material.color.setHex(world().ground);
   });
+  if (scenarioSelect) scenarioSelect.addEventListener("change", resetRun);
   if (autopilotBtn) autopilotBtn.addEventListener("click", function () { setAutopilot(!state.autopilot); });
+  camButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      camRig.mode = btn.dataset.cam;
+      camButtons.forEach(function (b) { b.classList.toggle("active", b === btn); });
+    });
+  });
   setAutopilot(state.autopilot);
   updateEngineVisual();
   updateHud();
@@ -1193,6 +1260,16 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     color: var(--card-label);
   }
   input[type="range"]:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .rl-camrow { display: flex; gap: 6px; margin-top: 6px; }
+  .rl-cambtn {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    background: transparent; color: var(--card-desc); border: 1px solid var(--card-border);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer; transition: border-color .2s ease, color .2s ease;
+  }
+  .rl-cambtn:hover { color: var(--headline-color); }
+  .rl-cambtn.active { color: var(--card-label); border-color: var(--card-label); }
+
   .hud {
     display: flex;
     gap: 24px;
