@@ -4,6 +4,7 @@ import TurretPreview from './previews/TurretPreview.astro';
 import FlowPreview from './previews/FlowPreview.astro';
 import GridPreview from './previews/GridPreview.astro';
 import VehiclePreview from './previews/VehiclePreview.astro';
+import RocketPreview from './previews/RocketPreview.astro';
 
 interface Props {
   title: string;
@@ -22,6 +23,7 @@ const previews = {
   flow: FlowPreview,
   grid: GridPreview,
   vehicle: VehiclePreview,
+  rocket: RocketPreview
 };
 
 const Preview = preview ? previews[preview] : null;

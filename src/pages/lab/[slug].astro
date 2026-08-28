@@ -6,11 +6,14 @@ import SlamPlaygroundSim from '../../components/labs/SlamPlaygroundSim.astro';
 import HybridAstarParkingSim from '../../components/labs/HybridAstarParkingSim.astro';
 import BackOfTheEnvelopeCalc from '../../components/labs/BackOfTheEnvelopeCalc.astro';
 import { labs } from '../../data/labs';
+import RocketLandingSim from '../../components/labs/physics/RocketLandingSim.astro';
 
 const SIM_COMPONENTS: Record<string, any> = {
   'slam-playground': SlamPlaygroundSim,
   'hybrid-astar-parking': HybridAstarParkingSim,
   'back-of-the-envelope': BackOfTheEnvelopeCalc,
+  'rocket-landing': RocketLandingSim,  // <- new
+
 };
 
 export function getStaticPaths() {

@@ -49,4 +49,15 @@ export const labs: Lab[] = [
       'For background on the technique itself, ByteByteGo has a <a href="https://bytebytego.com/courses/system-design-interview/back-of-the-envelope-estimation" target="_blank" rel="noopener">lesson on back-of-the-envelope estimation</a>.',
     ],
   },
+  {
+    slug: 'rocket-landing',
+    title: 'Rocket Landing',
+    tagline: 'Learn how to land a rocket under real gravity, drag, and fuel-burn constraints',
+    metaDescription: 'A three.js rocket-landing physics sim: control thrust, fuel, and descent rate to land a booster under real gravity, drag, and fuel-burn constraints, in your browser.',
+    tags: ['three.js', 'rigid-body physics', 'control'],
+    writeup: [
+      "Landing a rocket is a control problem before it's a physics problem: gravity and drag are fixed, thrust and fuel are the only levers, and running out of either at the wrong altitude ends the run.",
+      "Throttle up to slow your descent, but every second of burn costs fuel you don't get back. Worth trying: cut the engine entirely and watch terminal velocity take over, or land with the throttle pinned near max and see how little margin real hardware actually runs on.",
+    ],
+  },
 ];

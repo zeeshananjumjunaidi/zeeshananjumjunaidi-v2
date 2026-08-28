@@ -1,0 +1,11 @@
+{
+  "title": "Rocket Landing",
+  "href": "/lab/rocket-landing",
+  "domain": "physics",
+  "category": "Physics · Control",
+  "year": "Interactive",
+  "description": "Landing a rocket.",
+  "preview": "grid",
+  "featured": true,
+  "order": -0.5
+}
