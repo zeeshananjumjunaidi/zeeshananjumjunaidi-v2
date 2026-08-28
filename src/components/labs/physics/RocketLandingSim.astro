@@ -23,9 +23,10 @@
       </div>
 
       <div class="hud">
-        <span>altitude <b id="alt">0</b> m</span>
-        <span>vertical speed <b id="vspeed">0</b> m/s</span>
+        <span>altitude <b id="alt">900</b> m</span>
+        <span>vertical speed <b id="vspeed">-85.0</b> m/s</span>
         <span>fuel <b id="fuel">100</b>%</span>
+        <span>status <b id="phase">Falling</b></span>
       </div>
     </div>
 
@@ -260,6 +261,14 @@
   import * as THREE from "three";
 
   var canvas = document.getElementById("scene");
+  var throttleInput = document.getElementById("throttle");
+  var throttleLabel = document.getElementById("throttleV");
+  var resetBtn = document.getElementById("reset");
+  var altEl = document.getElementById("alt");
+  var vspeedEl = document.getElementById("vspeed");
+  var fuelEl = document.getElementById("fuel");
+  var phaseEl = document.getElementById("phase");
+
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
@@ -284,7 +293,18 @@
   // integration.
   var VEH = { dry: 22200, fuel0: 5200, maxT: 845000, minThr: 0.4, L: 47, R: 1.85, arm: 16 };
 
+  // Physics constants (Article 02: exponential atmosphere, mass-flow from
+  // I_sp) and the run state. 1-DOF vertical fall only -- no lateral drift,
+  // gimbal or tilt yet, so drag and gravity act straight up the y axis.
+  // Semi-implicit Euler at a fixed sub-step; swapping in RK4 (Article 10)
+  // is a listed follow-up, not required for a stable vertical fall.
+  var PHYS = { g0: 9.80665, isp: 282, rho0: 1.225, H: 8500, Cd: 0.82, A: Math.PI * VEH.R * VEH.R, vTouch: 6, step: 0.02 };
+  var state = { alt: 900, vy: -85, fuel: VEH.fuel0, phase: "falling" }; // falling | landed | crashed
+
   var rocket, nozzleGroup, flame, flameInner, glow;
+  // Leg-feet clearance at rest (see buildRocket()) -- the offset between
+  // the rocket group's origin (the CoM) and "touching the pad".
+  var restY = VEH.arm - 2.2 + 11;
 
   function buildLights() {
     var hemi = new THREE.HemisphereLight(0x8fa3b3, 0x14110c, 0.7);
@@ -410,24 +430,76 @@
     glow.position.y = -3;
     nozzleGroup.add(glow);
 
-    // Resting pose: the leg pivot sits at local y = -arm+2.2, and the foot
-    // hangs 11 m further down, so the group needs to sit at y = arm-2.2+11
-    // for the feet to touch the pad. Fixed for now -- nothing here is
-    // driven by physics yet, this is the vehicle at rest before ignition.
-    rocket.position.set(0, VEH.arm - 2.2 + 11, 0);
+    // Position is driven every frame from `state.alt` in tick() -- see
+    // `restY` above for the rest-on-pad offset this is built around.
+    rocket.position.set(0, restY + state.alt, 0);
   }
 
   function updateCamera(dt) {
     if (!reducedMotion) camRig.spin += dt * 0.05;
     var theta = camRig.theta + camRig.spin * 0.4;
     var phi = camRig.phi;
-    var dist = camRig.dist;
+    // Pull back as altitude climbs so a 900 m fall still frames the
+    // vehicle, and close in for the last few metres of a landing.
+    var dist = clamp(110 + Math.max(state.alt, 0) * 0.22, 110, 900);
+    camTarget.lerp(rocket.position, 1 - Math.pow(0.001, Math.min(dt, 0.1)));
     camera.position.set(
       camTarget.x + dist * Math.cos(phi) * Math.cos(theta),
       camTarget.y + dist * Math.sin(phi),
       camTarget.z + dist * Math.cos(phi) * Math.sin(theta)
     );
     camera.lookAt(camTarget);
+  }
+
+  function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+  function throttleFraction() {
+    var pct = throttleInput ? Number(throttleInput.value) : 0;
+    return pct <= 0 ? 0 : Math.max(pct / 100, VEH.minThr);
+  }
+
+  function stepPhysics(dt) {
+    if (state.phase !== "falling") return;
+    var thrustFrac = state.fuel > 0 ? throttleFraction() : 0;
+    var thrust = thrustFrac * VEH.maxT;
+    var mass = VEH.dry + state.fuel;
+    var rho = PHYS.rho0 * Math.exp(-Math.max(state.alt, 0) / PHYS.H);
+    var drag = 0.5 * rho * PHYS.Cd * PHYS.A * state.vy * Math.abs(state.vy);
+    var accel = thrust / mass - PHYS.g0 - drag / mass;
+
+    state.vy += accel * dt;
+    state.alt += state.vy * dt;
+    if (thrust > 0) state.fuel = Math.max(0, state.fuel - (thrust / (PHYS.isp * PHYS.g0)) * dt);
+
+    if (state.alt <= 0) {
+      state.alt = 0;
+      state.phase = Math.abs(state.vy) <= PHYS.vTouch ? "landed" : "crashed";
+      state.vy = 0;
+      if (throttleInput) throttleInput.value = "0";
+      updateThrottleVisual();
+    }
+  }
+
+  var PHASE_LABEL = { falling: "Falling", landed: "Landed", crashed: "Crashed" };
+
+  function updateHud() {
+    if (altEl) altEl.textContent = Math.round(state.alt);
+    if (vspeedEl) vspeedEl.textContent = state.vy.toFixed(1);
+    if (fuelEl) fuelEl.textContent = Math.round((state.fuel / VEH.fuel0) * 100);
+    if (phaseEl) {
+      phaseEl.textContent = PHASE_LABEL[state.phase];
+      phaseEl.classList.toggle("tone-ok", state.phase === "landed");
+      phaseEl.classList.toggle("tone-bad", state.phase === "crashed");
+    }
+  }
+
+  function resetRun() {
+    state.alt = 900;
+    state.vy = -85;
+    state.fuel = VEH.fuel0;
+    state.phase = "falling";
+    if (throttleInput) throttleInput.value = "0";
+    updateThrottleVisual();
   }
 
   function resize() {
@@ -445,26 +517,9 @@
   if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
   else window.addEventListener("resize", resize);
 
-  var clock = new THREE.Clock();
-  function tick() {
-    requestAnimationFrame(tick);
-    var dt = Math.min(clock.getDelta(), 0.1);
-    updateCamera(dt);
-    // -- physics (gravity/thrust/drag integration) and the rocket itself
-    // are the part still to build; the scene, camera and pad are live.
-    renderer.render(scene, camera);
-  }
-  tick();
-
-  // Throttle is wired to the flame/glow only so far -- moving the slider
-  // lights the engine visually, with nothing pushing the vehicle yet.
-  // Gravity/thrust/drag integration is the next increment.
-  var throttleInput = document.getElementById("throttle");
-  var throttleLabel = document.getElementById("throttleV");
-  var resetBtn = document.getElementById("reset");
-
-  function updateThrottleVisual(pct) {
-    var t = pct / 100;
+  function updateThrottleVisual() {
+    var pct = throttleInput ? Number(throttleInput.value) : 0;
+    var t = throttleFraction(); // post-floor fraction -- see VEH.minThr
     if (throttleLabel) throttleLabel.textContent = pct + "%";
     if (flame) {
       flame.material.opacity = t > 0 ? 0.3 + t * 0.35 : 0;
@@ -477,18 +532,30 @@
     if (glow) glow.intensity = t * 3.5;
   }
 
-  if (throttleInput) {
-    throttleInput.addEventListener("input", function () {
-      updateThrottleVisual(Number(throttleInput.value));
-    });
-    updateThrottleVisual(Number(throttleInput.value));
+  var clock = new THREE.Clock();
+  function tick() {
+    requestAnimationFrame(tick);
+    var dt = Math.min(clock.getDelta(), 0.1);
+    // Fixed-step physics regardless of frame rate, then everything else
+    // reads the resulting state.
+    var remaining = dt;
+    while (remaining > 0) {
+      var h = Math.min(PHYS.step, remaining);
+      stepPhysics(h);
+      remaining -= h;
+    }
+    rocket.position.set(0, restY + state.alt, 0);
+    updateCamera(dt);
+    updateThrottleVisual();
+    updateHud();
+    renderer.render(scene, camera);
   }
-  if (resetBtn) {
-    resetBtn.addEventListener("click", function () {
-      if (throttleInput) throttleInput.value = "0";
-      updateThrottleVisual(0);
-    });
-  }
+
+  if (throttleInput) throttleInput.addEventListener("input", updateThrottleVisual);
+  if (resetBtn) resetBtn.addEventListener("click", resetRun);
+  updateThrottleVisual();
+  updateHud();
+  tick();
 
   var tabs = document.querySelectorAll(".rl-tabbtn");
   var panels = document.querySelectorAll(".rl-tab");
@@ -587,6 +654,8 @@
   .hud b {
     color: var(--headline-color);
   }
+  .hud b.tone-ok { color: var(--tone-ok); }
+  .hud b.tone-bad { color: var(--tone-bad); }
 
   /* Article tab reuses the site's own long-form reading typography
      (.writing-block in global.css) rather than importing a separate
