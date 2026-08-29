@@ -37,6 +37,16 @@ for (const entry of sorted) {
 }
 domains.sort((a, b) => a.order - b.order);
 
+// A domain earns the full page width once it has something to fill it:
+// more than one card, or any repo list. A domain holding a single card
+// shares a row with its neighbour instead of stretching across.
+const isWide = (d: (typeof domains)[number]) => d.featured.length > 1 || d.groups.length > 0;
+
+// Long archives collapse behind a disclosure, the same affordance the
+// credentials list uses. Threshold rather than a named special case, so
+// a short group stays open and any future long one folds automatically.
+const COLLAPSE_OVER = 4;
+
 const tickerSeparator = ' &nbsp;·&nbsp; ';
 const tickerLine = skillsTicker.join(' · ') + tickerSeparator;
 const tickerDoubled = tickerLine + tickerLine;
@@ -48,8 +58,9 @@ const tickerDoubled = tickerLine + tickerLine;
     <span class="line"></span>
   </div>
 
+  <div class="domain-grid">
   {domains.map((dom) => (
-    <div class="domain-block">
+    <div class:list={['domain-block', { wide: isWide(dom) }]}>
       <div class="domain-header">
         <span class="domain-label">{domainLabel(dom.domain)}</span>
       </div>
@@ -69,22 +80,37 @@ const tickerDoubled = tickerLine + tickerLine;
         </div>
       )}
 
-      {dom.groups.map((group) => (
-        <>
-          {group.label && (
-            <div class="repo-list-header">
-              <span class="section-meta">{group.label}</span>
+      {dom.groups.map((group) =>
+        group.items.length > COLLAPSE_OVER ? (
+          <details class="repo-more">
+            <summary>
+              <span class="chevron">&#9656;</span>
+              {group.label ? `${group.label} · ` : ''}{group.items.length} repositories
+            </summary>
+            <div class="repo-list">
+              {group.items.map((entry) => (
+                <RepoListItem title={entry.title} href={entry.href} description={entry.description} />
+              ))}
             </div>
-          )}
-          <div class="repo-list">
-            {group.items.map((entry) => (
-              <RepoListItem title={entry.title} href={entry.href} description={entry.description} />
-            ))}
-          </div>
-        </>
-      ))}
+          </details>
+        ) : (
+          <>
+            {group.label && (
+              <div class="repo-list-header">
+                <span class="section-meta">{group.label}</span>
+              </div>
+            )}
+            <div class="repo-list">
+              {group.items.map((entry) => (
+                <RepoListItem title={entry.title} href={entry.href} description={entry.description} />
+              ))}
+            </div>
+          </>
+        )
+      )}
     </div>
   ))}
+  </div>
 
   <div class="ticker-wrap">
     <div class="ticker-track">

@@ -424,8 +424,14 @@ img { max-width: 100%; display: block; }
 .section-label-row .line { flex: 1; min-width: 40px; height: 1px; background: var(--section-divider); transform-origin: left; animation: inkDraw 1.6s 1.15s cubic-bezier(.6,0,.2,1) both; }
 
 /* ---- Lab grid ---- */
-.domain-block { margin-top: 32px; }
-.domain-block:first-child { margin-top: 4px; }
+/* Domains sit in a two-column grid so a domain holding a single featured
+   card doesn't spend a full-width row on it. `auto-fit` inside .lab-grid
+   collapses empty tracks, so a lone card used to stretch the whole width
+   and cost as much vertical space as a three-card domain. Anything with
+   more than one card, or with repo lists, still spans the full width. */
+.domain-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px 20px; margin-top: 4px; }
+.domain-block.wide { grid-column: 1 / -1; }
+@media (max-width: 700px) { .domain-grid { grid-template-columns: 1fr; } }
 .domain-header { margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
 .domain-label {
   font-family: var(--font-head); font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase;
@@ -644,6 +650,16 @@ img { max-width: 100%; display: block; }
   border-radius: 0 0 50% 50%; transform-origin: top center;
   animation: rocketFlame 4.2s cubic-bezier(.32,.55,.2,1) infinite;
 }
+/* Stopping the animation reverts .r-ship to its authored top:-40px, which
+   sits above a 124px card, so the whole preview rendered empty for anyone
+   on reduced motion. These values are rocketDescend/Flame/PadGlow's own
+   100% frame: landed, engine off. Has to live AFTER .r-ship rather than
+   with the other reduced-motion rules, or equal specificity lets the
+   later top:-40px win. */
+@media (prefers-reduced-motion: reduce) {
+  .r-ship { top: 70px; }
+  .r-flame, .r-pad-glow { opacity: 0; }
+}
 
 /* ---- Ticker ---- */
 .ticker-wrap {
@@ -725,16 +741,27 @@ kbd {
 .cred-featured-name { font-family: var(--font-head); font-weight: 400; font-size: 17px; color: var(--headline-color); display: block; }
 .cred-featured-meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; color: var(--card-label); display: block; margin-top: 5px; }
 
-.cred-more summary {
+/* Shared disclosure: credentials and long repo archives use the same
+   affordance, so they share one rule rather than drifting apart. */
+.cred-more summary, .repo-more summary {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--card-desc); cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 7px;
   padding-left: 26px; transition: color .3s ease;
 }
-.cred-more summary::-webkit-details-marker { display: none; }
-.cred-more summary .chevron { display: inline-block; transition: transform .25s ease; font-size: 9px; }
-.cred-more[open] summary .chevron { transform: rotate(90deg); }
-.cred-more summary:hover { color: var(--card-label); }
-.cred-more summary:hover .chevron { color: var(--card-label); }
+.cred-more summary::-webkit-details-marker,
+.repo-more summary::-webkit-details-marker { display: none; }
+.cred-more summary .chevron,
+.repo-more summary .chevron { display: inline-block; transition: transform .25s ease; font-size: 9px; }
+.cred-more[open] summary .chevron,
+.repo-more[open] summary .chevron { transform: rotate(90deg); }
+.cred-more summary:hover, .repo-more summary:hover { color: var(--card-label); }
+.cred-more summary:hover .chevron, .repo-more summary:hover .chevron { color: var(--card-label); }
+
+/* The repo archive sits flush with the cards above it, not indented on
+   the credentials timeline's 26px rail. */
+.repo-more { margin-top: 22px; }
+.repo-more summary { padding-left: 0; }
+.repo-more .repo-list { margin-top: 14px; animation: inkRise .5s both; }
 
 .cred-groups { padding-left: 26px; margin-top: 18px; display: flex; flex-direction: column; gap: 16px; animation: inkRise .5s both; }
 .cred-group-label { display: block; font-family: var(--font-mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--section-meta); margin-bottom: 8px; }
