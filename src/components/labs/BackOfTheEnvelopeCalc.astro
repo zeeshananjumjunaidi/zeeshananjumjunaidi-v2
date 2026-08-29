@@ -9,8 +9,12 @@
 // a time as their own tabs. The Diagram tab is a small original addition,
 // not from the source file: a vanilla-JS canvas for sketching an
 // architecture (drag boxes, connect them, label, pan/zoom), autosaved to
-// localStorage with a JSON export. No preset scenarios anywhere in this
-// tool, by request.
+// localStorage with a JSON export.
+//
+// Save slots (2026-08-29): four localStorage snapshots of every tab's numbers,
+// the latency hops and the diagram, in back-of-the-envelope/presets.js. Worked
+// preset scenarios were built alongside them and then removed by request --
+// the "no preset content" rule stands; only the user's own saves are kept.
 //
 // Split into one file per tab (2026-08-26) once this file passed 3,000
 // lines -- each calculator tab is a markup-only .astro partial in
@@ -32,6 +36,7 @@ import AvailabilityTab from "./back-of-the-envelope/AvailabilityTab.astro";
 import CostTab from "./back-of-the-envelope/CostTab.astro";
 import DiagramTab from "./back-of-the-envelope/DiagramTab.astro";
 import ExportDialog from "./back-of-the-envelope/ExportDialog.astro";
+import ScenarioDialog from "./back-of-the-envelope/ScenarioDialog.astro";
 ---
 
 <div class="boe-root">
@@ -40,6 +45,7 @@ import ExportDialog from "./back-of-the-envelope/ExportDialog.astro";
       <p class="boe-blurb" id="boeBlurb">Capacity math for system design. Change one assumption and watch it move through the numbers below.</p>
     </div>
     <div class="boe-head-actions">
+      <button type="button" id="boeScenarioBtn" class="boe-export-btn">Slots</button>
       <button type="button" id="boeExportBtn" class="boe-export-btn">Export</button>
       <button type="button" id="boeReset" class="boe-reset">Reset</button>
     </div>
@@ -71,6 +77,7 @@ import ExportDialog from "./back-of-the-envelope/ExportDialog.astro";
   <CostTab />
   <DiagramTab />
   <ExportDialog />
+  <ScenarioDialog />
 </div>
 
 <!--

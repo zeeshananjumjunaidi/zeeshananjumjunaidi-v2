@@ -149,5 +149,28 @@ export function initLatency(onChange) {
   // has to kick off its own first render instead of waiting to be called.
   render();
 
-  return { state: state, render: render, reset: reset };
+  // The hop list is the only calculator state that isn't a DOM field, so
+  // snapshots (save slots, presets) can't pick it up by scanning inputs
+  // the way they do every other tab. These two are its way in and out.
+  function getHops() {
+    return hops.map(function (h) {
+      return { id: h.id, name: h.name, ms: h.ms, count: h.count, on: h.on };
+    });
+  }
+  function setHops(list) {
+    if (!Array.isArray(list) || !list.length) return;
+    hops = list.map(function (h, i) {
+      return {
+        id: typeof h.id === "number" ? h.id : 200 + i,
+        name: typeof h.name === "string" ? h.name : "Hop",
+        ms: String(h.ms == null ? "0" : h.ms),
+        count: String(h.count == null ? "1" : h.count),
+        on: h.on !== false
+      };
+    });
+    nextId = hops.reduce(function (m, h) { return Math.max(m, h.id); }, 100) + 1;
+    renderHops();
+  }
+
+  return { state: state, render: render, reset: reset, getHops: getHops, setHops: setHops };
 }

@@ -68,6 +68,10 @@
               <g id="dgEdgeLayer"></g>
             </svg>
             <div id="dgNodeLayer"></div>
+            <!-- Edge editing grips live above the nodes. In the SVG below the
+                 node layer they lost every hit test to whichever port they
+                 happened to sit on, which is always the case at an endpoint. -->
+            <svg class="dg-svg" id="dgOverlay"><g id="dgHandleLayer"></g></svg>
           </div>
           <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
           <div id="dgContextMenu" class="dg-context-menu" hidden></div>
@@ -225,7 +229,25 @@
    midpoints regardless of shape (those happen to land exactly on a diamond's
    own vertices, so connectors need no special-casing there). */
 .dg-node[data-shape="rounded"] { border-radius: 12px; }
-.dg-node[data-shape="diamond"] { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+/* A diamond is only full width along its horizontal centreline and tapers to
+   a point above and below, so the stacked icon-over-label layout pushed the
+   label down into the tip where the shape is a few px wide and the text ran
+   out past the clipped corners. Diamonds therefore centre a label on its own
+   and drop the icon, and the label is held inside the widest rectangle that
+   actually fits: at 44% of the height the inscribed width is ~56%. */
+.dg-node[data-shape="diamond"] {
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  flex-direction: row;
+  padding: 0;
+}
+.dg-node[data-shape="diamond"] .dg-node-icon-svg { display: none; }
+.dg-node[data-shape="diamond"] .dg-node-label {
+  width: 56%;
+  max-height: 44%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+}
 .dg-node[data-shape="text"] {
   background: transparent; border-color: transparent; padding: 4px 6px;
 }
@@ -258,20 +280,46 @@
   transform: scale(1); transition: opacity .2s ease, background .2s ease, transform .15s ease;
   cursor: crosshair; touch-action: none;
 }
-.dg-node:hover .dg-port, .dg-node.selected .dg-port { opacity: 1; }
-.dg-port:hover { background: var(--card-label); border-color: var(--card-label); transform: scale(1.6); }
+/* The dot stays 8px so it doesn't dominate the node, but grabbing it should
+   not demand pixel accuracy -- this pseudo-element makes the real target
+   ~26px without changing anything visible. */
+.dg-port::before {
+  content: ""; position: absolute; inset: -9px; border-radius: 50%;
+}
+/* Ports on hover, resize handles on selection -- they occupy the same eight
+   positions, so showing both at once would make every corner ambiguous.
+   Hover to connect, select to resize (the draw.io split). */
+.dg-node:hover:not(.selected) .dg-port { opacity: 1; }
+.dg-port:hover { background: var(--card-label); border-color: var(--card-label); transform: scale(1.9); }
+/* Every port on the hovered node lights up faintly while a connection is
+   being dragged, so it is obvious where a drop will land. */
+.dg-node.drop-target .dg-port { opacity: .55; }
 .dg-port-n { top: -4px; left: 50%; margin-left: -4px; }
 .dg-port-s { bottom: -4px; left: 50%; margin-left: -4px; }
 .dg-port-e { right: -4px; top: 50%; margin-top: -4px; }
 .dg-port-w { left: -4px; top: 50%; margin-top: -4px; }
+.dg-port-nw { top: -4px; left: -4px; }
+.dg-port-ne { top: -4px; right: -4px; }
+.dg-port-sw { bottom: -4px; left: -4px; }
+.dg-port-se { bottom: -4px; right: -4px; }
 
 .dg-resize-handle {
-  position: absolute; right: -6px; bottom: -6px; width: 11px; height: 11px;
-  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0; transition: opacity .2s ease, background .2s ease;
-  cursor: nwse-resize; touch-action: none;
+  position: absolute; width: 9px; height: 9px;
+  background: var(--card-bg); border: 1px solid var(--card-desc); opacity: 0;
+  transition: opacity .2s ease, background .2s ease;
+  touch-action: none; pointer-events: none;
 }
-.dg-node:hover .dg-resize-handle, .dg-node.selected .dg-resize-handle { opacity: 1; }
+.dg-node.selected .dg-resize-handle { opacity: 1; pointer-events: auto; }
 .dg-resize-handle:hover { background: var(--card-label); border-color: var(--card-label); }
+/* Corners resize both axes; edge handles resize one. Cursors say which. */
+.dg-rs-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.dg-rs-n  { top: -5px; left: 50%; margin-left: -5px; cursor: ns-resize; }
+.dg-rs-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.dg-rs-e  { top: 50%; right: -5px; margin-top: -5px; cursor: ew-resize; }
+.dg-rs-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.dg-rs-s  { bottom: -5px; left: 50%; margin-left: -5px; cursor: ns-resize; }
+.dg-rs-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.dg-rs-w  { top: 50%; left: -5px; margin-top: -5px; cursor: ew-resize; }
 
 .dg-group-box { fill: none; stroke: var(--card-desc); stroke-width: 1; stroke-dasharray: 5 4; pointer-events: none; }
 
@@ -280,6 +328,14 @@
 .dg-edge.selected .dg-edge-line { stroke: var(--card-label); stroke-width: 2; }
 .dg-edge-temp { stroke: var(--card-label); stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; pointer-events: none; }
 .dg-edge-label-bg { fill: var(--card-bg); pointer-events: none; }
+/* Endpoint grips re-aim a connector; the bend grip slides its elbow. Only
+   drawn on the selected edge, so they never clutter the canvas. */
+.dg-edge-endpoint, .dg-edge-bend {
+  fill: var(--card-bg); stroke: var(--card-label); stroke-width: 1.5;
+  cursor: grab; pointer-events: all;
+}
+.dg-edge-endpoint:hover, .dg-edge-bend:hover { fill: var(--card-label); }
+.dg-edge-bend { stroke-dasharray: 2.5 2; }
 .dg-edge-label { font-family: var(--font-mono); font-size: 10px; fill: var(--card-desc); pointer-events: none; }
 
 @keyframes dg-marching-ants { to { stroke-dashoffset: -20; } }
@@ -417,6 +473,7 @@
   var svg = document.getElementById("dgSvg");
   var edgeLayer = document.getElementById("dgEdgeLayer");
   var nodeLayer = document.getElementById("dgNodeLayer");
+  var handleLayer = document.getElementById("dgHandleLayer");
   var addChip = document.getElementById("dgAddBox");
   var addContainerChip = document.getElementById("dgAddContainer");
   var addTextChip = document.getElementById("dgAddText");
@@ -558,19 +615,40 @@
     undoBtn.disabled = undoStack.length === 0;
   }
 
-  function nearestPort(node, px, py) {
-    var candidates = [
-      { x: node.x + node.w / 2, y: node.y },
-      { x: node.x + node.w / 2, y: node.y + node.h },
-      { x: node.x + node.w, y: node.y + node.h / 2 },
-      { x: node.x, y: node.y + node.h / 2 }
-    ];
-    var best = candidates[0], bestDist = Infinity;
-    candidates.forEach(function (p) {
+  // Connection points. Eight around a rectangle; a diamond only gets its four
+  // vertices, because its corners are clipped away and a port floating in the
+  // empty corner would connect to a place the shape does not occupy.
+  var SIDES_8 = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
+  var SIDES_4 = ["n", "e", "s", "w"];
+  function portSides(node) {
+    return (node.shape === "diamond") ? SIDES_4 : SIDES_8;
+  }
+  // Unit offsets within the bounding box, x then y, as fractions of w/h.
+  var PORT_AT = {
+    n: [0.5, 0], ne: [1, 0], e: [1, 0.5], se: [1, 1],
+    s: [0.5, 1], sw: [0, 1], w: [0, 0.5], nw: [0, 0]
+  };
+  function portPoint(node, side) {
+    var f = PORT_AT[side] || PORT_AT.e;
+    return { x: node.x + node.w * f[0], y: node.y + node.h * f[1] };
+  }
+  // Outward normal, used to decide which way a routed connector leaves a port.
+  var PORT_DIR = {
+    n: [0, -1], ne: [1, -1], e: [1, 0], se: [1, 1],
+    s: [0, 1], sw: [-1, 1], w: [-1, 0], nw: [-1, -1]
+  };
+
+  function nearestPortSide(node, px, py) {
+    var sides = portSides(node), best = sides[0], bestDist = Infinity;
+    sides.forEach(function (side) {
+      var p = portPoint(node, side);
       var d = (p.x - px) * (p.x - px) + (p.y - py) * (p.y - py);
-      if (d < bestDist) { bestDist = d; best = p; }
+      if (d < bestDist) { bestDist = d; best = side; }
     });
     return best;
+  }
+  function nearestPort(node, px, py) {
+    return portPoint(node, nearestPortSide(node, px, py));
   }
 
   function load() {
@@ -596,6 +674,35 @@
     zoomVal.textContent = Math.round(view.zoom * 100) + "%";
   }
 
+  // Frame everything on the canvas. A diagram that arrives whole (an import,
+  // or a preset) is usually wider than the viewport, and landing on its
+  // top-left corner reads as "half of it is missing" -- so loading fits
+  // instead of resetting to a fixed pan. Never zooms past 1: scaling a small
+  // diagram up to fill the space just makes it blurry and oversized.
+  function fitToContent() {
+    if (!nodes.length) return;
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    nodes.forEach(function (n) {
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      maxX = Math.max(maxX, n.x + n.w);
+      maxY = Math.max(maxY, n.y + n.h);
+    });
+    var pad = 40;
+    var vw = wrap.clientWidth || 900;
+    var vh = wrap.clientHeight || 600;
+    var cw = maxX - minX, ch = maxY - minY;
+    if (cw <= 0 || ch <= 0) return;
+    var zoom = Math.min((vw - pad * 2) / cw, (vh - pad * 2) / ch, 1);
+    zoom = Math.max(zoom, 0.2);
+    view = {
+      zoom: zoom,
+      panX: (vw - cw * zoom) / 2 - minX * zoom,
+      panY: (vh - ch * zoom) / 2 - minY * zoom
+    };
+    applyView();
+  }
+
   function nodeById(id) {
     for (var i = 0; i < nodes.length; i++) if (nodes[i].id === id) return nodes[i];
     return null;
@@ -606,11 +713,42 @@
     return null;
   }
 
+  // The style a new connector inherits. Changing any of these on an existing
+  // edge makes it the default for the next one, so setting up a look once is
+  // enough instead of re-picking it on every connection drawn.
+  var EDGE_STYLE_KEY = "boe-diagram-edgestyle";
+  var STICKY_EDGE_KEYS = ["lineStyle", "arrowStyle", "flow", "flowDirection", "routing"];
+  var lastEdgeStyle = {
+    lineStyle: "solid", arrowStyle: "one", flow: "none",
+    flowDirection: "forward", routing: "straight"
+  };
+  try {
+    var storedEdgeStyle = JSON.parse(localStorage.getItem(EDGE_STYLE_KEY) || "null");
+    if (storedEdgeStyle) {
+      STICKY_EDGE_KEYS.forEach(function (k) {
+        if (typeof storedEdgeStyle[k] === "string") lastEdgeStyle[k] = storedEdgeStyle[k];
+      });
+    }
+  } catch (e) { /* no stored preference; the defaults above stand */ }
+
+  function rememberEdgeStyle(key, value) {
+    if (STICKY_EDGE_KEYS.indexOf(key) === -1) return;
+    lastEdgeStyle[key] = value;
+    try { localStorage.setItem(EDGE_STYLE_KEY, JSON.stringify(lastEdgeStyle)); } catch (e) {}
+  }
+
+  function newEdgeStyle() {
+    var s = {};
+    STICKY_EDGE_KEYS.forEach(function (k) { s[k] = lastEdgeStyle[k]; });
+    return s;
+  }
+
   function setEdgeProp(id, key, value) {
     var edge = edgeById(id);
     if (!edge) return;
     pushUndo();
     edge[key] = value;
+    rememberEdgeStyle(key, value);
     renderEdges();
     save();
   }
@@ -676,6 +814,13 @@
     edgeLayer.querySelectorAll(".dg-edge").forEach(function (el) {
       el.classList.toggle("selected", el.dataset.id === selectedEdgeId);
     });
+    // Endpoint and bend grips are built in renderEdges, so a class toggle
+    // alone would never add or remove them. Redraw when the edge that owns
+    // them is no longer the selected one. Self-limiting: after the redraw
+    // the two agree, so this cannot loop.
+    var grip = handleLayer && handleLayer.querySelector(".dg-edge-endpoint");
+    var gripOwner = grip ? grip.getAttribute("data-edge") : null;
+    if (gripOwner !== selectedEdgeId) renderEdges();
   }
 
   function updateGroupButtons() {
@@ -798,15 +943,20 @@
     };
   }
 
-  function startConnectDrag(fromNode, e) {
+  function startConnectDrag(fromNode, fromSide, e) {
     var tempLine = document.createElementNS(SVGNS, "line");
     tempLine.setAttribute("class", "dg-edge-temp");
     edgeLayer.appendChild(tempLine);
 
     var port = e.target;
     port.setPointerCapture(e.pointerId);
-    var acx = fromNode.x + fromNode.w / 2, acy = fromNode.y + fromNode.h / 2;
+    // Start the rubber band at the port that was actually grabbed, not at the
+    // node's centre -- otherwise every drag looks like it comes from the middle.
+    var anchor = fromSide ? portPoint(fromNode, fromSide)
+      : { x: fromNode.x + fromNode.w / 2, y: fromNode.y + fromNode.h / 2 };
+    var acx = anchor.x, acy = anchor.y;
     var hoverTargetId = null;
+    var dropSide = null;
 
     function setHoverTarget(id) {
       if (id === hoverTargetId) return;
@@ -821,12 +971,30 @@
       hoverTargetId = id;
     }
 
+    // Landing exactly on a node is not required. If the pointer is not over
+    // one, the nearest node within DROP_SLACK of its box still takes the
+    // connection -- releasing a few pixels short used to silently do nothing,
+    // which is most of what made connecting feel fiddly.
+    var DROP_SLACK = 44;
     function targetNodeIdAt(clientX, clientY) {
       var targetEl = document.elementFromPoint(clientX, clientY);
       var targetNodeEl = targetEl && targetEl.closest && targetEl.closest(".dg-node");
-      if (!targetNodeEl) return null;
-      var id = targetNodeEl.dataset.id;
-      return id !== fromNode.id ? id : null;
+      if (targetNodeEl && targetNodeEl.dataset.id !== fromNode.id) return targetNodeEl.dataset.id;
+
+      var pt = screenToCanvas(clientX, clientY);
+      var best = null, bestD = DROP_SLACK;
+      nodes.forEach(function (n) {
+        if (n.id === fromNode.id) return;
+        // Distance from the point to the node's rectangle (0 when inside).
+        var ox = Math.max(n.x - pt.x, 0, pt.x - (n.x + n.w));
+        var oy = Math.max(n.y - pt.y, 0, pt.y - (n.y + n.h));
+        var d = Math.hypot(ox, oy);
+        // A container is a frame -- prefer any real box over the frame
+        // the pointer happens to be sitting inside.
+        if (n.type === "container") d += DROP_SLACK / 2;
+        if (d < bestD) { bestD = d; best = n.id; }
+      });
+      return best;
     }
 
     function onMove(ev) {
@@ -835,10 +1003,12 @@
       setHoverTarget(targetId);
 
       var endX = pt.x, endY = pt.y;
+      dropSide = null;
       if (targetId) {
         var targetNode = nodeById(targetId);
         if (targetNode) {
-          var snapped = nearestPort(targetNode, pt.x, pt.y);
+          dropSide = nearestPortSide(targetNode, pt.x, pt.y);
+          var snapped = portPoint(targetNode, dropSide);
           endX = snapped.x;
           endY = snapped.y;
         }
@@ -856,7 +1026,18 @@
       var targetId = targetNodeIdAt(ev.clientX, ev.clientY);
       if (targetId) {
         pushUndo();
-        edges.push({ id: uid(), from: fromNode.id, to: targetId, label: "", lineStyle: "solid", arrowStyle: "one", flow: "none", flowDirection: "forward" });
+        var tgt = nodeById(targetId);
+        var style = newEdgeStyle();
+        edges.push({
+          id: uid(), from: fromNode.id, to: targetId, label: "",
+          lineStyle: style.lineStyle, arrowStyle: style.arrowStyle,
+          flow: style.flow, flowDirection: style.flowDirection, routing: style.routing,
+          // Anchored to the ports the gesture actually used, so the connector
+          // stays where it was drawn instead of drifting to face the centre.
+          fromPort: fromSide || null,
+          toPort: dropSide || (tgt ? nearestPortSide(tgt, acx, acy) : null),
+          bend: null
+        });
         renderEdges();
         save();
       }
@@ -869,7 +1050,7 @@
     return target.classList.contains("dg-port") || target.classList.contains("dg-resize-handle");
   }
 
-  function wireNodeEvents(el, node, label, handle) {
+  function wireNodeEvents(el, node, label, handles) {
     // Note: pointerdown handlers below deliberately never call preventDefault().
     // Doing so suppresses the browser's derived mouse events (click, dblclick) for
     // the whole interaction, which silently broke double-click-to-rename before.
@@ -956,42 +1137,77 @@
       el.addEventListener("pointerup", onUp);
     });
 
-    ["n", "e", "s", "w"].forEach(function (side) {
-      var port = el.querySelector(".dg-port-" + side);
+    Array.prototype.forEach.call(el.querySelectorAll(".dg-port"), function (port) {
       port.addEventListener("pointerdown", function (e) {
         if (e.button !== 0) return;
         e.stopPropagation();
-        startConnectDrag(node, e);
+        startConnectDrag(node, port.dataset.side, e);
       });
     });
 
-    handle.addEventListener("pointerdown", function (e) {
-      if (e.button !== 0) return;
-      e.stopPropagation();
-      var startX = e.clientX, startY = e.clientY;
-      var origW = node.w, origH = node.h;
-      var preResize = snapshotState();
-      handle.setPointerCapture(e.pointerId);
+    handles.forEach(function (handle) {
+      var side = handle.dataset.side;
+      // Which edges this handle moves. A north handle changes y and h
+      // together so the south edge stays put; a west handle does the same on x.
+      var movesW = side.indexOf("w") !== -1, movesE = side.indexOf("e") !== -1;
+      var movesN = side.charAt(0) === "n", movesS = side.charAt(0) === "s";
 
-      function onMove(ev) {
-        var dx = (ev.clientX - startX) / view.zoom;
-        var dy = (ev.clientY - startY) / view.zoom;
-        var maxW = node.type === "container" ? 2000 : 480;
-        var maxH = node.type === "container" ? 2000 : 320;
-        node.w = clamp(snap(origW + dx), 60, maxW);
-        node.h = clamp(snap(origH + dy), 36, maxH);
-        el.style.width = node.w + "px";
-        el.style.height = node.h + "px";
-        renderEdges();
-      }
-      function onUp() {
-        handle.removeEventListener("pointermove", onMove);
-        handle.removeEventListener("pointerup", onUp);
-        commitUndo(preResize);
-        save();
-      }
-      handle.addEventListener("pointermove", onMove);
-      handle.addEventListener("pointerup", onUp);
+      handle.addEventListener("pointerdown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        var startX = e.clientX, startY = e.clientY;
+        var origW = node.w, origH = node.h, origX = node.x, origY = node.y;
+        var kids = node.type === "container" ? containerChildren(node.id).map(function (id) {
+          var k = nodeById(id);
+          return { n: k, dx: k.x - node.x, dy: k.y - node.y };
+        }) : [];
+        var preResize = snapshotState();
+        handle.setPointerCapture(e.pointerId);
+
+        function onMove(ev) {
+          var dx = (ev.clientX - startX) / view.zoom;
+          var dy = (ev.clientY - startY) / view.zoom;
+          var maxW = node.type === "container" ? 2000 : 480;
+          var maxH = node.type === "container" ? 2000 : 320;
+
+          // Only the dragged edge snaps. Deriving the origin from the already
+          // snapped size (rather than snapping it again) keeps the opposite
+          // edge exactly where it was -- snapping both ends lets the far edge
+          // creep by up to a grid step per drag.
+          if (movesE) node.w = clamp(snap(origW + dx), 60, maxW);
+          if (movesW) {
+            node.w = clamp(snap(origW - dx), 60, maxW);
+            node.x = origX + (origW - node.w);
+          }
+          if (movesS) node.h = clamp(snap(origH + dy), 36, maxH);
+          if (movesN) {
+            node.h = clamp(snap(origH - dy), 36, maxH);
+            node.y = origY + (origH - node.h);
+          }
+
+          el.style.width = node.w + "px";
+          el.style.height = node.h + "px";
+          el.style.left = node.x + "px";
+          el.style.top = node.y + "px";
+          // Resizing a container from its top or left moves its origin, and
+          // its children have to travel with it or they'd slide out.
+          kids.forEach(function (k) {
+            k.n.x = node.x + k.dx;
+            k.n.y = node.y + k.dy;
+            var kEl = nodeLayer.querySelector('[data-id="' + k.n.id + '"]');
+            if (kEl) { kEl.style.left = k.n.x + "px"; kEl.style.top = k.n.y + "px"; }
+          });
+          renderEdges();
+        }
+        function onUp() {
+          handle.removeEventListener("pointermove", onMove);
+          handle.removeEventListener("pointerup", onUp);
+          commitUndo(preResize);
+          save();
+        }
+        handle.addEventListener("pointermove", onMove);
+        handle.addEventListener("pointerup", onUp);
+      });
     });
   }
 
@@ -1040,18 +1256,28 @@
     // Heartbeat/Error don't add an element -- they're a class on the node
     // itself (animClass, set above), animating its own border/box-shadow.
 
-    ["n", "e", "s", "w"].forEach(function (side) {
+    portSides(node).forEach(function (side) {
       var port = document.createElement("div");
       port.className = "dg-port dg-port-" + side;
+      port.dataset.side = side;
       el.appendChild(port);
     });
 
-    var handle = document.createElement("div");
-    handle.className = "dg-resize-handle";
-    el.appendChild(handle);
+    // Resize from any side. Text nodes size themselves to their content, so
+    // they get no handles at all.
+    var handles = [];
+    if (node.shape !== "text") {
+      SIDES_8.forEach(function (side) {
+        var h = document.createElement("div");
+        h.className = "dg-resize-handle dg-rs-" + side;
+        h.dataset.side = side;
+        el.appendChild(h);
+        handles.push(h);
+      });
+    }
 
     nodeLayer.appendChild(el);
-    wireNodeEvents(el, node, label, handle);
+    wireNodeEvents(el, node, label, handles);
     return el;
   }
 
@@ -1070,6 +1296,216 @@
     return { x: cx + dx * s, y: cy + dy * s };
   }
 
+  // ---- connector routing -------------------------------------------------
+  // Four ways to get from one port to another. `straight` is the original
+  // behaviour and stays the default so existing diagrams are untouched.
+  // The elbow routers pick their turn axis from the ports' own normals when
+  // the edge is anchored, and from the dominant delta when it is not --
+  // otherwise a connector leaving an east port would set off northwards.
+  var ELBOW_R = 10;
+
+  function axisOf(dir, dx, dy) {
+    if (dir && dir[0] !== 0 && dir[1] === 0) return "h";
+    if (dir && dir[1] !== 0 && dir[0] === 0) return "v";
+    return Math.abs(dx) >= Math.abs(dy) ? "h" : "v";
+  }
+
+  // `bend` (0..1) is where along the run the turn happens; null means the
+  // midpoint. Only the same-axis case has that freedom -- a perpendicular
+  // pair has exactly one corner and nothing to slide.
+  function elbowPoints(p1, p2, d1, d2, bend) {
+    var dx = p2.x - p1.x, dy = p2.y - p1.y;
+    var a1 = axisOf(d1, dx, dy);
+    var a2 = axisOf(d2, -dx, -dy);
+    var t = (typeof bend === "number" && isFinite(bend)) ? clamp(bend, 0.02, 0.98) : 0.5;
+    if (a1 === a2) {
+      return a1 === "h"
+        ? [p1, { x: p1.x + dx * t, y: p1.y }, { x: p1.x + dx * t, y: p2.y }, p2]
+        : [p1, { x: p1.x, y: p1.y + dy * t }, { x: p2.x, y: p1.y + dy * t }, p2];
+    }
+    return a1 === "h" ? [p1, { x: p2.x, y: p1.y }, p2] : [p1, { x: p1.x, y: p2.y }, p2];
+  }
+  // True when the route has a slidable turn -- drives whether a bend handle
+  // is worth drawing.
+  function elbowIsSlidable(p1, p2, d1, d2) {
+    var dx = p2.x - p1.x, dy = p2.y - p1.y;
+    return axisOf(d1, dx, dy) === axisOf(d2, -dx, -dy);
+  }
+
+  function polylinePath(pts) {
+    return pts.map(function (p, i) {
+      return (i ? "L " : "M ") + p.x.toFixed(1) + " " + p.y.toFixed(1);
+    }).join(" ");
+  }
+
+  // Same corner points as the orthogonal router, but each turn is replaced by
+  // a quadratic arc pulled back along both legs -- clamped to half the shorter
+  // leg so a tight elbow degrades to a sharp corner instead of overshooting.
+  function roundedPath(pts) {
+    if (pts.length < 3) return polylinePath(pts);
+    var d = "M " + pts[0].x.toFixed(1) + " " + pts[0].y.toFixed(1);
+    for (var i = 1; i < pts.length - 1; i++) {
+      var prev = pts[i - 1], cur = pts[i], next = pts[i + 1];
+      var l1 = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+      var l2 = Math.hypot(next.x - cur.x, next.y - cur.y);
+      var r = Math.min(ELBOW_R, l1 / 2, l2 / 2);
+      if (r < 0.5) { d += " L " + cur.x.toFixed(1) + " " + cur.y.toFixed(1); continue; }
+      var t1 = { x: cur.x + (prev.x - cur.x) / l1 * r, y: cur.y + (prev.y - cur.y) / l1 * r };
+      var t2 = { x: cur.x + (next.x - cur.x) / l2 * r, y: cur.y + (next.y - cur.y) / l2 * r };
+      d += " L " + t1.x.toFixed(1) + " " + t1.y.toFixed(1) +
+           " Q " + cur.x.toFixed(1) + " " + cur.y.toFixed(1) + " " + t2.x.toFixed(1) + " " + t2.y.toFixed(1);
+    }
+    var last = pts[pts.length - 1];
+    return d + " L " + last.x.toFixed(1) + " " + last.y.toFixed(1);
+  }
+
+  function unit(v) {
+    var m = Math.hypot(v[0], v[1]) || 1;
+    return [v[0] / m, v[1] / m];
+  }
+  function curvedPath(p1, p2, d1, d2) {
+    var dx = p2.x - p1.x, dy = p2.y - p1.y;
+    // Normalised, or a corner port's [1,-1] reaches sqrt(2) further than an
+    // edge port's [1,0] and the curve slings out past both nodes.
+    var k = Math.max(30, Math.min(110, Math.hypot(dx, dy) * 0.36));
+    var a1 = axisOf(d1, dx, dy), a2 = axisOf(d2, -dx, -dy);
+    var s1 = unit(d1 ? d1 : (a1 === "h" ? [Math.sign(dx) || 1, 0] : [0, Math.sign(dy) || 1]));
+    var s2 = unit(d2 ? d2 : (a2 === "h" ? [Math.sign(-dx) || -1, 0] : [0, Math.sign(-dy) || -1]));
+    var c1 = { x: p1.x + s1[0] * k, y: p1.y + s1[1] * k };
+    var c2 = { x: p2.x + s2[0] * k, y: p2.y + s2[1] * k };
+    return "M " + p1.x.toFixed(1) + " " + p1.y.toFixed(1) +
+      " C " + c1.x.toFixed(1) + " " + c1.y.toFixed(1) +
+      ", " + c2.x.toFixed(1) + " " + c2.y.toFixed(1) +
+      ", " + p2.x.toFixed(1) + " " + p2.y.toFixed(1);
+  }
+
+  function edgePathD(routing, p1, p2, d1, d2, bend) {
+    if (routing === "orthogonal") return polylinePath(elbowPoints(p1, p2, d1, d2, bend));
+    if (routing === "rounded") return roundedPath(elbowPoints(p1, p2, d1, d2, bend));
+    if (routing === "curved") return curvedPath(p1, p2, d1, d2);
+    return polylinePath([p1, p2]);
+  }
+
+  // Drag either end of a selected connector onto a different node, or onto a
+  // different port of the same node. Dropping anywhere else puts it back --
+  // an endpoint has to land on something.
+  function addEndpointHandle(g, edge, which, at) {
+    var h = document.createElementNS(SVGNS, "circle");
+    h.setAttribute("class", "dg-edge-endpoint");
+    h.setAttribute("data-edge", edge.id);
+    h.setAttribute("r", "5");
+    h.setAttribute("cx", at.x);
+    h.setAttribute("cy", at.y);
+    g.appendChild(h);
+
+    h.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      h.setPointerCapture(e.pointerId);
+      draggingEdgeHandle = true;
+      var pre = snapshotState();
+      var otherId = which === "from" ? edge.to : edge.from;
+      var hoverId = null;
+
+      function setHover(id) {
+        if (id === hoverId) return;
+        if (hoverId) {
+          var prev = nodeLayer.querySelector('[data-id="' + hoverId + '"]');
+          if (prev) prev.classList.remove("drop-target");
+        }
+        if (id) {
+          var next = nodeLayer.querySelector('[data-id="' + id + '"]');
+          if (next) next.classList.add("drop-target");
+        }
+        hoverId = id;
+      }
+
+      function onMove(ev) {
+        var pt = screenToCanvas(ev.clientX, ev.clientY);
+        var el = document.elementFromPoint(ev.clientX, ev.clientY);
+        var nodeEl = el && el.closest && el.closest(".dg-node");
+        var id = nodeEl ? nodeEl.dataset.id : null;
+        setHover(id && id !== otherId ? id : null);
+
+        if (id && id !== otherId) {
+          var n = nodeById(id);
+          if (n) {
+            var side = nearestPortSide(n, pt.x, pt.y);
+            if (which === "from") { edge.from = id; edge.fromPort = side; }
+            else { edge.to = id; edge.toPort = side; }
+            renderEdges();
+            return;
+          }
+        }
+        // Free-floating: show the grip following the pointer without
+        // committing a re-anchor yet.
+        h.setAttribute("cx", pt.x);
+        h.setAttribute("cy", pt.y);
+      }
+      function onUp() {
+        h.removeEventListener("pointermove", onMove);
+        h.removeEventListener("pointerup", onUp);
+        setHover(null);
+        draggingEdgeHandle = false;
+        commitUndo(pre);
+        renderEdges();
+        save();
+      }
+      h.addEventListener("pointermove", onMove);
+      h.addEventListener("pointerup", onUp);
+    });
+  }
+
+  // Slide the elbow. The turn runs along one axis, so only the movement
+  // across that axis matters; the handle stores it back as a 0..1 fraction
+  // of the run so it survives the nodes moving afterwards.
+  function addBendHandle(g, edge, p1, p2, d1, d2) {
+    var pts = elbowPoints(p1, p2, d1, d2, edge.bend);
+    if (pts.length < 4) return;
+    var mid = { x: (pts[1].x + pts[2].x) / 2, y: (pts[1].y + pts[2].y) / 2 };
+    var horiz = Math.abs(pts[1].x - p1.x) > Math.abs(pts[1].y - p1.y);
+
+    var h = document.createElementNS(SVGNS, "circle");
+    h.setAttribute("class", "dg-edge-bend");
+    h.setAttribute("r", "5");
+    h.setAttribute("cx", mid.x);
+    h.setAttribute("cy", mid.y);
+    g.appendChild(h);
+
+    h.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      h.setPointerCapture(e.pointerId);
+      draggingEdgeHandle = true;
+      var pre = snapshotState();
+      var span = horiz ? (p2.x - p1.x) : (p2.y - p1.y);
+
+      function onMove(ev) {
+        if (!span) return;
+        var pt = screenToCanvas(ev.clientX, ev.clientY);
+        var along = horiz ? (pt.x - p1.x) : (pt.y - p1.y);
+        edge.bend = clamp(along / span, 0.02, 0.98);
+        renderEdges();
+        // Keep the grip under the cursor while the edge redraws beneath it.
+        var pts = elbowPoints(p1, p2, d1, d2, edge.bend);
+        if (pts.length >= 4) {
+          h.setAttribute("cx", (pts[1].x + pts[2].x) / 2);
+          h.setAttribute("cy", (pts[1].y + pts[2].y) / 2);
+        }
+      }
+      function onUp() {
+        h.removeEventListener("pointermove", onMove);
+        h.removeEventListener("pointerup", onUp);
+        draggingEdgeHandle = false;
+        commitUndo(pre);
+        renderEdges();
+        save();
+      }
+      h.addEventListener("pointermove", onMove);
+      h.addEventListener("pointerup", onUp);
+    });
+  }
+
   function wireEdgeEvents(g, edge) {
     g.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
@@ -1082,30 +1518,54 @@
     });
   }
 
+  // Set while an endpoint or bend grip is being dragged. Those grips live in
+  // handleLayer, and the drag redraws edges on every move -- rebuilding the
+  // layer would delete the very element holding the pointer capture and the
+  // gesture would die after one frame.
+  var draggingEdgeHandle = false;
+
   function renderEdges() {
     edgeLayer.innerHTML = "";
+    if (handleLayer && !draggingEdgeHandle) handleLayer.innerHTML = "";
     edges.forEach(function (edge) {
       var a = nodeById(edge.from), b = nodeById(edge.to);
       if (!a || !b) return;
       var acx = a.x + a.w / 2, acy = a.y + a.h / 2;
       var bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
       var dx = bcx - acx, dy = bcy - acy;
-      var p1 = clipPoint(acx, acy, a.w, a.h, dx, dy);
-      var p2 = clipPoint(bcx, bcy, b.w, b.h, -dx, -dy);
-      edge._mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      // An edge anchored to a port stays on that port; an unanchored one keeps
+      // the original behaviour of sliding around the border to face the other
+      // node, so diagrams made before ports existed look exactly as they did.
+      var d1 = null, d2 = null, p1, p2;
+      if (edge.fromPort && PORT_AT[edge.fromPort]) {
+        p1 = portPoint(a, edge.fromPort); d1 = PORT_DIR[edge.fromPort];
+      } else {
+        p1 = clipPoint(acx, acy, a.w, a.h, dx, dy);
+      }
+      if (edge.toPort && PORT_AT[edge.toPort]) {
+        p2 = portPoint(b, edge.toPort); d2 = PORT_DIR[edge.toPort];
+      } else {
+        p2 = clipPoint(bcx, bcy, b.w, b.h, -dx, -dy);
+      }
+
+      var routing = edge.routing || "straight";
+      var pathD = edgePathD(routing, p1, p2, d1, d2, edge.bend);
 
       var g = document.createElementNS(SVGNS, "g");
       g.setAttribute("data-id", edge.id);
       g.setAttribute("class", "dg-edge" + (edge.id === selectedEdgeId ? " selected" : ""));
+      // Attached up front: getPointAtLength() below needs the path to be in
+      // the document to report geometry, and the label position depends on it.
+      edgeLayer.appendChild(g);
 
-      var hit = document.createElementNS(SVGNS, "line");
+      var hit = document.createElementNS(SVGNS, "path");
       hit.setAttribute("class", "dg-edge-hit");
-      hit.setAttribute("x1", p1.x); hit.setAttribute("y1", p1.y);
-      hit.setAttribute("x2", p2.x); hit.setAttribute("y2", p2.y);
+      hit.setAttribute("d", pathD);
+      hit.setAttribute("fill", "none");
 
-      var line = document.createElementNS(SVGNS, "line");
-      line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
-      line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+      var line = document.createElementNS(SVGNS, "path");
+      line.setAttribute("d", pathD);
+      line.setAttribute("fill", "none");
 
       var arrowStyle = edge.arrowStyle || "one";
       if (arrowStyle !== "none") line.setAttribute("marker-end", "url(#dgArrow)");
@@ -1126,11 +1586,22 @@
       g.appendChild(hit);
       g.appendChild(line);
 
+      // The label rides the real geometry rather than the straight-line
+      // midpoint, so it stays on an elbow or a curve instead of floating off
+      // in the space the connector no longer passes through.
+      edge._mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+      if (routing !== "straight" && line.getTotalLength) {
+        try {
+          var half = line.getPointAtLength(line.getTotalLength() / 2);
+          if (half) edge._mid = { x: half.x, y: half.y };
+        } catch (err) { /* not laid out yet -- the straight midpoint will do */ }
+      }
+
       if (edge.flow === "dot") {
         var dot = document.createElementNS(SVGNS, "circle");
         dot.setAttribute("r", "3");
         dot.setAttribute("class", "dg-edge-flow-dot" + (flowAlt ? " dg-flow-alt" : ""));
-        dot.style.offsetPath = "path('M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y + "')";
+        dot.style.offsetPath = "path('" + pathD + "')";
         g.appendChild(dot);
       }
 
@@ -1148,7 +1619,7 @@
         pflap.setAttribute("d", "M " + (-pw / 2) + " " + (-ph / 2) + " L 0 1 L " + (pw / 2) + " " + (-ph / 2));
         packet.appendChild(pbody);
         packet.appendChild(pflap);
-        packet.style.offsetPath = "path('M " + p1.x + " " + p1.y + " L " + p2.x + " " + p2.y + "')";
+        packet.style.offsetPath = "path('" + pathD + "')";
         g.appendChild(packet);
       }
 
@@ -1172,8 +1643,18 @@
         g.appendChild(text);
       }
 
+      // Editing handles, only on the selected edge: one grip per endpoint to
+      // re-aim it at another node or port, and (where the route has a
+      // slidable turn) one on the elbow to move where it bends.
+      if (edge.id === selectedEdgeId && handleLayer && !draggingEdgeHandle) {
+        addEndpointHandle(handleLayer, edge, "from", p1);
+        addEndpointHandle(handleLayer, edge, "to", p2);
+        if ((routing === "orthogonal" || routing === "rounded") && elbowIsSlidable(p1, p2, d1, d2)) {
+          addBendHandle(handleLayer, edge, p1, p2, d1, d2);
+        }
+      }
+
       wireEdgeEvents(g, edge);
-      edgeLayer.appendChild(g);
     });
     renderGroupOverlay();
   }
@@ -1479,25 +1960,10 @@
     importInput.click();
   });
 
-  importInput.addEventListener("change", function () {
-    var file = importInput.files && importInput.files[0];
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      var data;
-      try {
-        data = JSON.parse(String(reader.result));
-      } catch (e) {
-        alert("That file isn't valid JSON.");
-        return;
-      }
-      if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
-        alert('That file doesn\'t look like a diagram export (expected "nodes" and "edges" arrays).');
-        return;
-      }
-      if ((nodes.length || edges.length) && !confirm("Import will replace the current diagram. Continue?")) {
-        return;
-      }
+  // Shared by the file importer and by preset/slot loading (which arrives as
+  // a `boe:load-diagram` event below) -- both need the same defensive
+  // normalization, and duplicating it is how the two would drift apart.
+  function applyDiagramData(data) {
       pushUndo();
 
       // Normalize defensively: imported nodes/edges keep their own ids (so internal
@@ -1516,7 +1982,10 @@
           groupId: (nd && nd.groupId) || null,
           color: (nd && nd.color) || null,
           shape: (nd && ["rect", "rounded", "diamond", "text"].indexOf(nd.shape) !== -1) ? nd.shape : "rect",
-          icon: (nd && NODE_ICONS[nd.icon]) ? nd.icon : ""
+          icon: (nd && NODE_ICONS[nd.icon]) ? nd.icon : "",
+          // Export writes `animate` but this list used to omit it, so any
+          // diagram with animated nodes lost them on the way back in.
+          animate: (nd && ["notify", "fill", "spinner", "heartbeat", "error"].indexOf(nd.animate) !== -1) ? nd.animate : null
         };
       });
       var validIds = {};
@@ -1531,8 +2000,14 @@
             label: typeof ed.label === "string" ? ed.label : "",
             lineStyle: ed.lineStyle === "dashed" ? "dashed" : "solid",
             arrowStyle: (ed.arrowStyle === "both" || ed.arrowStyle === "none") ? ed.arrowStyle : "one",
-            flow: (ed.flow === "dot" || ed.flow === "dash") ? ed.flow : "none",
-            flowDirection: ed.flowDirection === "alternate" ? "alternate" : "forward"
+            flow: (ed.flow === "dot" || ed.flow === "dash" || ed.flow === "packet") ? ed.flow : "none",
+            flowDirection: ed.flowDirection === "alternate" ? "alternate" : "forward",
+            routing: (["orthogonal", "rounded", "curved"].indexOf(ed.routing) !== -1) ? ed.routing : "straight",
+            // Port anchors are optional: an edge without them keeps the old
+            // centre-facing behaviour rather than being forced onto a side.
+            fromPort: PORT_AT[ed.fromPort] ? ed.fromPort : null,
+            toPort: PORT_AT[ed.toPort] ? ed.toPort : null,
+            bend: (typeof ed.bend === "number" && isFinite(ed.bend)) ? ed.bend : null
           };
         });
 
@@ -1552,7 +2027,39 @@
       clearSelection();
       renderNodes();
       renderEdges();
+      fitToContent();
       save();
+  }
+
+  // Presets and save slots load a diagram this way rather than reaching into
+  // this script -- the tab stays self-contained and only accepts the same
+  // {nodes, edges} shape its own Export produces.
+  document.addEventListener("boe:load-diagram", function (ev) {
+    var data = ev && ev.detail;
+    if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) return;
+    applyDiagramData(data);
+  });
+
+  importInput.addEventListener("change", function () {
+    var file = importInput.files && importInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var data;
+      try {
+        data = JSON.parse(String(reader.result));
+      } catch (e) {
+        alert("That file isn't valid JSON.");
+        return;
+      }
+      if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+        alert('That file doesn\'t look like a diagram export (expected "nodes" and "edges" arrays).');
+        return;
+      }
+      if ((nodes.length || edges.length) && !confirm("Import will replace the current diagram. Continue?")) {
+        return;
+      }
+      applyDiagramData(data);
     };
     reader.onerror = function () {
       alert("Couldn't read that file.");
@@ -1635,7 +2142,13 @@
     var newEdges = [];
     edges.forEach(function (ed) {
       if (idMap[ed.from] && idMap[ed.to]) {
-        newEdges.push({ id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label, lineStyle: ed.lineStyle, arrowStyle: ed.arrowStyle, flow: ed.flow, flowDirection: ed.flowDirection });
+        newEdges.push({
+          id: uid(), from: idMap[ed.from], to: idMap[ed.to], label: ed.label,
+          lineStyle: ed.lineStyle, arrowStyle: ed.arrowStyle, flow: ed.flow,
+          flowDirection: ed.flowDirection, routing: ed.routing || "straight",
+          fromPort: ed.fromPort || null, toPort: ed.toPort || null,
+          bend: typeof ed.bend === "number" ? ed.bend : null
+        });
       }
     });
     newNodes.forEach(function (nn) {
@@ -1736,9 +2249,18 @@
     pushUndo();
     selectedNodeIds.forEach(function (id) {
       var n = nodeById(id);
-      if (n && n.type !== "container") n.shape = shapeKey;
+      if (!n || n.type === "container") return;
+      n.shape = shapeKey;
+      // A diamond only offers about half its box to the label, so the default
+      // box that suits a rectangle leaves no room. Grow it once on the switch
+      // rather than making the user resize every decision node by hand.
+      if (shapeKey === "diamond") {
+        n.w = Math.max(n.w, 176);
+        n.h = Math.max(n.h, 110);
+      }
     });
     renderNodes();
+    renderEdges();
     save();
   }
 
@@ -1898,6 +2420,14 @@
           optionRow: true, rowLabel: "Arrow", current: edge.arrowStyle || "one",
           options: [{ key: "one", label: "One-way" }, { key: "both", label: "Both ways" }, { key: "none", label: "No arrow" }],
           onPick: function (key) { setEdgeProp(eid, "arrowStyle", key); }
+        },
+        {
+          optionRow: true, rowLabel: "Route", current: edge.routing || "straight",
+          options: [
+            { key: "straight", label: "Straight" }, { key: "orthogonal", label: "Right angle" },
+            { key: "rounded", label: "Smoothed" }, { key: "curved", label: "Curved" }
+          ],
+          onPick: function (key) { setEdgeProp(eid, "routing", key); }
         },
         {
           optionRow: true, rowLabel: "Flow", current: edge.flow || "none",

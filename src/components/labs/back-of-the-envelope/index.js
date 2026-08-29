@@ -13,6 +13,7 @@ import { initLatency } from "./latency.js";
 import { initAvailability } from "./availability.js";
 import { initCost } from "./cost.js";
 import { initExport } from "./export.js";
+import { initPresets } from "./presets.js";
 
 initTabs();
 initExport();
@@ -32,6 +33,14 @@ var availability = initAvailability(traffic.state, function () {});
 // already rendered at least once.
 var cost = initCost(traffic.state, compute.state, database.state, cache.state, storage.state, bandwidth.state, function () {});
 
+// Traffic heads the cascade, so rendering it walks every downstream tab.
+// Latency sits outside that chain (no upstream tab feeds it) and has to be
+// rendered on its own.
+function renderAll() {
+  traffic.render();
+  latency.render();
+}
+
 var resetBtn = document.getElementById("boeReset");
 if (resetBtn) {
   resetBtn.addEventListener("click", function () {
@@ -45,8 +54,14 @@ if (resetBtn) {
     latency.reset();
     availability.reset();
     cost.reset();
-    traffic.render();
+    renderAll();
   });
 }
+
+initPresets({
+  getHops: latency.getHops,
+  setHops: latency.setHops,
+  renderAll: renderAll
+});
 
 traffic.render();
