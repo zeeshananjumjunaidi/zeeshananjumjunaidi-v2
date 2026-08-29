@@ -30,6 +30,7 @@
           <div class="rl-hudpanel rl-hud-bl">
             <div class="rl-hud-row"><span>T+</span><b id="tplus">0.0 s</b></div>
             <div class="rl-hud-row"><span>Time to go</span><b id="tgoHud">&ndash;&ndash;</b></div>
+            <div class="rl-hud-row" id="rateRow" hidden><span>Rate</span><b id="rateHud">1&times;</b></div>
           </div>
 
           <div class="rl-hudpanel rl-hud-br" id="camNameHud">Chase</div>
@@ -105,6 +106,17 @@
               <option value="zemzev">ZEM/ZEV</option>
               <option value="profile">Decel. profile + PD</option>
             </select>
+          </div>
+          <div class="rl-field">
+            <span class="rl-field-label">Sim rate <b id="rateV">1&times;</b></span>
+            <div class="rl-camrow">
+              <button type="button" class="rl-ratebtn" data-rate="0.1">0.1&times;</button>
+              <button type="button" class="rl-ratebtn" data-rate="0.25">&frac14;&times;</button>
+              <button type="button" class="rl-ratebtn" data-rate="0.5">&frac12;&times;</button>
+              <button type="button" class="rl-ratebtn active" data-rate="1">1&times;</button>
+              <button type="button" class="rl-ratebtn" data-rate="2">2&times;</button>
+              <button type="button" class="rl-ratebtn" data-rate="4">4&times;</button>
+            </div>
           </div>
           <button id="reset" class="rl-cbtn">Reset run</button>
         </div>
@@ -739,6 +751,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var windInput = document.getElementById("wind");
   var windLabel = document.getElementById("windV");
   var camButtons = document.querySelectorAll(".rl-cambtn");
+  var rateButtons = document.querySelectorAll(".rl-ratebtn");
+  var rateLabel = document.getElementById("rateV");
+  var rateHudEl = document.getElementById("rateHud");
+  var rateRowEl = document.getElementById("rateRow");
   var altEl = document.getElementById("alt");
   var vspeedEl = document.getElementById("vspeed");
   var fuelEl = document.getElementById("fuel");
@@ -787,6 +803,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // its position each frame and this same spherical math follows it.
   var camTarget = new THREE.Vector3(0, 20, 0);
   var camRig = { mode: "chase", spin: 0, userTheta: 0, userPhi: 0, distMul: 1 };
+  // Wall-clock seconds per simulated second. Scales the physics and the
+  // plume, not the camera -- the descent is over in ~25 s at 1x, which
+  // is too fast to watch the guidance law actually make its decisions.
+  var simRate = 1;
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // Vehicle constants, ported from the article's own numbers (dry mass,
@@ -878,7 +898,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   }
   var state = defaultState();
 
-  var rocket, placeholder, nozzleGroup, nozzleBell, flame, flameInner, glow, groundMesh, legParts = [];
+  var rocket, placeholder, nozzleGroup, nozzleBell, glow, groundMesh, legParts = [];
   var modelMixer, modelActions = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
@@ -1020,22 +1040,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     nozzleBell.position.y = -1.6;
     nozzleGroup.add(nozzleBell);
 
-    flame = new THREE.Mesh(
-      new THREE.ConeGeometry(1.5, 20, 20, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xff7a25, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
-    );
-    flame.rotation.x = Math.PI;
-    flame.position.y = -13;
-    nozzleGroup.add(flame);
-
-    flameInner = new THREE.Mesh(
-      new THREE.ConeGeometry(0.7, 11, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: 0xfff0d0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
-    );
-    flameInner.rotation.x = Math.PI;
-    flameInner.position.y = -8;
-    nozzleGroup.add(flameInner);
-
+    // No flame cone. The exhaust is the particle plume plus this light --
+    // a translucent cone stuck through the middle of it was the visible
+    // "cone in the exhaust", and with real particles it has no job.
     glow = new THREE.PointLight(0xff7a2a, 0, 60, 2);
     glow.position.y = -3;
     nozzleGroup.add(glow);
@@ -1448,7 +1455,14 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // math, just different sources for those three numbers per mode.
   function updateCamera(dt) {
     var alt = Math.max(state.y, 0);
-    var look = new THREE.Vector3(state.x, state.y, state.z);
+    // Aim at where the vehicle is DRAWN, not at the raw physics datum.
+    // state.y is the altitude the guidance law works in; the group is
+    // rendered restY above that, and restY comes from the model's own
+    // geometry -- so targeting state.y directly pointed the camera at a
+    // spot roughly a third of a body-length below the actual rocket,
+    // which reads as the camera being stuck near the origin.
+    var bodyY = restY + state.y;
+    var look = new THREE.Vector3(state.x, bodyY, state.z);
     var dist, theta, phi;
 
     if (camRig.mode === "pad") {
@@ -1456,12 +1470,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       dist = clamp(Math.hypot(d, state.y) * 0.55 + 70, 90, 2600);
       theta = Math.atan2(state.z, state.x) + 2.2;
       phi = clamp(0.1 + alt / 9000, 0.1, 0.55);
-      look.set(0, 25, 0);
+      look.set(0, restY, 0);
     } else if (camRig.mode === "side") {
       dist = clamp(Math.max(alt * 1.25, Math.hypot(state.x, state.z) * 1.5) + 130, 180, 4200);
       theta = Math.atan2(state.z, state.x || 1e-3) + Math.PI / 2;
       phi = 0.06;
-      look.set(state.x * 0.55, Math.max(alt * 0.5, 20), state.z * 0.55);
+      look.set(state.x * 0.55, Math.max(bodyY * 0.5, restY), state.z * 0.55);
     } else if (camRig.mode === "orbit") {
       if (!reducedMotion) camRig.spin += dt * 0.05;
       dist = clamp(150 + alt * 0.22, 150, 2200);
@@ -1477,7 +1491,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       // outside the frustum -- the first attempt at this missed that
       // and put the pad in frame with the vehicle above it, out of view).
       dist = clamp(150 + alt * 1.15, 150, 3200);
-      look.y = alt / 2;
+      look.y = bodyY / 2;
     }
 
     // Drag-to-orbit / scroll-to-zoom, layered on top of whichever rig is
@@ -1994,26 +2008,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     // trick): it breathes instead of strobing the way per-frame random
     // does, because no two components ever line up twice.
     var tms = performance.now();
-    var air = airFrac();
     var flick = 0.9 + 0.062 * Math.sin(tms * 0.019) + 0.041 * Math.sin(tms * 0.043 + 1.4)
       + 0.027 * Math.sin(tms * 0.087 + 2.6);
     var on = t > 0.01;
-    if (flame) flame.visible = on;
-    if (flameInner) flameInner.visible = on;
-    if (on) {
-      var spread = 1 + (1 - air) * 1.1; // under-expanded plume in vacuum
-      var len = (6 + t * 26) * flick;
-      if (flame) {
-        flame.scale.set((0.75 + t * 0.7) * spread, len / 20, (0.75 + t * 0.7) * spread);
-        flame.position.y = -len * 0.52;
-        flame.material.opacity = (0.3 + 0.34 * air) * flick;
-      }
-      if (flameInner) {
-        flameInner.scale.set(0.8 + t * 0.5, len / 17, 0.8 + t * 0.5);
-        flameInner.position.y = -len * 0.32;
-        flameInner.material.opacity = 0.9 * flick;
-      }
-    }
     if (glow) {
       glow.intensity = on ? (2.2 + 1.8 * t) * flick : 0;
       glow.distance = 400 + 600 * t;
@@ -2056,9 +2053,13 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   function tick() {
     requestAnimationFrame(tick);
     var dt = Math.min(clock.getDelta(), 0.1);
+    // Simulated time, which is what the physics and the plume run on.
+    // Capped independently of `dt` so 4x on a stuttering frame can't ask
+    // for a hundred substeps at once and stall the tab further.
+    var simDt = Math.min(dt * simRate, 0.25);
     // Fixed-step physics regardless of frame rate, then everything else
     // reads the resulting state.
-    var remaining = dt;
+    var remaining = simDt;
     while (remaining > 0) {
       var h = Math.min(PHYS.step, remaining);
       stepPhysics(h);
@@ -2071,10 +2072,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     rocket.rotation.z = -state.phi;
     rocket.rotation.x = state.psi;
     updateLegs();
+    // Camera smoothing stays on WALL time -- slowing the sim should give
+    // you a longer look at the same motion, not a sluggish camera.
     updateCamera(dt);
     updateEngineVisual();
-    emitPlume(dt);
-    updateParticles(dt);
+    emitPlume(simDt);
+    updateParticles(simDt);
     updateHud();
     updateInstruments();
     renderer.render(scene, camera);
@@ -2114,6 +2117,18 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       camRig.mode = btn.dataset.cam;
       camButtons.forEach(function (b) { b.classList.toggle("active", b === btn); });
       if (camNameEl) camNameEl.textContent = btn.textContent;
+    });
+  });
+  rateButtons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      simRate = Number(btn.dataset.rate);
+      rateButtons.forEach(function (b) { b.classList.toggle("active", b === btn); });
+      var txt = btn.textContent.trim();
+      if (rateLabel) rateLabel.textContent = txt;
+      if (rateHudEl) rateHudEl.textContent = txt;
+      // Only worth screen space when it's telling you something.
+      if (rateRowEl) rateRowEl.hidden = simRate === 1;
+      btn.blur();
     });
   });
 
@@ -2444,14 +2459,17 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   .rl-cbtn.active { border-color: var(--card-label); color: var(--card-label); }
 
   .rl-camrow { display: flex; flex-wrap: wrap; gap: 6px; }
-  .rl-cambtn {
+  .rl-cambtn, .rl-ratebtn {
     font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
     background: transparent; color: var(--card-desc); border: 1px solid var(--card-border);
     border-radius: 6px; padding: 6px 12px; cursor: pointer; transition: border-color .2s ease, color .2s ease;
     flex: 1 1 auto;
   }
-  .rl-cambtn:hover { color: var(--headline-color); }
-  .rl-cambtn.active { color: var(--card-label); border-color: var(--card-label); }
+  /* Six of these share a row, so they get a tighter box than the four
+     camera buttons and centre their glyphs rather than tracking them. */
+  .rl-ratebtn { padding: 6px 4px; letter-spacing: 0; text-align: center; }
+  .rl-cambtn:hover, .rl-ratebtn:hover { color: var(--headline-color); }
+  .rl-cambtn.active, .rl-ratebtn.active { color: var(--card-label); border-color: var(--card-label); }
 
   /* Article tab reuses the site's own long-form reading typography
      (.writing-block in global.css) rather than importing a separate
