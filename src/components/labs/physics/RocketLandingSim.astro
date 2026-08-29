@@ -1,3 +1,24 @@
+---
+// Flight-strip cells. Each is a quantity the physics already computes,
+// shown next to the expression it comes from -- the panel is meant to be
+// read alongside the Article tab, so the formula line is the point, not
+// decoration. Ported from the reference file's own readout.
+const CELLS = [
+  { id: "mass", k: "Vehicle mass", f: "m_dry + propellant" },
+  { id: "twr", k: "Thrust-to-weight", f: "T / (m·g)" },
+  { id: "amax", k: "Available accel", f: "T_max / m" },
+  { id: "dv", k: "Δv remaining", f: "I_sp·g₀·ln(m₀/m_dry)" },
+  { id: "q", k: "Dynamic pressure", f: "½·ρ(h)·v²" },
+  { id: "acmd", k: "Commanded accel", f: "|a_cmd| from the guidance law" },
+  { id: "kappa", k: "Burn trigger κ", f: "(v² − v_t²) / (2·a·h) — light at 1.00" },
+  { id: "zem", k: "Zero-effort miss", f: "r_f − (r + v·t_go + ½g·t_go²)" },
+  { id: "vref", k: "Reference rate", f: "−√(v_t² + 2·a_dec·h)" },
+  { id: "peak", k: "Peak load", f: "max T/(m·g₀) so far" },
+  { id: "fin", k: "Grid fin δ", f: "commanded deflection, ±20° limit" },
+  { id: "finq", k: "Fin authority", f: "q·S·C_L,α·L_fin / I — zero without air" }
+];
+---
+
 <div class="sim-root">
   <div class="sim-main">
     <div class="rl-tabs">
@@ -33,7 +54,7 @@
             <div class="rl-hud-row" id="rateRow" hidden><span>Rate</span><b id="rateHud">1&times;</b></div>
           </div>
 
-          <div class="rl-hudpanel rl-hud-br" id="camNameHud">Chase</div>
+          <div class="rl-hudpanel rl-hud-br" id="camNameHud">Orbit</div>
 
           <!-- Flight instruments. The two things you actually fly with:
                where the vehicle is pointing, and how hard it is pushing. -->
@@ -150,12 +171,22 @@
         <div class="rl-cpanel">
           <h3>View</h3>
           <div class="rl-camrow">
-            <button type="button" class="rl-cambtn active" data-cam="chase">Chase</button>
+            <button type="button" class="rl-cambtn" data-cam="chase">Chase</button>
             <button type="button" class="rl-cambtn" data-cam="pad">Pad</button>
-            <button type="button" class="rl-cambtn" data-cam="orbit">Orbit</button>
+            <button type="button" class="rl-cambtn active" data-cam="orbit">Orbit</button>
             <button type="button" class="rl-cambtn" data-cam="side">Side</button>
           </div>
         </div>
+      </div>
+
+      <div class="rl-readout">
+        {CELLS.map((c) => (
+          <div class="rl-cell">
+            <div class="rl-cell-k">{c.k}</div>
+            <div class="rl-cell-v"><span id={`rd-${c.id}`}>&mdash;</span><span class="rl-cell-u" id={`ru-${c.id}`}></span></div>
+            <div class="rl-cell-f">{c.f}</div>
+          </div>
+        ))}
       </div>
     </div>
 
@@ -802,7 +833,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // pad doesn't feel static. Once the vehicle exists, `camTarget` becomes
   // its position each frame and this same spherical math follows it.
   var camTarget = new THREE.Vector3(0, 20, 0);
-  var camRig = { mode: "chase", spin: 0, userTheta: 0, userPhi: 0, distMul: 1 };
+  // Orbit by default: it holds the vehicle at a usable size for the whole
+  // descent, where chase frames the vehicle-to-pad span and so only fills
+  // the frame near touchdown.
+  var camRig = { mode: "orbit", spin: 0, userTheta: 0, userPhi: 0, distMul: 1 };
   // Wall-clock seconds per simulated second. Scales the physics and the
   // plume, not the camera -- the descent is over in ~25 s at 1x, which
   // is too fast to watch the guidance law actually make its decisions.
@@ -892,13 +926,17 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       autopilot: true,
       thrustFrac: 0, defPhi: 0, defPsi: 0, finPhi: 0, finPsi: 0, // last-applied control, for the visuals
       cmdPhi: 0, cmdPsi: 0, // attitude the controller is ASKING for -- the flight director needle
+      // Guidance internals, surfaced for the flight strip. Null until the
+      // autopilot has actually run a cycle -- in manual there is no
+      // guidance law, so these stay null and the cells read as dashes.
+      gKappa: null, gVref: null, gAcmd: null, gZem: null, peakG: 0,
       tPlus: 0, tGo: null, cut: false,
       verdict: null
     };
   }
   var state = defaultState();
 
-  var rocket, placeholder, nozzleGroup, nozzleBell, glow, groundMesh, legParts = [];
+  var rocket, placeholder, nozzleGroup, nozzleBell, glowSprite, plumeLight, groundMesh, legParts = [];
   var modelMixer, modelActions = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
@@ -915,6 +953,11 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var sun = new THREE.DirectionalLight(0xfff6e8, 1.6);
     sun.position.set(-300, 420, 260);
     scene.add(sun);
+    // World-space so it can light the ground from the nozzle; parenting it
+    // to the vehicle would carry it along without ever illuminating what
+    // the plume is actually pointed at.
+    plumeLight = new THREE.PointLight(0xff7a2a, 0, 900, 2);
+    scene.add(plumeLight);
   }
 
   function buildGround() {
@@ -925,11 +968,6 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     groundMesh.rotation.x = -Math.PI / 2;
     groundMesh.position.y = -0.4;
     scene.add(groundMesh);
-
-    var grid = new THREE.GridHelper(1400, 56, 0x000000, 0x000000);
-    grid.material.opacity = 0.12;
-    grid.material.transparent = true;
-    scene.add(grid);
 
     var pad = new THREE.Mesh(
       new THREE.CircleGeometry(43, 64),
@@ -1040,12 +1078,18 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     nozzleBell.position.y = -1.6;
     nozzleGroup.add(nozzleBell);
 
-    // No flame cone. The exhaust is the particle plume plus this light --
-    // a translucent cone stuck through the middle of it was the visible
-    // "cone in the exhaust", and with real particles it has no job.
-    glow = new THREE.PointLight(0xff7a2a, 0, 60, 2);
-    glow.position.y = -3;
-    nozzleGroup.add(glow);
+    // No flame cone. The exhaust is the particle plume lit by two things,
+    // both straight from the reference file: an additive glow sprite that
+    // sits in the throat, and a real point light (added to the SCENE, not
+    // the nozzle, and moved to the nozzle's world position each frame) so
+    // the plume actually throws light onto the ground and the airframe.
+    glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      color: 0xffc37a, transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    }));
+    glowSprite.position.y = -3.5;
+    glowSprite.visible = false;
+    nozzleGroup.add(glowSprite);
 
     loadRocketModel();
 
@@ -1221,7 +1265,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     dust = makePool(700, texPuff, THREE.NormalBlending, 4);
     debris = makePool(420, texSoft, THREE.AdditiveBlending, 5);
     clearParticles();
-    flashLight = new THREE.PointLight(0xffd0a0, 0, 900, 2);
+    // The glow sprite shares the fire sprite's falloff, so the throat and
+    // the particles leaving it are the same shape of light.
+    if (glowSprite) { glowSprite.material.map = texSoft; glowSprite.material.needsUpdate = true; }
+    flashLight = new THREE.PointLight(0xffd9a0, 0, 3000, 2);
     scene.add(flashLight);
   }
 
@@ -1668,6 +1715,17 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var alt = state.y;
     var pr = refProfile(alt, aMax, g);
     state.tGo = pr.tgo;
+    state.gKappa = pr.kapReq;
+    state.gVref = pr.vRef;
+    // Zero-effort miss: where the vehicle arrives if it does nothing at
+    // all from here, gravity included (Article §08). Target is the pad
+    // origin, so r_f = 0 and the whole term is the negated coast.
+    var zt = pr.tgo;
+    state.gZem = Math.hypot(
+      state.x + state.vx * zt,
+      state.y + state.vy * zt - 0.5 * g * zt * zt,
+      state.z + state.vz * zt
+    );
 
     // Ignite early for a divert only if the resulting profile is still
     // flyable (kapReq>=kMin) -- on a low-gravity world the throttle
@@ -1713,6 +1771,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       var b = clamp(alt / 28, 0.3, 1);
       ax *= b; az *= b;
     }
+
+    state.gAcmd = Math.hypot(ax, ay, az);
 
     var dirMag = Math.hypot(ax, ay, az) || 1;
     var dx = ax / dirMag, dy = ay / dirMag, dz = az / dirMag;
@@ -1828,6 +1888,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     state.defPsi = u.defPsi;
     state.finPhi = u.finPhi;
     state.finPsi = u.finPsi;
+    // Peak load is a high-water mark, referenced to standard g the way
+    // an accelerometer trace would be, not to the local world's gravity.
+    state.peakG = Math.max(state.peakG, u.thrust / mass / STD_G0);
 
     // Ground contact is the real y<=0, not a pragmatic stand-in for it --
     // that was only needed to paper over the vehicle hovering indefinitely
@@ -1967,6 +2030,50 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     }
   }
 
+  // ---- flight strip ------------------------------------------------
+  // Throttled to ~12 Hz: these are 24 DOM text writes and nothing here
+  // changes fast enough to be worth doing every frame.
+  var lastStrip = 0;
+  function setCell(id, v, u) {
+    var el = document.getElementById("rd-" + id);
+    if (el) el.textContent = v;
+    var ue = document.getElementById("ru-" + id);
+    if (ue) ue.textContent = u || "";
+  }
+  function fmt(v, d) { return (Math.abs(v) < 1e-9 ? 0 : v).toFixed(d == null ? 1 : d); }
+  function fmtInt(v) { return Math.round(v).toLocaleString("en-US"); }
+
+  function updateReadout(now) {
+    if (now - lastStrip < 80) return;
+    lastStrip = now;
+
+    var w = world();
+    var mass = VEH.dry + state.fuel;
+    var aMax = VEH.maxT / mass;
+    var thrust = state.thrustFrac * VEH.maxT;
+    var alt = Math.max(state.y, 0);
+    var rho = w.rho0 * Math.exp(-alt / w.H);
+    var sp = Math.hypot(state.vx, state.vy, state.vz);
+    var q = 0.5 * rho * sp * sp;
+    // Same slender-rod inertia the physics integrates with, so the fin
+    // authority shown is the number actually acting on the vehicle.
+    var I = (mass * VEH.L * VEH.L) / 12;
+
+    setCell("mass", fmtInt(mass), " kg");
+    setCell("twr", fmt(thrust / (mass * w.g), 2), "");
+    setCell("amax", fmt(aMax, 1), " m/s²");
+    // Tsiolkovsky over the propellant that is still aboard.
+    setCell("dv", fmtInt(PHYS.isp * STD_G0 * Math.log(mass / VEH.dry)), " m/s");
+    setCell("q", fmtInt(q), " Pa");
+    setCell("acmd", state.gAcmd != null ? fmt(state.gAcmd, 1) : "—", " m/s²");
+    setCell("kappa", state.gKappa != null ? fmt(Math.max(0, state.gKappa), 2) : "—", "");
+    setCell("zem", state.gZem != null ? fmtInt(state.gZem) : "—", " m");
+    setCell("vref", state.gVref != null ? fmt(state.gVref, 1) : "—", " m/s");
+    setCell("peak", fmt(state.peakG, 2), " g");
+    setCell("fin", fmt(state.finPhi / DEG, 1) + " / " + fmt(state.finPsi / DEG, 1), " °");
+    setCell("finq", fmt((q * VEH.finS * VEH.finCL * VEH.finArm) / I, 3), " rad/s²");
+  }
+
   function resetRun() {
     var autopilot = state.autopilot;
     state = defaultState();
@@ -2011,9 +2118,21 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var flick = 0.9 + 0.062 * Math.sin(tms * 0.019) + 0.041 * Math.sin(tms * 0.043 + 1.4)
       + 0.027 * Math.sin(tms * 0.087 + 2.6);
     var on = t > 0.01;
-    if (glow) {
-      glow.intensity = on ? (2.2 + 1.8 * t) * flick : 0;
-      glow.distance = 400 + 600 * t;
+    if (glowSprite) {
+      glowSprite.visible = on;
+      if (on) {
+        glowSprite.scale.setScalar((10 + 16 * t) * flick);
+        glowSprite.material.opacity = 0.5 * t * flick;
+      }
+    }
+    if (plumeLight && rocket) {
+      // Track the nozzle in world space -- the same point the plume
+      // particles spawn from, so light and smoke agree.
+      plumeLight.position.copy(
+        new THREE.Vector3(0, -VEH.arm, 0).applyEuler(rocket.rotation).add(rocket.position)
+      );
+      plumeLight.intensity = on ? (2.2 + 1.8 * t) * flick : 0;
+      plumeLight.distance = 400 + 600 * t;
     }
     if (nozzleGroup) {
       nozzleGroup.rotation.set(0, 0, 0);
@@ -2080,6 +2199,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     updateParticles(simDt);
     updateHud();
     updateInstruments();
+    updateReadout(performance.now());
     renderer.render(scene, camera);
   }
 
@@ -2186,6 +2306,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   updateEngineVisual();
   updateHud();
   updateInstruments();
+  updateReadout(performance.now());
   tick();
 
   var tabs = document.querySelectorAll(".rl-tabbtn");
@@ -2288,6 +2409,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     margin-top: 5px; font-size: 11px;
   }
   .rl-hud-row b { color: var(--headline-color); font-variant-numeric: tabular-nums; font-weight: 500; }
+  /* `display: flex` above outranks the UA stylesheet's [hidden] rule, so
+     the attribute needs restating or the row never actually hides. */
+  .rl-hud-row[hidden] { display: none; }
 
   .rl-phasechip {
     position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
@@ -2468,6 +2592,42 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   /* Six of these share a row, so they get a tighter box than the four
      camera buttons and centre their glyphs rather than tracking them. */
   .rl-ratebtn { padding: 6px 4px; letter-spacing: 0; text-align: center; }
+
+  /* ---- flight strip ----
+     Hairline grid. Each cell paints its own right/bottom rule into the
+     1px gap rather than the container showing a border colour through,
+     because the last row is usually short and a see-through container
+     leaves the unfilled tracks as bare stripes of border colour. */
+  .rl-readout {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 1px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .rl-cell {
+    background: var(--card-bg);
+    padding: 12px 14px 13px;
+    box-shadow: 1px 0 0 var(--card-border), 0 1px 0 var(--card-border);
+  }
+  .rl-cell-k {
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--card-desc);
+  }
+  .rl-cell-v {
+    margin-top: 6px;
+    font-family: var(--font-mono); font-size: 21px; line-height: 1.1;
+    color: var(--headline-color); font-variant-numeric: tabular-nums;
+  }
+  .rl-cell-u { font-size: 11px; color: var(--card-desc); margin-left: 4px; letter-spacing: 0.02em; }
+  .rl-cell-f {
+    margin-top: 8px;
+    font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
+    color: var(--card-desc); opacity: 0.8;
+  }
   .rl-cambtn:hover, .rl-ratebtn:hover { color: var(--headline-color); }
   .rl-cambtn.active, .rl-ratebtn.active { color: var(--card-label); border-color: var(--card-label); }
 
