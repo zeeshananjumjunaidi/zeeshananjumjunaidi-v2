@@ -1079,6 +1079,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
         if (gltf.animations && gltf.animations.length) {
           modelMixer = new THREE.AnimationMixer(model);
           modelActions = gltf.animations.map(function (clip) {
+            console.log("Rocket model clip:", clip.name);
             var action = modelMixer.clipAction(clip);
             action.play();
             action.paused = true;
