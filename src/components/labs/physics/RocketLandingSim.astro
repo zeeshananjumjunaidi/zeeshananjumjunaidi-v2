@@ -878,7 +878,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   }
   var state = defaultState();
 
-  var rocket, placeholder, nozzleGroup, flame, flameInner, glow, groundMesh, legParts = [];
+  var rocket, placeholder, nozzleGroup, nozzleBell, flame, flameInner, glow, groundMesh, legParts = [];
   var modelMixer, modelActions = [];
   // Leg-feet clearance at rest (see buildRocket()) -- the offset between
   // the rocket group's origin (the CoM) and "touching the pad".
@@ -1010,12 +1010,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     nozzleGroup = new THREE.Group();
     nozzleGroup.position.y = -VEH.arm;
     rocket.add(nozzleGroup);
-    var bell = new THREE.Mesh(
+    // The bell is structural, not an effect -- it lives outside
+    // `placeholder` only so it can gimbal, so it has to be hidden
+    // separately once the real model (which has its own) loads.
+    nozzleBell = new THREE.Mesh(
       new THREE.CylinderGeometry(0.85, 1.55, 3.6, 24, 1, true),
       new THREE.MeshStandardMaterial({ color: 0x2a2723, roughness: 0.5, metalness: 0.6, side: THREE.DoubleSide })
     );
-    bell.position.y = -1.6;
-    nozzleGroup.add(bell);
+    nozzleBell.position.y = -1.6;
+    nozzleGroup.add(nozzleBell);
 
     flame = new THREE.Mesh(
       new THREE.ConeGeometry(1.5, 20, 20, 1, true),
@@ -1050,7 +1053,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // The flame/glow/nozzle group stay independent of the model either way.
   function loadRocketModel() {
     new GLTFLoader().load(
-      "/lab/3dModels/rocket_model_v1.glb",
+      "/lab/3dModels/rocket_model_v2.glb",
       function (gltf) {
         var model = gltf.scene;
         var box = new THREE.Box3().setFromObject(model);
@@ -1068,8 +1071,6 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
         model.position.z -= center.z;
         model.position.y -= box.min.y;
         model.position.y -= VEH.arm;
-        rocket.add(model);
-        if (placeholder) placeholder.visible = false;
 
         // GridFinAction + LandingPadAnim(.001): 121 keyframes, 0-5s (120
         // frames at 24fps). Frame 0 is closed, frame 120 is deployed --
@@ -1079,7 +1080,6 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
         if (gltf.animations && gltf.animations.length) {
           modelMixer = new THREE.AnimationMixer(model);
           modelActions = gltf.animations.map(function (clip) {
-            console.log("Rocket model clip:", clip.name);
             var action = modelMixer.clipAction(clip);
             action.play();
             action.paused = true;
@@ -1087,12 +1087,361 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
             return action;
           });
         }
+
+        // Ground it on ITS OWN feet, not the placeholder's. restY is the
+        // gap between the rocket group's origin and the pad, and the
+        // placeholder's value was computed from its procedural legs --
+        // leaving the model hovering by however much the two differ.
+        // Measured with the gear fully deployed (the touchdown pose) and
+        // before the model joins `rocket`, so the box is already in the
+        // local frame restY is expressed in.
+        scrubDeploy(1);
+        model.updateMatrixWorld(true);
+        var footBox = new THREE.Box3().setFromObject(model);
+        if (isFinite(footBox.min.y)) restY = -footBox.min.y;
+
+        rocket.add(model);
+        // Every stand-in mesh goes, the gimballing bell included -- the
+        // model brings its own, and two overlapping nozzles is exactly
+        // the "extra mesh" that shows up as a cone under the vehicle.
+        if (placeholder) placeholder.visible = false;
+        if (nozzleBell) nozzleBell.visible = false;
       },
       undefined,
       function (err) {
         console.warn("Rocket model failed to load, keeping the placeholder.", err);
       }
     );
+  }
+
+  // ---- particles -------------------------------------------------
+  // Ported from the reference file's own pool/shader system rather than
+  // re-invented. Two procedural sprites generated once on a canvas (no
+  // assets): a clean radial falloff for fire, a blotchy one for smoke
+  // and dust.
+  function spriteTexture(blotchy) {
+    var S = 128, c = document.createElement("canvas");
+    c.width = c.height = S;
+    var x = c.getContext("2d");
+    var g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.35, "rgba(255,255,255,0.62)");
+    g.addColorStop(0.72, "rgba(255,255,255,0.18)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g;
+    x.fillRect(0, 0, S, S);
+    if (blotchy) {
+      x.globalCompositeOperation = "destination-out";
+      for (var i = 0; i < 26; i++) {
+        var r = 6 + Math.random() * 16;
+        var px = S / 2 + (Math.random() - 0.5) * S * 0.7;
+        var py = S / 2 + (Math.random() - 0.5) * S * 0.7;
+        var h = x.createRadialGradient(px, py, 0, px, py, r);
+        h.addColorStop(0, "rgba(0,0,0,0.42)");
+        h.addColorStop(1, "rgba(0,0,0,0)");
+        x.fillStyle = h;
+        x.beginPath();
+        x.arc(px, py, r, 0, 7);
+        x.fill();
+      }
+      x.globalCompositeOperation = "source-over";
+      var g2 = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S * 0.3);
+      g2.addColorStop(0, "rgba(255,255,255,0.55)");
+      g2.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = g2;
+      x.fillRect(0, 0, S, S);
+    }
+    var t = new THREE.CanvasTexture(c);
+    t.minFilter = THREE.LinearFilter;
+    return t;
+  }
+
+  // One pool = one THREE.Points with per-particle size, alpha, rotation
+  // and a two-colour ramp, all driven from the CPU. PointsMaterial can
+  // do none of that, which is why a plain-sprite version pops and
+  // strobes instead of breathing.
+  var POOLS = [];
+  var fire, smoke, dust, debris, prevNz = null, flashLight;
+  var EM = { fire: 0, smoke: 0, dust: 0 };
+
+  function makePool(n, tex, blending, order) {
+    var g = new THREE.BufferGeometry();
+    var pos = new Float32Array(n * 3), tint = new Float32Array(n * 3);
+    var siz = new Float32Array(n), alp = new Float32Array(n), rot = new Float32Array(n);
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("aTint", new THREE.BufferAttribute(tint, 3));
+    g.setAttribute("aSize", new THREE.BufferAttribute(siz, 1));
+    g.setAttribute("aAlpha", new THREE.BufferAttribute(alp, 1));
+    g.setAttribute("aRot", new THREE.BufferAttribute(rot, 1));
+    var m = new THREE.ShaderMaterial({
+      uniforms: { map: { value: tex }, uScale: { value: 700 } },
+      vertexShader:
+        "attribute float aSize; attribute float aAlpha; attribute float aRot;" +
+        "attribute vec3 aTint; uniform float uScale;" +
+        "varying float vA; varying float vR; varying vec3 vT;" +
+        "void main(){ vA=aAlpha; vR=aRot; vT=aTint;" +
+        " vec4 mv=modelViewMatrix*vec4(position,1.0);" +
+        " gl_PointSize=min(640.0, aSize*uScale/max(1.0,-mv.z));" +
+        " gl_Position=projectionMatrix*mv; }",
+      fragmentShader:
+        "uniform sampler2D map; varying float vA; varying float vR; varying vec3 vT;" +
+        "void main(){ vec2 p=gl_PointCoord-0.5; float c=cos(vR); float s=sin(vR);" +
+        " vec2 q=vec2(c*p.x-s*p.y, s*p.x+c*p.y)+0.5;" +
+        " float a=texture2D(map,q).a*vA;" +
+        " if(a<0.004) discard;" +
+        " gl_FragColor=vec4(vT,a); }",
+      transparent: true, depthWrite: false, depthTest: true, blending: blending
+    });
+    var pts = new THREE.Points(g, m);
+    pts.frustumCulled = false;
+    pts.renderOrder = order;
+    scene.add(pts);
+    var P = {
+      geo: g, mat: m, pos: pos, tint: tint, siz: siz, alp: alp, rot: rot, n: n, head: 0,
+      vel: new Float32Array(n * 3), age: new Float32Array(n), life: new Float32Array(n),
+      s0: new Float32Array(n), grow: new Float32Array(n), aMax: new Float32Array(n),
+      spin: new Float32Array(n), seed: new Float32Array(n),
+      c0: new Float32Array(n * 3), c1: new Float32Array(n * 3)
+    };
+    POOLS.push(P);
+    return P;
+  }
+
+  function buildParticles() {
+    var texSoft = spriteTexture(false), texPuff = spriteTexture(true);
+    fire = makePool(700, texSoft, THREE.AdditiveBlending, 3);
+    smoke = makePool(800, texPuff, THREE.NormalBlending, 4);
+    dust = makePool(700, texPuff, THREE.NormalBlending, 4);
+    debris = makePool(420, texSoft, THREE.AdditiveBlending, 5);
+    clearParticles();
+    flashLight = new THREE.PointLight(0xffd0a0, 0, 900, 2);
+    scene.add(flashLight);
+  }
+
+  function clearParticles() {
+    for (var p = 0; p < POOLS.length; p++) {
+      var P = POOLS[p];
+      for (var i = 0; i < P.n; i++) { P.life[i] = 0; P.alp[i] = 0; P.pos[i * 3 + 1] = -99999; }
+      for (var a = 0; a < PARTICLE_ATTRS.length; a++) P.geo.attributes[PARTICLE_ATTRS[a]].needsUpdate = true;
+    }
+    EM.fire = EM.smoke = EM.dust = 0;
+    prevNz = null;
+    if (flashLight) flashLight.intensity = 0;
+  }
+  var PARTICLE_ATTRS = ["position", "aTint", "aSize", "aAlpha", "aRot"];
+
+  function emit(P, x, y, z, vx, vy, vz, life, size, grow, alpha, r0, g0, b0, r1, g1, b1) {
+    var i = P.head; P.head = (P.head + 1) % P.n;
+    var i3 = i * 3;
+    P.pos[i3] = x; P.pos[i3 + 1] = y; P.pos[i3 + 2] = z;
+    P.vel[i3] = vx; P.vel[i3 + 1] = vy; P.vel[i3 + 2] = vz;
+    P.age[i] = 0; P.life[i] = life; P.s0[i] = size; P.grow[i] = grow; P.aMax[i] = alpha;
+    P.spin[i] = (Math.random() - 0.5) * 1.5;
+    P.rot[i] = Math.random() * 6.283;
+    P.seed[i] = Math.random() * 100;
+    P.c0[i3] = r0; P.c0[i3 + 1] = g0; P.c0[i3 + 2] = b0;
+    if (r1 === undefined) { P.c1[i3] = r0; P.c1[i3 + 1] = g0; P.c1[i3 + 2] = b0; }
+    else { P.c1[i3] = r1; P.c1[i3 + 1] = g1; P.c1[i3 + 2] = b1; }
+    P.alp[i] = 0; P.siz[i] = size;
+  }
+
+  // The envelope is what makes it smooth: alpha eases in over fadeIn
+  // seconds and out over the rest of the life, size grows linearly,
+  // colour ramps c0 -> c1. Nothing appears or vanishes in one frame.
+  function stepPool(P, dt, o) {
+    var windX = windInput ? Number(windInput.value) : 0;
+    for (var i = 0; i < P.n; i++) {
+      if (P.life[i] <= 0) continue;
+      var i3 = i * 3;
+      P.age[i] += dt;
+      var u = P.age[i] / P.life[i];
+      if (u >= 1) { P.life[i] = 0; P.alp[i] = 0; P.pos[i3 + 1] = -99999; continue; }
+      var d = Math.exp(-o.drag * dt);
+      P.vel[i3] *= d; P.vel[i3 + 2] *= d;
+      P.vel[i3 + 1] = P.vel[i3 + 1] * d + (o.grav + o.buoy) * dt;
+      if (o.windK) {
+        P.vel[i3] += (windX - P.vel[i3]) * o.windK * dt;
+        P.vel[i3 + 2] += (0 - P.vel[i3 + 2]) * o.windK * dt;
+      }
+      if (o.turb) {
+        var t = P.seed[i] + state.tPlus * 1.3;
+        P.vel[i3] += Math.sin(t * 2.1 + P.pos[i3 + 1] * 0.11) * o.turb * dt;
+        P.vel[i3 + 1] += Math.sin(t * 1.7 + P.pos[i3] * 0.09) * o.turb * 0.6 * dt;
+        P.vel[i3 + 2] += Math.cos(t * 1.9 + P.pos[i3] * 0.07) * o.turb * dt;
+      }
+      P.pos[i3] += P.vel[i3] * dt;
+      P.pos[i3 + 1] += P.vel[i3 + 1] * dt;
+      P.pos[i3 + 2] += P.vel[i3 + 2] * dt;
+      if (P.pos[i3 + 1] < o.floor) {
+        P.pos[i3 + 1] = o.floor;
+        if (P.vel[i3 + 1] < 0) P.vel[i3 + 1] = -P.vel[i3 + 1] * o.bounce;
+        P.vel[i3] *= 0.96; P.vel[i3 + 2] *= 0.96;
+      }
+      P.rot[i] += P.spin[i] * dt;
+      P.siz[i] = P.s0[i] * (1 + P.grow[i] * u);
+      var ain = Math.min(1, P.age[i] / o.fadeIn);
+      P.alp[i] = P.aMax[i] * ain * ain * Math.pow(1 - u, o.pow);
+      var k = Math.min(1, u * o.ramp);
+      P.tint[i3] = P.c0[i3] + (P.c1[i3] - P.c0[i3]) * k;
+      P.tint[i3 + 1] = P.c0[i3 + 1] + (P.c1[i3 + 1] - P.c0[i3 + 1]) * k;
+      P.tint[i3 + 2] = P.c0[i3 + 2] + (P.c1[i3 + 2] - P.c0[i3 + 2]) * k;
+    }
+    for (var a = 0; a < PARTICLE_ATTRS.length; a++) P.geo.attributes[PARTICLE_ATTRS[a]].needsUpdate = true;
+  }
+
+  function airFrac() { return clamp(world().rho0 / 1.225, 0, 1); }
+  function groundTint() {
+    var h = world().ground;
+    return [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
+  }
+
+  function updateParticles(dt) {
+    if (dt <= 0 || !fire) return;
+    var W = world(), air = airFrac();
+    var us = renderer.domElement.height * 1.02;
+    for (var p = 0; p < POOLS.length; p++) POOLS[p].mat.uniforms.uScale.value = us;
+    stepPool(fire, dt, { drag: 2.6, grav: 0, buoy: 8 * air, turb: 6 * air, fadeIn: 0.03, pow: 1.4, ramp: 1.6, floor: 0.5, bounce: 0, windK: 0 });
+    stepPool(smoke, dt, { drag: 1.5, grav: 0, buoy: 1.2 + 2.2 * air, turb: 2.4, fadeIn: 0.3, pow: 1.15, ramp: 1.0, floor: 0.8, bounce: 0, windK: 0.5 });
+    stepPool(dust, dt, air > 0.03
+      ? { drag: 1.1, grav: -W.g * 0.2, buoy: 0.8, turb: 1.8, fadeIn: 0.14, pow: 1.2, ramp: 1.0, floor: 0.5, bounce: 0, windK: 0.4 }
+      : { drag: 0.02, grav: -W.g, buoy: 0, turb: 0, fadeIn: 0.02, pow: 1.6, ramp: 1.0, floor: 0.3, bounce: 0.25, windK: 0 });
+    stepPool(debris, dt, { drag: 0.25, grav: -W.g, buoy: 0, turb: 0, fadeIn: 0.01, pow: 1.1, ramp: 2.2, floor: 0.6, bounce: 0.3, windK: 0 });
+    if (flashLight && flashLight.intensity > 0) flashLight.intensity = Math.max(0, flashLight.intensity - dt * 18);
+  }
+
+  // Per-frame plume emission. Particles spawn along the nozzle's SWEPT
+  // path this frame rather than at a point, so a fast-moving vehicle
+  // leaves a continuous ribbon instead of clumps once per frame.
+  function emitPlume(dt) {
+    if (!fire || dt <= 0) return;
+    var thr = state.thrustFrac;
+    var on = thr > 0.01 && state.phase === "falling";
+    if (!on) { prevNz = null; return; }
+
+    var air = airFrac();
+    // Thrust direction: the deflected body axis, same û(φ,ψ) the physics
+    // integrates against, so the plume points where the force does.
+    var tPhi = state.phi + state.defPhi, tPsi = state.psi + state.defPsi;
+    var td = [-Math.sin(tPhi), Math.cos(tPhi) * Math.cos(tPsi), Math.cos(tPhi) * Math.sin(tPsi)];
+    var nz = new THREE.Vector3(0, -VEH.arm, 0).applyEuler(rocket.rotation).add(rocket.position);
+    if (!prevNz) prevNz = nz.clone();
+
+    EM.fire += thr * 240 * dt;
+    var nf = Math.min(Math.floor(EM.fire), 90);
+    EM.fire -= Math.floor(EM.fire);
+    var spr = 1 + (1 - air) * 1.3;
+    for (var i = 0; i < nf; i++) {
+      var f = Math.random();
+      var px = prevNz.x + (nz.x - prevNz.x) * f;
+      var py = prevNz.y + (nz.y - prevNz.y) * f;
+      var pz = prevNz.z + (nz.z - prevNz.z) * f;
+      var sp = 70 + Math.random() * 120 * thr;
+      emit(fire, px + (Math.random() - 0.5) * 1.6, py, pz + (Math.random() - 0.5) * 1.6,
+        -td[0] * sp + (Math.random() - 0.5) * 11 * spr + state.vx * 0.4,
+        -td[1] * sp + (Math.random() - 0.5) * 5.5 * spr + state.vy * 0.4,
+        -td[2] * sp + (Math.random() - 0.5) * 11 * spr + state.vz * 0.4,
+        0.14 + Math.random() * 0.22, 2.2 + Math.random() * 2.4 * thr, 1.6, 0.85,
+        1.0, 0.93, 0.66, 1.0, 0.42, 0.1);
+    }
+
+    // Soot, spawned downstream where the flame has cooled. Needs air to
+    // hold it -- on the Moon there is nothing for smoke to billow into.
+    if (air > 0.03) {
+      EM.smoke += thr * 38 * air * dt;
+      var ns = Math.min(Math.floor(EM.smoke), 16);
+      EM.smoke -= Math.floor(EM.smoke);
+      for (var j = 0; j < ns; j++) {
+        var L = 10 + Math.random() * 26;
+        emit(smoke,
+          nz.x - td[0] * L + (Math.random() - 0.5) * 4,
+          Math.max(nz.y - td[1] * L, 1.2),
+          nz.z - td[2] * L + (Math.random() - 0.5) * 4,
+          -td[0] * 14 + state.vx * 0.5 + (Math.random() - 0.5) * 5,
+          -td[1] * 10 + 3 + Math.random() * 3,
+          -td[2] * 14 + state.vz * 0.5 + (Math.random() - 0.5) * 5,
+          2.2 + Math.random() * 2.6, 3.5 + Math.random() * 3, 4.5 + Math.random() * 2,
+          0.3 * (0.35 + 0.65 * air),
+          0.2, 0.19, 0.175, 0.66, 0.63, 0.58);
+      }
+    }
+    prevNz.copy(nz);
+
+    // Plume impingement: the dust ring forms where the plume AXIS meets
+    // the ground -- under the nozzle, not under the nose, which is a
+    // visible difference the moment the vehicle is tilted.
+    if (td[1] > 0.25 && nz.y < 150) {
+      var hit = nz.y / td[1];
+      var gx = nz.x - td[0] * hit, gz = nz.z - td[2] * hit;
+      var k = 1 - nz.y / 150;
+      var g = groundTint();
+      EM.dust += thr * k * (air > 0.03 ? 26 : 44) * dt;
+      var nd = Math.min(Math.floor(EM.dust), 20);
+      EM.dust -= Math.floor(EM.dust);
+      for (var d = 0; d < nd; d++) {
+        var a2 = Math.random() * 6.283, r0 = 2 + nz.y * 0.16 * Math.random();
+        var dsp = (air > 0.03 ? 14 + 40 * k : 30 + 90 * k) * (0.6 + 0.4 * Math.random());
+        if (air > 0.03) {
+          emit(dust, gx + Math.cos(a2) * r0, 0.8 + Math.random() * 1.5, gz + Math.sin(a2) * r0,
+            Math.cos(a2) * dsp, 2.5 + Math.random() * 7 * k, Math.sin(a2) * dsp,
+            1.6 + Math.random() * 1.8, 3 + Math.random() * 3, 4 + Math.random() * 2, 0.34,
+            g[0], g[1], g[2], Math.min(1, g[0] * 1.12), Math.min(1, g[1] * 1.12), Math.min(1, g[2] * 1.12));
+        } else {
+          // Vacuum: a flat ballistic sheet, no billowing -- no air to billow in.
+          emit(dust, gx + Math.cos(a2) * r0, 0.6, gz + Math.sin(a2) * r0,
+            Math.cos(a2) * dsp, 1.5 + Math.random() * 5, Math.sin(a2) * dsp,
+            0.9 + Math.random() * 0.9, 1.1 + Math.random() * 0.8, 0.4, 0.5,
+            g[0], g[1], g[2]);
+        }
+      }
+    }
+  }
+
+  function touchdownEffects(ok) {
+    if (!dust) return;
+    var g = groundTint(), air = airFrac();
+    var i, a, r, sp;
+    if (ok) {
+      for (i = 0; i < 140; i++) {
+        a = Math.random() * 6.283; r = 6 + Math.random() * 22; sp = 16 + Math.random() * 26;
+        emit(dust, state.x + Math.cos(a) * r, 1.2, state.z + Math.sin(a) * r,
+          Math.cos(a) * sp, 4 + Math.random() * 8, Math.sin(a) * sp,
+          2.0 + Math.random() * 1.6, 3.5 + Math.random() * 3, 3.5, 0.36,
+          g[0], g[1], g[2], Math.min(1, g[0] * 1.1), Math.min(1, g[1] * 1.1), Math.min(1, g[2] * 1.1));
+      }
+      return;
+    }
+    if (rocket) rocket.visible = false;
+    if (flashLight) { flashLight.position.set(state.x, 10, state.z); flashLight.intensity = 14; }
+    for (i = 0; i < debris.n; i++) {
+      a = Math.random() * 6.283;
+      var e = Math.random() * 1.2; sp = 30 + Math.random() * 150;
+      emit(debris, state.x, 6, state.z,
+        Math.cos(a) * Math.cos(e) * sp, Math.sin(e) * sp * 1.1, Math.sin(a) * Math.cos(e) * sp,
+        1.4 + Math.random() * 2.2, 1.6 + Math.random() * 1.6, 0.4, 0.95,
+        1.0, 0.82, 0.42, 0.62, 0.12, 0.04);
+    }
+    for (i = 0; i < 120; i++) {
+      a = Math.random() * 6.283; r = Math.random() * 14; sp = 8 + Math.random() * 30;
+      emit(fire, state.x + Math.cos(a) * r, 3 + Math.random() * 10, state.z + Math.sin(a) * r,
+        Math.cos(a) * sp, 12 + Math.random() * 28, Math.sin(a) * sp,
+        0.4 + Math.random() * 0.7, 4 + Math.random() * 5, 2.2, 0.9,
+        1.0, 0.88, 0.55, 1.0, 0.32, 0.06);
+    }
+    for (i = 0; i < 160; i++) {
+      a = Math.random() * 6.283; r = Math.random() * 20;
+      emit(smoke, state.x + Math.cos(a) * r, 2 + Math.random() * 8, state.z + Math.sin(a) * r,
+        Math.cos(a) * (6 + Math.random() * 14), (4 + Math.random() * 14) * (0.3 + 0.7 * air),
+        Math.sin(a) * (6 + Math.random() * 14),
+        3.5 + Math.random() * 3, 5 + Math.random() * 4, 5, 0.42 * (0.3 + 0.7 * air),
+        0.13, 0.12, 0.11, 0.45, 0.42, 0.38);
+    }
+    for (i = 0; i < 180; i++) {
+      a = Math.random() * 6.283; r = Math.random() * 45;
+      emit(dust, state.x + Math.cos(a) * r, 1.5, state.z + Math.sin(a) * r,
+        Math.cos(a) * (30 + Math.random() * 40), 8 + Math.random() * 18, Math.sin(a) * (30 + Math.random() * 40),
+        2.4 + Math.random() * 2, 3 + Math.random() * 3, 4, 0.4,
+        g[0], g[1], g[2]);
+    }
   }
 
   // Four rigs, all the same spherical theta/phi/dist-around-a-look-point
@@ -1488,6 +1837,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       state.thrustFrac = 0;
       if (throttleInput) throttleInput.value = "0";
       updateEngineVisual();
+      touchdownEffects(state.phase === "landed");
       showVerdict();
     }
   }
@@ -1610,6 +1960,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     manualPhiCmd = 0; manualPsiCmd = 0;
     if (throttleInput) throttleInput.value = "0";
     if (verdictEl) verdictEl.hidden = true;
+    if (rocket) rocket.visible = true; // a crash hides it; a reset brings it back
+    clearParticles();
     updateEngineVisual();
   }
 
@@ -1624,6 +1976,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   buildLights();
   buildGround();
   buildRocket();
+  buildParticles();
   resize();
   if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
   else window.addEventListener("resize", resize);
@@ -1636,15 +1989,35 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var pct = state.autopilot ? Math.round(state.thrustFrac * 100) : (throttleInput ? Number(throttleInput.value) : 0);
     var t = state.thrustFrac;
     if (throttleLabel) throttleLabel.textContent = pct + "%";
-    if (flame) {
-      flame.material.opacity = t > 0 ? 0.3 + t * 0.35 : 0;
-      flame.scale.set(0.5 + t * 0.6, 0.4 + t * 0.9, 0.5 + t * 0.6);
+
+    // Flicker as a sum of incommensurate sines (the reference file's own
+    // trick): it breathes instead of strobing the way per-frame random
+    // does, because no two components ever line up twice.
+    var tms = performance.now();
+    var air = airFrac();
+    var flick = 0.9 + 0.062 * Math.sin(tms * 0.019) + 0.041 * Math.sin(tms * 0.043 + 1.4)
+      + 0.027 * Math.sin(tms * 0.087 + 2.6);
+    var on = t > 0.01;
+    if (flame) flame.visible = on;
+    if (flameInner) flameInner.visible = on;
+    if (on) {
+      var spread = 1 + (1 - air) * 1.1; // under-expanded plume in vacuum
+      var len = (6 + t * 26) * flick;
+      if (flame) {
+        flame.scale.set((0.75 + t * 0.7) * spread, len / 20, (0.75 + t * 0.7) * spread);
+        flame.position.y = -len * 0.52;
+        flame.material.opacity = (0.3 + 0.34 * air) * flick;
+      }
+      if (flameInner) {
+        flameInner.scale.set(0.8 + t * 0.5, len / 17, 0.8 + t * 0.5);
+        flameInner.position.y = -len * 0.32;
+        flameInner.material.opacity = 0.9 * flick;
+      }
     }
-    if (flameInner) {
-      flameInner.material.opacity = t > 0 ? 0.55 + t * 0.4 : 0;
-      flameInner.scale.set(0.5 + t * 0.6, 0.4 + t * 0.9, 0.5 + t * 0.6);
+    if (glow) {
+      glow.intensity = on ? (2.2 + 1.8 * t) * flick : 0;
+      glow.distance = 400 + 600 * t;
     }
-    if (glow) glow.intensity = t * 3.5;
     if (nozzleGroup) {
       nozzleGroup.rotation.set(0, 0, 0);
       nozzleGroup.rotation.x = state.defPsi;
@@ -1652,21 +2025,23 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     }
   }
 
+  // Model loaded: scrub its own baked animations to a deploy fraction
+  // instead of driving the placeholder's procedural rotation.
+  function scrubDeploy(deployed) {
+    if (!modelMixer) return;
+    for (var j = 0; j < modelActions.length; j++) {
+      modelActions[j].time = deployed * modelActions[j].getClip().duration;
+    }
+    modelMixer.update(0);
+  }
+
   // Legs fold flush against the body at altitude and swing down to the
-  // fixed resting pose (built in buildRocket()) over the last 600 m --
-  // no physics behind the deploy itself, just a cue tied to altitude.
+  // fixed resting pose over the last 600 m -- no physics behind the
+  // deploy itself, just a cue tied to altitude.
   function updateLegs() {
     var deployed = 1 - clamp(state.y / 600, 0, 1);
 
-    if (modelMixer) {
-      // Model loaded: scrub its own baked animations instead of driving
-      // the placeholder's procedural rotation.
-      for (var j = 0; j < modelActions.length; j++) {
-        modelActions[j].time = deployed * modelActions[j].getClip().duration;
-      }
-      modelMixer.update(0);
-      return;
-    }
+    if (modelMixer) { scrubDeploy(deployed); return; }
 
     var angle = LEG_FOLD + (LEG_SPLAY - LEG_FOLD) * deployed;
     // Rotate around the hinge's local Z (tangential axis), not X. Local X
@@ -1698,6 +2073,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     updateLegs();
     updateCamera(dt);
     updateEngineVisual();
+    emitPlume(dt);
+    updateParticles(dt);
     updateHud();
     updateInstruments();
     renderer.render(scene, camera);
