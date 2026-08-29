@@ -7,5 +7,5 @@
   "description": "Start from daily users and requests, and peak load falls out as a calculation.",
   "preview": "flow",
   "featured": true,
-  "order": -0.25
+  "order": -1
 }
