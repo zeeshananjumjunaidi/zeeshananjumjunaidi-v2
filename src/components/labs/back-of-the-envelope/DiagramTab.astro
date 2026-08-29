@@ -290,6 +290,10 @@
    positions, so showing both at once would make every corner ambiguous.
    Hover to connect, select to resize (the draw.io split). */
 .dg-node:hover:not(.selected) .dg-port { opacity: 1; }
+/* While an edge is selected, its two endpoint grips sit exactly on these
+   ports. Standing the ports down on those two nodes leaves the grips
+   unambiguous -- otherwise reaching for an endpoint starts a new connection. */
+.dg-node.edge-endpoint-host .dg-port { opacity: 0 !important; pointer-events: none; }
 .dg-port:hover { background: var(--card-label); border-color: var(--card-label); transform: scale(1.9); }
 /* Every port on the hovered node lights up faintly while a connection is
    being dragged, so it is obvious where a drop will land. */
@@ -332,9 +336,13 @@
    drawn on the selected edge, so they never clutter the canvas. */
 .dg-edge-endpoint, .dg-edge-bend {
   fill: var(--card-bg); stroke: var(--card-label); stroke-width: 1.5;
-  cursor: grab; pointer-events: all;
+  cursor: grab; pointer-events: none;
 }
-.dg-edge-endpoint:hover, .dg-edge-bend:hover { fill: var(--card-label); }
+/* The oversized transparent target that actually receives the drag. */
+.dg-edge-endpoint-hit { fill: transparent; stroke: none; cursor: grab; pointer-events: all; }
+.dg-edge-endpoint-hit:hover + .dg-edge-endpoint { fill: var(--card-label); r: 7; }
+.dg-edge-bend { pointer-events: all; }
+.dg-edge-bend:hover { fill: var(--card-label); }
 .dg-edge-bend { stroke-dasharray: 2.5 2; }
 .dg-edge-label { font-family: var(--font-mono); font-size: 10px; fill: var(--card-desc); pointer-events: none; }
 
@@ -814,6 +822,12 @@
     edgeLayer.querySelectorAll(".dg-edge").forEach(function (el) {
       el.classList.toggle("selected", el.dataset.id === selectedEdgeId);
     });
+    // Mark the nodes whose ports would sit under the selected edge's grips.
+    var sel = selectedEdgeId ? edgeById(selectedEdgeId) : null;
+    nodeLayer.querySelectorAll(".dg-node").forEach(function (el) {
+      var id = el.dataset.id;
+      el.classList.toggle("edge-endpoint-host", !!sel && (id === sel.from || id === sel.to));
+    });
     // Endpoint and bend grips are built in renderEdges, so a class toggle
     // alone would never add or remove them. Redraw when the edge that owns
     // them is no longer the selected one. Self-limiting: after the redraw
@@ -943,6 +957,32 @@
     };
   }
 
+  // Shared by drawing a new connection and by re-aiming an existing edge's
+  // endpoint. Landing exactly on a node is not required: the nearest node
+  // within DROP_SLACK of its box takes it, because releasing a few pixels
+  // short used to silently do nothing.
+  var DROP_SLACK = 44;
+  function dropTargetAt(clientX, clientY, excludeId) {
+    var el = document.elementFromPoint(clientX, clientY);
+    var nodeEl = el && el.closest && el.closest(".dg-node");
+    if (nodeEl && nodeEl.dataset.id !== excludeId) return nodeEl.dataset.id;
+
+    var pt = screenToCanvas(clientX, clientY);
+    var best = null, bestD = DROP_SLACK;
+    nodes.forEach(function (n) {
+      if (n.id === excludeId) return;
+      // Distance to the node's rectangle, so big and small boxes behave alike.
+      var ox = Math.max(n.x - pt.x, 0, pt.x - (n.x + n.w));
+      var oy = Math.max(n.y - pt.y, 0, pt.y - (n.y + n.h));
+      var d = Math.hypot(ox, oy);
+      // A container is a frame -- prefer any real box over the frame the
+      // pointer happens to be sitting inside.
+      if (n.type === "container") d += DROP_SLACK / 2;
+      if (d < bestD) { bestD = d; best = n.id; }
+    });
+    return best;
+  }
+
   function startConnectDrag(fromNode, fromSide, e) {
     var tempLine = document.createElementNS(SVGNS, "line");
     tempLine.setAttribute("class", "dg-edge-temp");
@@ -971,30 +1011,8 @@
       hoverTargetId = id;
     }
 
-    // Landing exactly on a node is not required. If the pointer is not over
-    // one, the nearest node within DROP_SLACK of its box still takes the
-    // connection -- releasing a few pixels short used to silently do nothing,
-    // which is most of what made connecting feel fiddly.
-    var DROP_SLACK = 44;
     function targetNodeIdAt(clientX, clientY) {
-      var targetEl = document.elementFromPoint(clientX, clientY);
-      var targetNodeEl = targetEl && targetEl.closest && targetEl.closest(".dg-node");
-      if (targetNodeEl && targetNodeEl.dataset.id !== fromNode.id) return targetNodeEl.dataset.id;
-
-      var pt = screenToCanvas(clientX, clientY);
-      var best = null, bestD = DROP_SLACK;
-      nodes.forEach(function (n) {
-        if (n.id === fromNode.id) return;
-        // Distance from the point to the node's rectangle (0 when inside).
-        var ox = Math.max(n.x - pt.x, 0, pt.x - (n.x + n.w));
-        var oy = Math.max(n.y - pt.y, 0, pt.y - (n.y + n.h));
-        var d = Math.hypot(ox, oy);
-        // A container is a frame -- prefer any real box over the frame
-        // the pointer happens to be sitting inside.
-        if (n.type === "container") d += DROP_SLACK / 2;
-        if (d < bestD) { bestD = d; best = n.id; }
-      });
-      return best;
+      return dropTargetAt(clientX, clientY, fromNode.id);
     }
 
     function onMove(ev) {
@@ -1390,13 +1408,26 @@
   // different port of the same node. Dropping anywhere else puts it back --
   // an endpoint has to land on something.
   function addEndpointHandle(g, edge, which, at) {
-    var h = document.createElementNS(SVGNS, "circle");
-    h.setAttribute("class", "dg-edge-endpoint");
-    h.setAttribute("data-edge", edge.id);
-    h.setAttribute("r", "5");
-    h.setAttribute("cx", at.x);
-    h.setAttribute("cy", at.y);
-    g.appendChild(h);
+    // The visible dot is small, but a node port sits directly underneath with
+    // a 26px hit area -- so the grip needs a bigger target than the port or
+    // being a few pixels off starts a new connection instead of moving this
+    // one. This transparent circle is that target; the dot is cosmetic.
+    var hit = document.createElementNS(SVGNS, "circle");
+    hit.setAttribute("class", "dg-edge-endpoint-hit");
+    hit.setAttribute("r", "16");
+    hit.setAttribute("cx", at.x);
+    hit.setAttribute("cy", at.y);
+    g.appendChild(hit);
+
+    var dot = document.createElementNS(SVGNS, "circle");
+    dot.setAttribute("class", "dg-edge-endpoint");
+    dot.setAttribute("data-edge", edge.id);
+    dot.setAttribute("r", "5");
+    dot.setAttribute("cx", at.x);
+    dot.setAttribute("cy", at.y);
+    g.appendChild(dot);
+
+    var h = hit;
 
     h.addEventListener("pointerdown", function (e) {
       if (e.button !== 0) return;
@@ -1422,25 +1453,31 @@
 
       function onMove(ev) {
         var pt = screenToCanvas(ev.clientX, ev.clientY);
-        var el = document.elementFromPoint(ev.clientX, ev.clientY);
-        var nodeEl = el && el.closest && el.closest(".dg-node");
-        var id = nodeEl ? nodeEl.dataset.id : null;
-        setHover(id && id !== otherId ? id : null);
+        // Same forgiving target as drawing a new connection -- endpoints used
+        // to demand a direct hit, which is why re-aiming one felt impossible.
+        var id = dropTargetAt(ev.clientX, ev.clientY, otherId);
+        setHover(id);
 
-        if (id && id !== otherId) {
+        if (id) {
           var n = nodeById(id);
           if (n) {
             var side = nearestPortSide(n, pt.x, pt.y);
             if (which === "from") { edge.from = id; edge.fromPort = side; }
             else { edge.to = id; edge.toPort = side; }
             renderEdges();
+            var anchor = portPoint(n, side);
+            h.setAttribute("cx", anchor.x);
+            h.setAttribute("cy", anchor.y);
+            dot.setAttribute("cx", anchor.x);
+            dot.setAttribute("cy", anchor.y);
             return;
           }
         }
-        // Free-floating: show the grip following the pointer without
-        // committing a re-anchor yet.
+        // Free-floating: the grip follows the pointer without committing.
         h.setAttribute("cx", pt.x);
         h.setAttribute("cy", pt.y);
+        dot.setAttribute("cx", pt.x);
+        dot.setAttribute("cy", pt.y);
       }
       function onUp() {
         h.removeEventListener("pointermove", onMove);
