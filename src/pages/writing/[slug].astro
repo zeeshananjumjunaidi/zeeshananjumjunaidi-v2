@@ -1,15 +1,10 @@
 ---
-// One page per article. Articles are .astro components rather than markdown
-// so they can carry interactive figures; metadata lives in src/data/writing.ts.
-// `draft: true` keeps a piece out of the build entirely rather than
-// publishing it at a guessable URL.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Nav from '../../components/Nav.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import { interactiveWriting } from '../../data/writing';
 import TsiolkovskyEquation from '../../components/writing/TsiolkovskyEquation.astro';
 
-// Same shape as SIM_COMPONENTS in lab/[slug].astro: slug in, component out.
 const ARTICLE_COMPONENTS: Record<string, any> = {
   'tsiolkovsky-rocket-equation': TsiolkovskyEquation,
 };

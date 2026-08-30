@@ -630,11 +630,11 @@ img { max-width: 100%; display: block; }
   animation: rocketDescend 4.2s cubic-bezier(.32,.55,.2,1) infinite;
 }
 .r-body {
-  position: absolute; left: 0; right: 0; top: 8px; bottom: 10px;
+  position: absolute; left: 0; right: 0; top: -18px; bottom: 10px;
   background: linear-gradient(var(--ember-1), var(--ember-2)); border-radius: 2px;
 }
 .r-nose {
-  position: absolute; left: 0; right: 0; top: 0; height: 9px;
+  position: absolute; left: 0; right: 0; top: -27px; height: 9px;
   background: linear-gradient(var(--ember-1), var(--ember-2));
   clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
 }
@@ -702,19 +702,14 @@ img { max-width: 100%; display: block; }
 }
 .writing-block a:hover, .writing-block a:focus-visible { text-decoration-color: var(--card-label); }
 
-/* Markdown output. .writing-block on its own only ever held paragraphs (lab
-   write-ups build them by hand); an authored article brings headings, lists,
-   code and quotes with it, so those need a home too. Scoped to .writing-prose
-   so existing uses are untouched. */
+/* .writing-block alone only styles paragraphs; articles also need headings,
+   lists, code and quotes. Scoped so existing uses are untouched. */
 .writing-prose { display: block; max-width: 68ch; }
-/* Doubled class on purpose: `.writing-block p` is (0,1,1) and a `* + *`
-   selector is only (0,1,0), because the universal selector counts for
-   nothing -- so the plain version lost and every paragraph sat flush. */
+/* Doubled class: `.writing-block p` is (0,1,1) and `* + *` only (0,1,0),
+   so the single-class version loses and paragraphs sit flush. */
 .writing-block.writing-prose > * + * { margin-top: 18px; }
 
-/* Shiki token colours, mapped onto this site's palette (see the shikiConfig
-   note in astro.config.mjs). Anything unmapped falls back to the body text
-   colour rather than a colour from someone else's theme. */
+/* Shiki token colours, mapped onto the site palette. */
 .writing-prose {
   --astro-code-background: var(--card-bg);
   --astro-code-foreground: var(--subhead-color);

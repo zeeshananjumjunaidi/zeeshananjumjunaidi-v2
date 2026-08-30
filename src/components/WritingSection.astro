@@ -1,29 +1,38 @@
 ---
-// Articles come from src/data/writing.ts; each has a component in
-// src/components/writing/. The topic chips below are the standing plan,
-// kept for the topics with nothing written yet.
 import { interactiveWriting } from '../data/writing';
 
 const entries = interactiveWriting
   .filter((a) => !a.draft)
   .sort((a, b) => b.publishDate.getTime() - a.publishDate.getTime());
 
+// An article's own `topics` should come from this list, or its chip won't match.
 const topics = [
-  'Identity & Trust',
-  'Distributed Systems',
-  'The Data Layer',
-  'Networking',
-  'Observability',
-  'ML Concepts',
+  'Robotics',
+  'Perception',
+  'State Estimation',
+  'Motion Planning',
+  'Control Systems',
+  'Simulation',
+  'Physics',
+  'Orbital Mechanics',
+  'Propulsion',
+  'Machine Learning',
   'AI Systems Engineering',
+  'Distributed Systems',
   'Architecture',
+  'Data & Storage',
+  'Networking',
   'Concurrency',
   'Reliability',
-  'Delivery',
-  'Compliance',
-  'Application Security',
+  'Observability',
+  'Delivery & Deployment',
   'Testing',
+  'Identity & Trust',
+  'Application Security',
+  'Risk & Compliance',
 ];
+
+const written = new Set(entries.flatMap((a) => a.topics));
 ---
 <section id="writing" class="section" aria-labelledby="writing-label">
   <h2 class="section-heading" id="writing-label">Writing</h2>
@@ -51,7 +60,12 @@ const topics = [
 
   <div class="writing-block" style="margin-top:22px;">
     <div class="tag-row">
-      {topics.map((topic) => <span class="tag">{topic}</span>)}
+      {topics.map((topic) => (
+        <span
+          class:list={['tag', { 'tag-written': written.has(topic) }]}
+          title={written.has(topic) ? 'Something written on this' : undefined}
+        >{topic}</span>
+      ))}
     </div>
   </div>
 </section>
@@ -78,5 +92,13 @@ const topics = [
   .writing-item-date {
     flex: 0 0 auto; font-family: var(--font-mono); font-size: 10px;
     letter-spacing: 0.08em; text-transform: uppercase; color: var(--section-meta);
+  }
+
+  /* Needs the fill, not just the colour: --card-label and --tag-text are
+     nearly identical in the light theme. */
+  .tag-written {
+    color: var(--card-label);
+    border-color: color-mix(in srgb, var(--card-label) 50%, transparent);
+    background: color-mix(in srgb, var(--card-label) 13%, transparent);
   }
 </style>

@@ -1,11 +1,5 @@
 ---
-// The rocket equation, with a live figure for the mass-fraction curve.
-// Retheming only: the source draft carried its own palette and type stack,
-// and this drops both in favour of the site's tokens so the piece reads as
-// part of the site rather than a transplant. The maths is untouched.
-//
-// The title, standfirst, date and topics come from the route's masthead
-// (see src/data/writing.ts), so this file starts at the opening paragraph.
+// Title, standfirst, date and topics are rendered by the route's masthead.
 ---
 
 <p class="tsi-lede">Every other vehicle humans have built cheats. A car pushes on the road, a boat pushes on water, a plane pushes on air. Each of them borrows momentum from something that was already there, which is why a car can carry its own weight in passengers and still have room for luggage.</p>
@@ -241,9 +235,8 @@
 <p class="tsi-figures">Reference figures: standard gravity <em>g</em><sub>0</sub> = 9.80665 m/s<sup>2</sup>. Low Earth orbit velocity 7.8 km/s; surface-to-LEO budget approximately 9.4 km/s. Earth surface escape velocity 11.186 km/s; Moon 2.38 km/s; Mars 5.03 km/s. Specific impulse ranges are representative vacuum values and vary by engine.</p>
 
 <style>
-  /* Equations. Centred, italic, on a card ground -- the `plain` variant drops
-     the ground for the run of algebra in the derivation, where a stack of
-     boxes would read as five separate results rather than one worked line. */
+  /* .plain drops the ground for the run of algebra in the derivation, where a
+     stack of boxes would read as separate results rather than one worked line. */
   .tsi-eq {
     margin: 30px 0; padding: 20px 16px;
     background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px;
@@ -256,8 +249,6 @@
     display: block; font-family: var(--font-mono); font-style: normal; font-size: 10px;
     letter-spacing: 0.12em; text-transform: uppercase; color: var(--card-desc); margin-top: 14px;
   }
-  /* Stacked fraction: a rule between two centred rows, nudged down so the
-     bar sits on the text baseline of the surrounding line. */
   .tsi-frac { display: inline-block; vertical-align: -0.55em; text-align: center; margin: 0 3px; }
   .tsi-frac > span { display: block; padding: 0 6px; }
   .tsi-frac .num { border-bottom: 1.4px solid currentColor; padding-bottom: 2px; }
@@ -279,7 +270,6 @@
     text-transform: uppercase; color: var(--card-label); margin-bottom: 8px;
   }
 
-  /* Tables scroll inside their own box so the page never does. */
   .tsi-scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 26px 0; }
   .tsi-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; }
   .tsi-table caption {
@@ -358,8 +348,7 @@
 </style>
 
 <script>
-  // Escape velocities at the surface, m/s. Sorted ascending so the readout can
-  // report the largest body this delta-v clears and the next one out of reach.
+  // Surface escape velocities, m/s, ascending.
   var BODIES = [
     { n: "Deimos", v: 6 }, { n: "Phobos", v: 11 }, { n: "Enceladus", v: 239 },
     { n: "Vesta", v: 363 }, { n: "Ceres", v: 510 }, { n: "Charon", v: 590 },
@@ -379,8 +368,6 @@
     var Y_MAX = 20000;
     var PAD = { l: 52, r: 10, t: 12, b: 34 };
 
-    // Read the live token values rather than hard-coding colours, so the
-    // chart follows the site's light/dark toggle like everything else.
     function token(name, fallback) {
       var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
       return v || fallback;
@@ -477,8 +464,7 @@
     pf.addEventListener("input", update);
     ve.addEventListener("input", update);
     window.addEventListener("resize", update);
-    // The canvas paints token colours, so it has to be redrawn when the
-    // theme changes -- both the OS preference and this site's own toggle.
+    // Canvas paints token colours, so it must repaint on a theme change.
     if (window.matchMedia) {
       var mq = window.matchMedia("(prefers-color-scheme: dark)");
       if (mq.addEventListener) mq.addEventListener("change", update);

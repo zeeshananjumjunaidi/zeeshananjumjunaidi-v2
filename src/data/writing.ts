@@ -1,12 +1,5 @@
-// Articles that need to run code -- interactive figures, canvas, controls --
-// live as .astro components rather than markdown, and are registered here.
-//
-// Prose-only pieces still go in src/content/writing/ as markdown and need no
-// entry: the route and the home listing merge both sources. Use markdown by
-// default and only reach for a component when a piece actually needs one.
-//
-// Adding one: drop the component in src/components/writing/, add a row here,
-// and map the slug in src/pages/writing/[slug].astro.
+// Each entry needs a component in src/components/writing/ and a slug mapping
+// in src/pages/writing/[slug].astro.
 
 export interface WritingEntry {
   slug: string;
