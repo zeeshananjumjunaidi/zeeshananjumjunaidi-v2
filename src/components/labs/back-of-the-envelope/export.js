@@ -1,10 +1,5 @@
-// Turns the calculator's current, rendered state into a shareable file.
-// Deliberately scrapes the live DOM (.boe-field / .boe-toggle / .boe-hop-row
-// for inputs, .boe-out-row for outputs, .boe-flag.on for callouts) instead of
-// keeping a parallel per-tab metadata registry -- every tab, including ones
-// added later, already renders labels/values/units in a consistent shape, so
-// reading that directly means the export needs zero per-tab code. Same
-// DOM-is-truth approach already used elsewhere in this tool.
+// Scrapes the rendered DOM rather than a per-tab metadata registry, so tabs
+// added later export with no changes here.
 
 var META_KEY = "boe-export-meta";
 var DIAGRAM_KEY = "boe-diagram-v1";
@@ -286,10 +281,7 @@ function buildPrintDiagramBlock(section) {
   if (clone) {
     clone.style.transform = "translate(" + (pad - minX) + "px, " + (pad - minY) + "px)";
     clone.querySelectorAll("[contenteditable]").forEach(function (el) { el.removeAttribute("contenteditable"); });
-    // Strip ids from the clone -- it's a static snapshot with no scripting,
-    // and leaving them in would duplicate the live diagram's element ids
-    // (marker refs like url(#dgArrow) still resolve fine against the
-    // original, which keeps its own id).
+    // Strip ids so the static clone doesn't duplicate the live diagram's.
     clone.removeAttribute("id");
     clone.querySelectorAll("[id]").forEach(function (el) { el.removeAttribute("id"); });
   }
@@ -374,10 +366,8 @@ export function initExport() {
   var selectAllEl = document.getElementById("exportSelectAll");
   var closeBtn = document.getElementById("exportClose");
   var printRoot = document.getElementById("boeExportPrint");
-  // The print stylesheet hides everything under `body > *` except this node,
-  // which only works if it really is a direct child of <body> -- move it out
-  // of wherever the Astro component tree placed it (nested inside the page's
-  // layout/main), independent of that layout's structure.
+  // The print stylesheet targets `body > *`, so this has to be a direct
+  // child of <body>, not wherever the component tree placed it.
   if (printRoot && printRoot.parentElement !== document.body) {
     document.body.appendChild(printRoot);
   }

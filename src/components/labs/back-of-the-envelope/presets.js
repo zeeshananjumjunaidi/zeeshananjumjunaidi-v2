@@ -1,14 +1,6 @@
-// Save slots.
-//
-// Snapshots are taken from the DOM rather than from a parallel copy of each
-// tab's state, the same discipline export.js already uses: every calculator
-// input carries an id, so one scan captures all ten tabs and any tab added
-// later works with no changes here. The two exceptions are the Latency hop
-// list (a JS array, not fields -- the module hands it over) and the Diagram
-// (owns its own storage; it exchanges data over a `boe:load-diagram` event).
-//
-// Worked example scenarios were added here and then removed by request --
-// this tool ships no preset content, only the user's own saved states.
+// Snapshots scrape the DOM, so a tab added later needs no changes here. The
+// exceptions are the Latency hops (a JS array the module hands over) and the
+// Diagram, which owns its storage and loads via a `boe:load-diagram` event.
 
 var SLOT_KEY = "boe-slots-v1";
 var DIAGRAM_KEY = "boe-diagram-v1";

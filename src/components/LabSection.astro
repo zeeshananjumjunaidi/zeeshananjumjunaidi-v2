@@ -8,11 +8,8 @@ import { domainLabel } from '../data/domains';
 const entries = await getCollection('lab');
 const sorted = entries.map((e) => e.data).sort((a, b) => a.order - b.order);
 
-// The Lab is organized two levels deep: a top-level `domain` (Systems Design,
-// Robotics, whatever comes next), and within it the existing `featured` cards
-// plus `group`-labeled repo lists. A domain's position is the lowest `order`
-// among its own entries, so new domains slot in wherever their entries do
-// without a second ordering field to keep in sync.
+// A domain's position is the lowest `order` among its own entries, so there
+// is no separate domain-ordering field to keep in sync.
 type Entry = (typeof sorted)[number];
 const domains: { domain: string; order: number; featured: Entry[]; groups: { label: string; items: Entry[] }[] }[] = [];
 for (const entry of sorted) {

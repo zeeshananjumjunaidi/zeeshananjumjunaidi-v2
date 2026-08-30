@@ -15,4 +15,5 @@ export const certifications: Certification[] = [
   { name: 'MLOps Specialization', issuer: 'Duke University', year: '2023' },
   { name: 'Self-Driving Car Engineer Nanodegree', issuer: 'Udacity', year: '2017' },
   { name: 'Intel Edge AI for IoT Developers Nanodegree', issuer: 'Udacity', year: '2020' },
+  { name: 'BS in Software Engineering', issuer: 'The University of Karachi', year: '2014' },
 ];

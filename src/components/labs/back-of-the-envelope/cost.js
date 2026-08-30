@@ -16,12 +16,8 @@ function money(x) {
 
 var GB = 1e9;
 
-// Deliberately just unit-price x quantity-from-an-earlier-tab, same shape
-// for every line: no tiers, no flat fees, no per-provider SKUs. The point
-// is which line dominates, not a procurement-accurate bill -- see the Why
-// It Works panel. Each $/unit field is user-editable so it's grounded in
-// resources you already sized (servers, DB nodes, cache memory, storage,
-// egress) rather than the tool guessing a pricing model on your behalf.
+// Unit price x quantity from an earlier tab. No tiers or per-provider SKUs:
+// the point is which line dominates, not an accurate bill.
 export function deriveCost(s, trafficD, computeD, databaseD, cacheD, storageD, bandwidthD) {
   var d = {};
   d.cServer = computeD.serversAz * n(s.pServer) * 730;

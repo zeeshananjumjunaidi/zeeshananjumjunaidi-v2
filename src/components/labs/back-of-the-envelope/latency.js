@@ -26,10 +26,8 @@ function cloneHops() {
 var DEFAULTS = { fanout: "50", p99: "1" };
 var IDS = ["fanout", "p99"];
 
-// The hop list is its own dynamic array, not fixed DOM fields like every
-// other tab -- rows are only rebuilt on add/delete/reset. Editing a hop's own
-// inputs updates the array and re-renders outputs directly, without touching
-// hopsList's DOM, so a row never loses focus mid-keystroke.
+// Rows are rebuilt only on add/delete/reset. Editing a hop updates the array
+// and outputs without touching hopsList, so a row never loses focus mid-keystroke.
 export function initLatency(onChange) {
   var els = {};
   IDS.forEach(function (id) { els[id] = document.getElementById(id); });

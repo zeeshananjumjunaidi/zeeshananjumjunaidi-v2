@@ -67,10 +67,7 @@ export function initAvailability(trafficState, onChange) {
 
   IDS.forEach(function (id) { els[id].addEventListener("input", render); });
 
-  // The nines-reference table has no input dependency at all, so it's built
-  // once here rather than every render() -- reuses dur() instead of
-  // hand-computing six duration strings, so it can't drift from the same
-  // formatting logic used everywhere else.
+  // No input dependency, so it's built once rather than every render().
   var refBody = document.getElementById("availRefBody");
   NINES.forEach(function (x) {
     var f = 1 - x / 100;

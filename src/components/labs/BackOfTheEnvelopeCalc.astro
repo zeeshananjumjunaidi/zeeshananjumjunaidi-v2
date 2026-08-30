@@ -1,29 +1,7 @@
 ---
-// Ported from a standalone React/Tailwind prototype (back-of-the-envelope.jsx).
-// This project doesn't use React or Tailwind, so the port is a rewrite onto
-// plain Astro markup + vanilla JS + this site's own CSS tokens, following the
-// same "retheme the chrome, keep the math untouched" approach used for the
-// SLAM and Hybrid A* Parking sims. The source calculator has 13 sections
-// total (Traffic/Storage/Bandwidth/Cache/Compute/Database/Queue/Latency/
-// Availability/Cost/Toolbox/Cheat sheet/Summary); more get added a couple at
-// a time as their own tabs. The Diagram tab is a small original addition,
-// not from the source file: a vanilla-JS canvas for sketching an
-// architecture (drag boxes, connect them, label, pan/zoom), autosaved to
-// localStorage with a JSON export.
-//
-// Save slots (2026-08-29): four localStorage snapshots of every tab's numbers,
-// the latency hops and the diagram, in back-of-the-envelope/presets.js. Worked
-// preset scenarios were built alongside them and then removed by request --
-// the "no preset content" rule stands; only the user's own saves are kept.
-//
-// Split into one file per tab (2026-08-26) once this file passed 3,000
-// lines -- each calculator tab is a markup-only .astro partial in
-// back-of-the-envelope/, backed by a same-named .js module with that tab's
-// derive()/render()/reset(); the Diagram tab is self-contained (markup +
-// style + script together) since it shares no state with the calculator.
-// back-of-the-envelope/index.js wires the calculator render chain via
-// callbacks -- each module only imports *earlier* tabs' pure derive
-// functions, never a later one, so there's no circular imports.
+// Each tab is a markup partial in back-of-the-envelope/ plus a same-named .js
+// module. index.js wires the render chain; modules only import earlier tabs'
+// derive functions, never later ones, so there are no circular imports.
 import TrafficTab from "./back-of-the-envelope/TrafficTab.astro";
 import StorageTab from "./back-of-the-envelope/StorageTab.astro";
 import CacheTab from "./back-of-the-envelope/CacheTab.astro";

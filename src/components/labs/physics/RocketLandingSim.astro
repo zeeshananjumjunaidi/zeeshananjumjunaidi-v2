@@ -1,8 +1,5 @@
 ---
-// Flight-strip cells. Each is a quantity the physics already computes,
-// shown next to the expression it comes from -- the panel is meant to be
-// read alongside the Article tab, so the formula line is the point, not
-// decoration. Ported from the reference file's own readout.
+// Each cell is a quantity the physics computes, shown with its formula.
 const CELLS = [
   { id: "mass", k: "Vehicle mass", f: "m_dry + propellant" },
   { id: "twr", k: "Thrust-to-weight", f: "T / (m·g)" },
@@ -905,10 +902,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var vTiltEl = document.getElementById("vTilt");
   var vMissEl = document.getElementById("vMiss");
 
-  // Alpha + no scene.background: the sky is a CSS gradient behind the
-  // (transparent) canvas, same technique your reference file uses on its
-  // own .viewport -- simpler than building a gradient dome in WebGL, and
-  // it means the sky can be a plain CSS custom property per world.
+  // Transparent canvas over a CSS gradient sky, so the sky is a per-world
+  // custom property rather than a WebGL dome.
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
@@ -918,10 +913,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
   var camera = new THREE.PerspectiveCamera(50, 16 / 10, 0.5, 20000);
 
-  // Camera rig -- a fixed chase-style framing around the pad for now (no
-  // rocket telemetry to follow yet), with a slow auto-orbit so the empty
-  // pad doesn't feel static. Once the vehicle exists, `camTarget` becomes
-  // its position each frame and this same spherical math follows it.
+  // camTarget tracks the vehicle; each mode just supplies theta/phi/dist.
   var camTarget = new THREE.Vector3(0, 20, 0);
   // Orbit by default: it holds the vehicle at a usable size for the whole
   // descent, where chase frames the vehicle-to-pad span and so only fills
@@ -933,11 +925,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var simRate = 1;
   var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Vehicle constants, ported from the article's own numbers (dry mass,
-  // propellant, thrust, gimbal limits) -- the same values cited in the
-  // Article tab's "orders of magnitude" table. Only the dimensions used
-  // to place geometry are needed yet; g0/isp/Cd etc. wait for the physics
-  // integration.
+  // The article tab's own numbers, same values as its constants table.
   var DEG = Math.PI / 180;
   var STD_G0 = 9.80665; // standard gravity Isp is conventionally referenced to
   var VEH = {
@@ -953,13 +941,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     rcsT: 2500, rcsArm: 19, rcsIsp: 70, n2_0: 45
   };
 
-  // Physics + guidance constants. Full translation (x,y,z) and attitude
-  // (phi,psi), RK4 with zero-order-hold control (Article 10), ZEM/ZEV
-  // terminal guidance for all three axes at once (Article 08) driving a
-  // PD attitude loop (Article 06) that commands both actuators (Article
-  // §05: same signal, scaled and clipped to each one's own limits) --
-  // gimbal and grid fins, so the vehicle has attitude authority during
-  // the unpowered coast too, not just once the engine lights.
+  // RK4 with zero-order-hold control, ZEM/ZEV terminal guidance driving a PD
+  // attitude loop. See the Article tab for the derivations.
   var PHYS = {
     isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
     vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02,
@@ -976,10 +959,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     finGain: 1.4
   };
 
-  // Article §04's own closing point, made selectable: gravity and the
-  // atmosphere (so drag, and everything fin-related that isn't modelled
-  // here) change per world. g/rho0/H replace PHYS.g0/rho0/H, looked up
-  // through the currently selected world on every physics step.
+  // Gravity and atmosphere are looked up per world on every physics step.
   var WORLDS = {
     earth: { name: "Earth", g: 9.807, rho0: 1.225, H: 8500, ground: 0x8d8878, sky: ["#b9c6cf", "#e7e2d6"], fog: 0xc9d3d6 },
     mars: { name: "Mars", g: 3.721, rho0: 0.020, H: 11100, ground: 0xa1603c, sky: ["#c8a98c", "#e6d9c6"], fog: 0xd9c4ab },
@@ -993,10 +973,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (canvas) canvas.style.background = "linear-gradient(" + w.sky[0] + ", " + w.sky[1] + ")";
   }
 
-  // Entry states, same idea as your reference file's scenario picker.
-  // "upset" is this port's own addition (not in the source data): a small
-  // initial tilt/rotation, testing whether the attitude loop settles
-  // before the guidance law needs real authority.
+  // "upset" starts tilted and rotating, to test whether the attitude loop
+  // settles before guidance needs real authority.
   var LIMITS = { vy: PHYS.vTouch, vh: 5, tilt: 10 * DEG, miss: 25 };
 
   var SCENARIOS = {
@@ -1033,11 +1011,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
   var rocket, placeholder, nozzleGroup, nozzleBell, glowSprite, plumeLight, groundMesh, legParts = [];
   var modelMixer, modelActions = [];
-  // Leg-feet clearance at rest (see buildRocket()) -- the offset between
-  // the rocket group's origin (the CoM) and "touching the pad".
-  // Deployed legs splay outward (real landing gear, not four cylinders
-  // hanging straight down under the body -- which was the actual bug:
-  // undeployed, they all pointed the same direction and looked like one).
+  // Offset between the rocket group's origin and the pad. Overwritten from
+  // the model's own bounds once it loads.
   var LEG_SPLAY = 30 * DEG;
   var LEG_FOLD = -90 * DEG;
   var restY = VEH.arm - 2.2 + 11 * Math.cos(LEG_SPLAY);
@@ -1091,11 +1066,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     applyWorldLook();
   }
 
-  // Placeholder rocket -- primitives standing in for a real model, same
-  // approach as the SLAM and Hybrid A* sims on this site. Body, soot band,
-  // interstage, fins and legs are static (no gimbal/leg-deploy animation
-  // yet); the nozzle is its own group so a future gimbal rotation only
-  // moves the engine, not the airframe.
+  // Primitive stand-in, hidden once the GLB loads. The nozzle is its own
+  // group so gimbal rotation moves the engine, not the airframe.
   function buildRocket() {
     rocket = new THREE.Group();
     scene.add(rocket);
@@ -1134,14 +1106,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     placeholder.add(bay);
 
     for (var j = 0; j < 4; j++) {
-      // Two levels, not one: a leg/foot sitting at local (0,y,0) is
-      // exactly ON the Y axis, so rotating a single pivot around Y to
-      // place it azimuthally is a no-op -- a point on a rotation axis
-      // never moves. All four legs ended up mathematically coincident
-      // this way (confirmed by reading their world positions back: all
-      // four identical). The mount carries the azimuth, with a real
-      // radial offset for that rotation to act on; the hinge (its
-      // child) carries the fold/splay independently.
+      // Two levels: a leg at local (0,y,0) sits on the Y axis, so rotating one
+      // pivot around Y is a no-op and all four legs land on top of each other.
+      // The mount carries the azimuth, the hinge the fold.
       var mount = new THREE.Group();
       mount.position.set(0, -VEH.arm + 2.2, 0);
       mount.rotation.y = (j * Math.PI) / 2 + Math.PI / 4;
@@ -1173,11 +1140,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     nozzleBell.position.y = -1.6;
     nozzleGroup.add(nozzleBell);
 
-    // No flame cone. The exhaust is the particle plume lit by two things,
-    // both straight from the reference file: an additive glow sprite that
-    // sits in the throat, and a real point light (added to the SCENE, not
-    // the nozzle, and moved to the nozzle's world position each frame) so
-    // the plume actually throws light onto the ground and the airframe.
+    // No flame cone: the exhaust is the particle plume, an additive glow
+    // sprite in the throat, and plumeLight (added to the scene, not the
+    // nozzle, so it lights the ground).
     glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({
       color: 0xffc37a, transparent: true, opacity: 0,
       blending: THREE.AdditiveBlending, depthWrite: false
@@ -1193,10 +1158,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     rocket.position.set(state.x, restY + state.y, state.z);
   }
 
-  // Swaps the primitive placeholder for the real model once it's loaded,
-  // same hook pattern as the reference file's own ROCKET_MODEL: load,
-  // scale/offset onto the same CoM-relative origin, hide the primitives.
-  // The flame/glow/nozzle group stay independent of the model either way.
+  // Scales and offsets the model onto the CoM-relative origin, then hides
+  // the primitives. Failure leaves the placeholder visible.
   function loadRocketModel() {
     new GLTFLoader().load(
       "/lab/3dModels/rocket_model_v2.glb",
@@ -1218,11 +1181,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
         model.position.y -= box.min.y;
         model.position.y -= VEH.arm;
 
-        // GridFinAction + LandingPadAnim(.001): 121 keyframes, 0-5s (120
-        // frames at 24fps). Frame 0 is closed, frame 120 is deployed --
-        // scrubbed by the same altitude-driven deploy fraction the
-        // placeholder's procedural fold/splay used, not played back as a
-        // timed loop.
+        // Scrubbed by altitude rather than played as a timed loop.
         if (gltf.animations && gltf.animations.length) {
           modelMixer = new THREE.AnimationMixer(model);
           modelActions = gltf.animations.map(function (clip) {
@@ -1234,13 +1193,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
           });
         }
 
-        // Ground it on ITS OWN feet, not the placeholder's. restY is the
-        // gap between the rocket group's origin and the pad, and the
-        // placeholder's value was computed from its procedural legs --
-        // leaving the model hovering by however much the two differ.
-        // Measured with the gear fully deployed (the touchdown pose) and
-        // before the model joins `rocket`, so the box is already in the
-        // local frame restY is expressed in.
+        // Measured with the gear deployed and before the model joins `rocket`,
+        // so the box is already in the frame restY is expressed in.
         scrubDeploy(1);
         model.updateMatrixWorld(true);
         var footBox = new THREE.Box3().setFromObject(model);
@@ -1260,11 +1214,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     );
   }
 
-  // ---- particles -------------------------------------------------
-  // Ported from the reference file's own pool/shader system rather than
-  // re-invented. Two procedural sprites generated once on a canvas (no
-  // assets): a clean radial falloff for fire, a blotchy one for smoke
-  // and dust.
+  // Two procedural sprites, generated once on a canvas: a radial falloff
+  // for fire, a blotchy one for smoke and dust.
   function spriteTexture(blotchy) {
     var S = 128, c = document.createElement("canvas");
     c.width = c.height = S;
@@ -1302,10 +1253,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     return t;
   }
 
-  // One pool = one THREE.Points with per-particle size, alpha, rotation
-  // and a two-colour ramp, all driven from the CPU. PointsMaterial can
-  // do none of that, which is why a plain-sprite version pops and
-  // strobes instead of breathing.
+  // One pool = one THREE.Points with per-particle size, alpha, rotation and
+  // a colour ramp. PointsMaterial supports none of that.
   var POOLS = [];
   var fire, smoke, dust, debris, airFlow, rcsGas, prevNz = null, flashLight;
   var EM = { fire: 0, smoke: 0, dust: 0 };
@@ -1692,12 +1641,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // math, just different sources for those three numbers per mode.
   function updateCamera(dt) {
     var alt = Math.max(state.y, 0);
-    // Aim at where the vehicle is DRAWN, not at the raw physics datum.
-    // state.y is the altitude the guidance law works in; the group is
-    // rendered restY above that, and restY comes from the model's own
-    // geometry -- so targeting state.y directly pointed the camera at a
-    // spot roughly a third of a body-length below the actual rocket,
-    // which reads as the camera being stuck near the origin.
+    // Aim where the vehicle is drawn (restY + state.y), not at the raw
+    // physics datum, which sits a third of a body-length lower.
     var bodyY = restY + state.y;
     var look = new THREE.Vector3(state.x, bodyY, state.z);
     var dist, theta, phi;
@@ -1722,11 +1667,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       if (!reducedMotion) camRig.spin += dt * 0.05;
       theta = camRig.spin * 0.4 - 0.6;
       phi = 0.32;
-      // Look at the midpoint between the vehicle and the pad, with
-      // distance scaled so that whole span actually fits the ~50 deg
-      // vertical FOV (dist * ~0.93 must exceed alt, or one end falls
-      // outside the frustum -- the first attempt at this missed that
-      // and put the pad in frame with the vehicle above it, out of view).
+      // Midpoint of vehicle and pad. dist * ~0.93 must exceed alt or one end
+      // falls outside the frustum.
       dist = clamp(150 + alt * 1.15, 150, 3200);
       look.y = bodyY / 2;
     }
@@ -1755,10 +1697,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     return pct <= 0 ? 0 : Math.max(pct / 100, VEH.minThr);
   }
 
-  // Article §05: one PD-style signal per axis, scaled and clipped to
-  // each actuator's own limits and rate -- shared by the autopilot and
-  // manual attitude hold so both actuators respond the same way no
-  // matter who is asking for the torque.
+  // One PD signal per axis, clipped to each actuator's own limits and rate.
+  // Shared by the autopilot and manual attitude hold.
   var RCS_DEADBAND = 0.035;
   function allocate(uPhi, uPsi, engineOff) {
     var maxGimbalStep = VEH.gimbalRate * PHYS.step;
@@ -1781,16 +1721,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     return { defPhi: defPhi, defPsi: defPsi, finPhi: finPhi, finPsi: finPsi, rcsPhi: rcsPhi, rcsPsi: rcsPsi };
   }
 
-  // Manual mode, full authority: throttle and both tilt axes are
-  // keyboard-driven (W/S throttle, A/D steer X, Q/E steer Z), matching
-  // what the reference file's own manual mode offers -- earlier this
-  // was vertical-only with no lateral or gimbal authority at all.
-  //
-  // "Attitude hold" is always on here (the reference makes it an
-  // optional assist you can switch off for raw open-loop gimbal
-  // instead): keys move a held target angle and the same PD loop the
-  // autopilot uses (Article §06) tracks it, through the same allocator
-  // (Article §05) that also drives the fins.
+  // Keys move a held target angle; the same PD loop the autopilot uses
+  // tracks it. Attitude hold is always on, there is no raw open-loop mode.
   var manualKeys = {};
   var manualPhiCmd = 0, manualPsiCmd = 0;
   var MANUAL_TILT_RATE = 24 * DEG;
@@ -1822,14 +1754,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       finPhi: alloc.finPhi, finPsi: alloc.finPsi, rcsPhi: alloc.rcsPhi, rcsPsi: alloc.rcsPsi };
   }
 
-  // Ported from the reference file's own guidance stack (deriv/rk4 +
-  // §1-2 of its guidance section), not just re-derived from the article.
-  // Kept this codebase's own state shape (named fields) and VEH/PHYS/
-  // WORLDS objects, but the algorithm -- refProfile, tiltLimit,
-  // lateralCap, divertClock, lateralGuide, the two guidance laws, and
-  // the autopilot's throttle-cut hysteresis + gimbal rate limiting -- is
-  // a faithful port, not a rewrite. It performs noticeably better than
-  // this file's own earlier hand-derived version.
+  // One combined reference: how hard to brake (aDec/kapReq) and how long the
+  // crossrange divert has (tLat), from the same base numbers.
 
   // One combined reference: how hard to brake (aDec/kapReq), and how
   // long the crossrange divert has (tLat), from the same base numbers.
@@ -1854,20 +1780,14 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // max, or there'd be no steering left at all in the last few metres.
   function tiltLimit(alt) { return VEH.maxTilt * clamp(alt / 40, 0.45, 1); }
 
-  // Lateral acceleration the tilt limit actually allows, given how much
-  // of it the vertical channel is already using. The floor term matters
-  // on low-gravity worlds: a lit engine is producing at least minThr
-  // regardless of what the vertical channel asked for, and that thrust
-  // is available for steering whether or not vertical wanted it.
+  // The floor matters on low-gravity worlds: a lit engine produces at least
+  // minThr regardless, and that thrust is available for steering.
   function lateralCap(ay, aMax, tiltCap) {
     return Math.max(ay * Math.tan(tiltCap), VEH.minThr * aMax * Math.sin(tiltCap));
   }
 
-  // Crossrange divert clock (Article §09): the vehicle must have killed
-  // its drift by PHYS.hDiv, not by touchdown -- below that altitude the
-  // tilt limit is already folding and there's no authority left to fix
-  // a late miss. PHYS.tLatFloor keeps the command inside the tilt
-  // budget so the divert converges instead of saturating and ringing.
+  // Drift must be dead by PHYS.hDiv, not by touchdown: below it the tilt
+  // limit is folding. tLatFloor keeps the command inside the tilt budget.
   function divertClock(alt, aDec) {
     if (alt <= PHYS.hDiv) return Math.max(PHYS.tLatFloor, (2 * alt) / (Math.abs(state.vy) + PHYS.vTarget + 1e-3));
     var vAtDiv = Math.sqrt(PHYS.vTarget * PHYS.vTarget + 2 * Math.max(0.5, aDec) * PHYS.hDiv);
@@ -1928,10 +1848,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       state.z + state.vz * zt
     );
 
-    // Ignite early for a divert only if the resulting profile is still
-    // flyable (kapReq>=kMin) -- on a low-gravity world the throttle
-    // floor makes a shallow descent impossible, and lighting early there
-    // just costs control authority for nothing.
+    // Ignite early for a divert only if the profile is still flyable: on a
+    // low-gravity world the throttle floor makes a shallow descent impossible.
     if (!state.ignited && state.vy < 0 &&
       (pr.kapReq >= 0.98 || (pr.tgo <= 2.2 * pr.tLat && pr.kapReq >= pr.kMin))) {
       state.ignited = true;
@@ -1964,10 +1882,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       if (alt < 18 && state.vy > -0.6) thrustFrac = 0; // don't float
     }
 
-    // Fold the commanded tilt toward vertical over the last 28 m --
-    // separate from tiltLimit() above, which caps the PD target; this
-    // scales the commanded lateral accel directly so the vehicle visibly
-    // straightens on approach rather than arriving leaned over.
+    // Scales the commanded lateral accel directly, unlike tiltLimit() which
+    // caps the PD target.
     if (state.ignited && alt < 28) {
       var b = clamp(alt / 28, 0.3, 1);
       ax *= b; az *= b;
@@ -1990,10 +1906,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       finPhi: alloc.finPhi, finPsi: alloc.finPsi, rcsPhi: alloc.rcsPhi, rcsPsi: alloc.rcsPsi };
   }
 
-  // Article §01's state vector (x,y,z,vx,vy,vz,φ,ψ,ωφ,ωψ), Article §02's
-  // force balance, Article §03's gimbal torque. Fuel/mass is treated as
-  // constant across one RK4 step's four evaluations (zero-order hold,
-  // Article §10) and only burned once per step, after integrating.
+  // Mass is held constant across one RK4 step's four evaluations and burned
+  // once afterwards (zero-order hold).
   var RK4_FIELDS = ["x", "y", "z", "vx", "vy", "vz", "phi", "psi", "wphi", "wpsi"];
   function derivatives(s, u, mass) {
     var totalPhi = s.phi + u.defPhi, totalPsi = s.psi + u.defPsi;
@@ -2017,23 +1931,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var rho = w.rho0 * Math.exp(-alt / w.H);
     var dragK = (0.5 * rho * PHYS.Cd * PHYS.A * speed) / mass;
 
-    // Grid-fin torque, weathervane stability and aerodynamic damping
-    // (Article §04) -- all proportional to dynamic pressure q, all
-    // previously missing here, which left the vehicle with zero
-    // attitude authority during the unpowered coast.
+    // Fin torque, weathervane and damping, all proportional to q.
     var q = 0.5 * rho * speed * speed;
     var finK = q * VEH.finS * VEH.finCL * VEH.finArm;
 
-    // Moment of inertia from the mass that actually exists right now
-    // (Article §02), not the fixed constant this used to be -- it
-    // shrinks as propellant burns, so the same torque produces more
-    // angular acceleration late in the descent than early in it.
+    // From current mass, not a constant: it shrinks as propellant burns.
     var I = (mass * VEH.L * VEH.L) / 12;
 
-    // Weathervane: a passive restoring torque toward the oncoming flow
-    // direction, fletching on an arrow -- only meaningful falling into
-    // the relative wind fast enough for the small-angle asin() below to
-    // stay well conditioned.
+    // Passive restoring torque toward the flow. Gated on speed to keep the
+    // asin() below well conditioned.
     var wvPhi = 0, wvPsi = 0;
     if (speed > 2 && relVy < 0) {
       var wgt = clamp(-relVy / speed, 0, 1);
@@ -2102,11 +2008,6 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     // an accelerometer trace would be, not to the local world's gravity.
     state.peakG = Math.max(state.peakG, u.thrust / mass / STD_G0);
 
-    // Ground contact is the real y<=0, not a pragmatic stand-in for it --
-    // that was only needed to paper over the vehicle hovering indefinitely
-    // just above the pad, which the earlier-ignition fix actually solved.
-    // Snapping to y=0 from a few metres up (the old workaround) looked
-    // exactly like what it was: a teleport, not a landing.
     if (state.y <= 0) {
       state.y = 0;
       var vLat = Math.sqrt(state.vx * state.vx + state.vz * state.vz);
@@ -2174,19 +2075,9 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     }
   }
 
-  // ---- flight instruments ----------------------------------------
-  // Two dials for the two things you actually fly with. Both read the
-  // same state the physics runs on; neither is decorative.
-  //
-  // Attitude: a top-down view of the tilt plane. Distance from the
-  // centre IS the tilt angle the readout shows, so the outer edge is
-  // VEH.maxTilt and the rings are the real limits -- the dashed one is
-  // tiltLimit(), which visibly shrinks as the vehicle descends and its
-  // authority folds toward vertical (Article §09), and the green one is
-  // the tilt you have to be inside of at touchdown to stay upright.
-  // The bright cross is the COMMANDED attitude: under autopilot it's
-  // what guidance wants, in manual it's what your keys are asking for,
-  // and the dot chasing it is the PD loop actually getting there.
+  // Attitude dial: a top-down view of the tilt plane, where distance from
+  // the centre is the tilt angle. Dashed ring is tiltLimit(), green is the
+  // touchdown limit, cross is the commanded attitude, dot is actual.
   var ATT_R = 44; // viewBox units at VEH.maxTilt
   var THR_Y0 = 94, THR_H = 88; // throttle bar: y at 0%, and its full height
 
@@ -2234,10 +2125,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       thrFillEl.setAttribute("height", Math.max(0, THR_Y0 - yTop).toFixed(2));
       thrFillEl.style.opacity = state.thrustFrac > 0 ? "1" : "0";
     }
-    // Throttle that would exactly cancel weight right now. On Earth it
-    // sits *inside* the red band the engine can't run in, which is the
-    // whole "this vehicle cannot hover" constraint (Article §02) drawn
-    // rather than asserted -- and it drifts as propellant burns off.
+    // Throttle that would cancel weight. On Earth it falls inside the band
+    // the engine cannot run in, which is why the vehicle cannot hover.
     if (thrHoverEl) {
       var yh = thrY(((VEH.dry + state.fuel) * world().g) / VEH.maxT);
       thrHoverEl.setAttribute("y1", yh.toFixed(2));
@@ -2317,10 +2206,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
   else window.addEventListener("resize", resize);
 
-  // Reflects the ACTUAL last-applied thrust/gimbal (state.thrustFrac/
-  // defPhi/defPsi), not the slider -- under autopilot the slider is
-  // disabled, and the flame should show what the guidance law is really
-  // commanding, not whatever the control happens to display.
+  // Reads the last applied control, not the slider, which is disabled
+  // under autopilot.
   function updateEngineVisual() {
     var pct = state.autopilot ? Math.round(state.thrustFrac * 100) : (throttleInput ? Number(throttleInput.value) : 0);
     var t = state.thrustFrac;
@@ -2375,11 +2262,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (modelMixer) { scrubDeploy(deployed); return; }
 
     var angle = LEG_FOLD + (LEG_SPLAY - LEG_FOLD) * deployed;
-    // Rotate around the hinge's local Z (tangential axis), not X. Local X
-    // IS the radial (outward) direction once the mount's own Y-rotation
-    // is applied, so spinning around it swings the leg sideways/tangent
-    // to the body instead of outward-and-down -- that was the actual
-    // "twisting, opposite ends" bug.
+    // Local Z, not X: after the mount's Y-rotation, X is the radial
+    // direction, so rotating around it swings the leg sideways.
     for (var i = 0; i < legParts.length; i++) legParts[i].rotation.z = angle;
   }
 
@@ -2504,10 +2388,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   window.addEventListener("keydown", function (e) {
     var action = MANUAL_KEY_MAP[e.code];
     if (!action || state.autopilot) return;
-    // Guard against stealing arrow keys from the wind slider or the
-    // world/scenario selects -- but NOT from a focused button, or the
-    // autopilot toggle (the only way into manual mode) would keep focus
-    // after the click and eat every flight key typed right after it.
+    // Don't steal arrow keys from inputs and selects. Buttons are excluded:
+    // the autopilot toggle keeps focus after the click.
     var tag = document.activeElement && document.activeElement.tagName;
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
     manualKeys[action] = true;

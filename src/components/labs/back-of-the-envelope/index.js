@@ -27,10 +27,8 @@ var database = initDatabase(traffic.state, storage.state, function () { queue.re
 var queue = initQueue(traffic.state, function () {});
 var latency = initLatency(function () {});
 var availability = initAvailability(traffic.state, function () {});
-// Cost has no onChange consumer of its own -- database's onChange is the
-// last step of the traffic->...->database cascade, so by the time it fires
-// every tab Cost reads from (compute/database/cache/storage/bandwidth) has
-// already rendered at least once.
+// Cost needs no onChange: database's fires last in the cascade, by which
+// point every tab it reads from has rendered.
 var cost = initCost(traffic.state, compute.state, database.state, cache.state, storage.state, bandwidth.state, function () {});
 
 // Traffic heads the cascade, so rendering it walks every downstream tab.

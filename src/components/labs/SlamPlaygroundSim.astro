@@ -1,10 +1,6 @@
 ---
-// Ported from zeeshananjumjunaidi/src/components/sims/SlamPlaygroundSim.astro.
-// The simulation script below is copied verbatim (raycasting, ICP, Kalman-style
-// fusion, rendering) - only the <style> block was retokenized onto v2's theme
-// variables. The canvases and their legend colors are intentionally left as a
-// constant, always-dark "instrument screen" regardless of site theme; only the
-// surrounding chrome (panels, controls, concepts prose) follows dark/light.
+// The canvases and their legend colours stay dark regardless of site theme;
+// only the surrounding chrome follows the light/dark toggle.
 ---
 
 <div class="sim-root">
@@ -280,13 +276,8 @@
 
 <script>
 "use strict";
-/* ============================================================
- * SLAM playground v2 - pipeline:
- *   raycast LiDAR -> noisy odometry -> occupancy grid
- *   -> ICP scan matching, GPS + IMU compass fusion
- *      (Kalman-style: prediction grows P, measurements shrink it)
- * World units: 1 unit = 1 canvas px (world is 560x560).
- * ============================================================ */
+/* Pipeline: raycast LiDAR -> noisy odometry -> occupancy grid -> ICP scan
+* matching, GPS + IMU fusion. 1 unit = 1 canvas px, world is 560x560. */
 
 /* ---------- world definition (wall segments) ---------- */
 const W = 560;
@@ -373,10 +364,8 @@ function scan(noiseSigma){
   return out;
 }
 
-/* ---------- body-frame motion integration (forward, lateral, rotation) ----------
- * Lateral (l) is only nonzero for the holonomic drone; for wheeled vehicles
- * the non-holonomic constraint forces l = 0. Odometry noise is built inline
- * in the main loop, proportional to actual motion. */
+/* Lateral is nonzero only for the holonomic drone; the non-holonomic
+* constraint forces l = 0 for wheeled vehicles. */
 function integrate3(p, f, l, r){
   p.x += f*Math.cos(p.th) - l*Math.sin(p.th);
   p.y += f*Math.sin(p.th) + l*Math.cos(p.th);
@@ -392,11 +381,8 @@ function predictCovariance(dtrans, drot, k){
   Ppos = Math.min(2e4,  Ppos + sT*sT + dtrans*dtrans*Pth);
 }
 
-/* ---------- sensor updates: measurements shrink uncertainty ----------
- * Absolute fixes move the estimate, so the local keyframe map must move
- * WITH it - otherwise relative ICP just drags the pose back to the old
- * (drifted) chain and the sensors fight each other. Re-anchoring the
- * keyframe is a one-node version of pose-graph relaxation. */
+/* An absolute fix moves the estimate, so the keyframe map must move with
+* it or ICP drags the pose back to the drifted chain. */
 const K_CAP = 0.35;                       // limit per-fix jump (smoothness)
 function reanchorKeyframe(dx, dy, dth, px, py){
   if (!keyframe) return;

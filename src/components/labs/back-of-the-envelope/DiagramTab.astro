@@ -682,11 +682,8 @@
     zoomVal.textContent = Math.round(view.zoom * 100) + "%";
   }
 
-  // Frame everything on the canvas. A diagram that arrives whole (an import,
-  // or a preset) is usually wider than the viewport, and landing on its
-  // top-left corner reads as "half of it is missing" -- so loading fits
-  // instead of resetting to a fixed pan. Never zooms past 1: scaling a small
-  // diagram up to fill the space just makes it blurry and oversized.
+  // An imported diagram is usually wider than the viewport. Never zooms past
+  // 1: scaling a small diagram up to fill the space just blurs it.
   function fitToContent() {
     if (!nodes.length) return;
     var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -777,10 +774,7 @@
     return ids;
   }
 
-  // Topmost container (by array/paint order) whose bounds contain the given canvas-space
-  // point. Containers are kept ordered so a nested child always paints after its parent
-  // (see reorderContainerRelativeToParent), so when a point falls inside both an outer and
-  // inner container, the later match here is correctly the innermost one.
+  // Containers are kept in paint order, so the last match is the innermost.
   function containerAt(x, y, excludeIds) {
     var exclude = excludeIds == null ? null : new Set([].concat(excludeIds));
     var found = null;
@@ -805,10 +799,8 @@
     } else {
       nodes.unshift(containerNode);
     }
-    // Reordering the array alone doesn't move the actual DOM elements --
-    // without this, a re-parented container keeps painting (and capturing
-    // clicks) at its old stacking position until some unrelated render
-    // happens to refresh it.
+    // Reordering the array doesn't move the DOM, so a re-parented container
+    // would keep painting and capturing clicks at its old position.
     renderNodes();
   }
 
@@ -828,10 +820,8 @@
       var id = el.dataset.id;
       el.classList.toggle("edge-endpoint-host", !!sel && (id === sel.from || id === sel.to));
     });
-    // Endpoint and bend grips are built in renderEdges, so a class toggle
-    // alone would never add or remove them. Redraw when the edge that owns
-    // them is no longer the selected one. Self-limiting: after the redraw
-    // the two agree, so this cannot loop.
+    // Grips are built in renderEdges, so a class toggle alone can't add or
+    // remove them. Terminates: after the redraw the two agree.
     var grip = handleLayer && handleLayer.querySelector(".dg-edge-endpoint");
     var gripOwner = grip ? grip.getAttribute("data-edge") : null;
     if (gripOwner !== selectedEdgeId) renderEdges();
@@ -957,10 +947,8 @@
     };
   }
 
-  // Shared by drawing a new connection and by re-aiming an existing edge's
-  // endpoint. Landing exactly on a node is not required: the nearest node
-  // within DROP_SLACK of its box takes it, because releasing a few pixels
-  // short used to silently do nothing.
+  // Nearest node within DROP_SLACK of its box, not just a direct hit:
+  // releasing a few pixels short used to silently do nothing.
   var DROP_SLACK = 44;
   function dropTargetAt(clientX, clientY, excludeId) {
     var el = document.elementFromPoint(clientX, clientY);
@@ -1069,10 +1057,8 @@
   }
 
   function wireNodeEvents(el, node, label, handles) {
-    // Note: pointerdown handlers below deliberately never call preventDefault().
-    // Doing so suppresses the browser's derived mouse events (click, dblclick) for
-    // the whole interaction, which silently broke double-click-to-rename before.
-    // touch-action: none (in CSS) handles touch-scroll suppression instead.
+    // pointerdown handlers must not call preventDefault(): it suppresses the
+    // derived click/dblclick events and breaks double-click-to-rename.
     el.addEventListener("dblclick", function (e) {
       if (isHandle(e.target)) return;
       e.stopPropagation();
@@ -1188,10 +1174,8 @@
           var maxW = node.type === "container" ? 2000 : 480;
           var maxH = node.type === "container" ? 2000 : 320;
 
-          // Only the dragged edge snaps. Deriving the origin from the already
-          // snapped size (rather than snapping it again) keeps the opposite
-          // edge exactly where it was -- snapping both ends lets the far edge
-          // creep by up to a grid step per drag.
+          // Only the dragged edge snaps. Snapping the origin too lets the
+          // opposite edge creep by up to a grid step per drag.
           if (movesE) node.w = clamp(snap(origW + dx), 60, maxW);
           if (movesW) {
             node.w = clamp(snap(origW - dx), 60, maxW);
@@ -1314,12 +1298,9 @@
     return { x: cx + dx * s, y: cy + dy * s };
   }
 
-  // ---- connector routing -------------------------------------------------
-  // Four ways to get from one port to another. `straight` is the original
-  // behaviour and stays the default so existing diagrams are untouched.
-  // The elbow routers pick their turn axis from the ports' own normals when
-  // the edge is anchored, and from the dominant delta when it is not --
-  // otherwise a connector leaving an east port would set off northwards.
+  // Elbow routers take their turn axis from the ports' normals when anchored,
+  // from the dominant delta when not, or an edge leaving an east port would
+  // set off northwards.
   var ELBOW_R = 10;
 
   function axisOf(dir, dx, dy) {
@@ -1408,10 +1389,8 @@
   // different port of the same node. Dropping anywhere else puts it back --
   // an endpoint has to land on something.
   function addEndpointHandle(g, edge, which, at) {
-    // The visible dot is small, but a node port sits directly underneath with
-    // a 26px hit area -- so the grip needs a bigger target than the port or
-    // being a few pixels off starts a new connection instead of moving this
-    // one. This transparent circle is that target; the dot is cosmetic.
+    // A node port sits underneath with a 26px hit area, so the grip needs a
+    // bigger target or a few pixels off starts a new connection instead.
     var hit = document.createElementNS(SVGNS, "circle");
     hit.setAttribute("class", "dg-edge-endpoint-hit");
     hit.setAttribute("r", "16");
@@ -1555,10 +1534,8 @@
     });
   }
 
-  // Set while an endpoint or bend grip is being dragged. Those grips live in
-  // handleLayer, and the drag redraws edges on every move -- rebuilding the
-  // layer would delete the very element holding the pointer capture and the
-  // gesture would die after one frame.
+  // Rebuilding handleLayer mid-drag would delete the element holding the
+  // pointer capture, killing the gesture after one frame.
   var draggingEdgeHandle = false;
 
   function renderEdges() {
@@ -1815,10 +1792,8 @@
     e.dataTransfer.dropEffect = "copy";
   });
   var DROP_SIZES = { container: [320, 220], text: [110, 28], box: [140, 56] };
-  // Payload is JSON so a sidebar item can carry icon/label alongside its
-  // kind, not just the plain "box"/"container"/"text" strings the toolbar
-  // chips set -- falls back to treating a non-JSON payload as a bare kind,
-  // so nothing about the existing chips below needs to change.
+  // JSON payload carries icon/label; a non-JSON payload is treated as a
+  // bare kind, so the toolbar chips still work unchanged.
   wrap.addEventListener("drop", function (e) {
     e.preventDefault();
     var raw = e.dataTransfer.getData("text/plain");
@@ -1874,12 +1849,8 @@
     addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label });
   }
 
-  // Sidebar replaces the old "+ Component" dropdown -- same COMPONENT_GROUPS
-  // data (also still used by the right-click "Icon" picker below), built
-  // once since the list itself never changes at runtime. Each group's
-  // heading is its own collapse toggle (independent of search, below); each
-  // item carries its label in a data attribute so the search filter doesn't
-  // need to re-derive it from textContent.
+  // Built once; the list never changes at runtime. Items carry their label
+  // in a data attribute so search doesn't re-derive it from textContent.
   var SIDEBAR_KEY = "boe-diagram-sidebar";
   COMPONENT_GROUPS.forEach(function (group) {
     var groupEl = document.createElement("div");
@@ -2050,10 +2021,8 @@
 
       nodes = importedNodes;
       edges = importedEdges;
-      // A hand-edited or older export might not list a nested container's
-      // parent before it -- re-settle paint order so a child always renders
-      // after its parent regardless of file order. One pass per container is
-      // always enough to converge, however deep the nesting goes.
+      // An export may not list a nested container's parent first, so
+      // re-settle paint order. One pass per container always converges.
       var importedContainers = importedNodes.filter(function (n) { return n.type === "container"; });
       importedContainers.forEach(function () {
         importedContainers.forEach(function (cn) {

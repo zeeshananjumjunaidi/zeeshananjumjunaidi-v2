@@ -1,10 +1,8 @@
 import { n, numPreview, bytes, bitrate, int, toggle } from "./format.js";
 import { deriveTraffic } from "./traffic.js";
 
-// Bandwidth links off Traffic's peak RPS directly (not Cache's miss rate) --
-// every read response leaves your origin's network whether it was served
-// from cache or from the database, CDN offload is the only thing here that
-// removes traffic from your origin entirely.
+// Links off Traffic's peak RPS, not Cache's miss rate: a response leaves the
+// origin network either way. Only CDN offload actually removes traffic.
 export function deriveBandwidth(s, trafficD) {
   var d = {};
   d.peakReadRps = s.bwLink ? trafficD.peakReadRps : n(s.bwReads);
