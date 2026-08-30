@@ -67,7 +67,14 @@ const CONCEPTS = [
       <div class="panel">
         <div class="rl-panelhead">
           <h2>Descent camera</h2>
-          <button type="button" class="rl-cbtn rl-fullbtn" id="rlFull">Maximize</button>
+          <button type="button" class="rl-cbtn rl-fullbtn" id="rlFull" title="Maximize" aria-label="Maximize">
+            <svg class="rl-fullicon" id="rlFullEnter" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5" />
+            </svg>
+            <svg class="rl-fullicon" id="rlFullExit" viewBox="0 0 20 20" aria-hidden="true" hidden>
+              <path d="M7.5 3v4.5H3M17 7.5h-4.5V3M12.5 17v-4.5H17M3 12.5h4.5V17" />
+            </svg>
+          </button>
         </div>
         <div class="rl-viewport">
           <canvas id="scene"></canvas>
@@ -954,6 +961,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var PHYS = {
     isp: 282, Cd: 0.82, A: Math.PI * VEH.R * VEH.R,
     vTouch: 6, vTarget: 2, tGoFloor: 1, Kp: 2.4, Kd: 5.2, step: 0.02,
+    // Throttle slew, fraction per second: a ~0.2 s spool from idle to full.
+    spoolRate: 5,
     // Crossrange divert clock (Article §09): kill lateral drift by this
     // altitude, then just descend; the 11 s floor is the article's own
     // number, same vehicle as the reference file.
@@ -1001,6 +1010,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       vx: sc.vx, vy: sc.vy, vz: sc.vz,
       phi: sc.phi || 0, psi: sc.psi || 0, wphi: sc.wphi || 0, wpsi: sc.wpsi || 0,
       fuel: sc.fuel,
+      fuel0: sc.fuel, // scenarios start with different loads; the gauge is relative to this one
+      thrFrac: 0,
       phase: "falling", // falling | landed | crashed
       ignited: false,
       autopilot: true,
@@ -1804,6 +1815,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
   // ZEM/ZEV on the horizontal plane alone, capped to what lateralCap
   // says the tilt limit can actually deliver.
+  //
+  // This is a terminal-descent law, and it assumes the vehicle can translate
+  // during the braking burn. That holds where minimum throttle is close to
+  // local weight. It does not hold on Mars or the Moon, where the floor is
+  // several times local gravity: the vehicle cannot loiter, so the burn has
+  // to be short, so there is no time to translate, and cutting the engine to
+  // buy time removes the only actuator that can. A few hundred metres of
+  // crossrange there needs a lofted burn/coast/burn plan this law does not
+  // produce, which is why the off-target case lands short on both.
   function lateralGuide(tLat, cap) {
     var t2 = tLat * tLat;
     var ax = (-6 * (state.x + state.vx * tLat)) / t2 + (2 * state.vx) / tLat;
@@ -1837,7 +1857,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // Full autopilot: trigger, guidance law, throttle + attitude command,
   // rate-limited gimbal. state.cut is the controller's own memory for
   // the throttle hysteresis below.
-  function guidance() {
+  function guidance(dt) {
     var mass = VEH.dry + state.fuel;
     var aMax = VEH.maxT / mass;
     var g = world().g;
@@ -1858,9 +1878,24 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
     // Ignite early for a divert only if the profile is still flyable: on a
     // low-gravity world the throttle floor makes a shallow descent impossible.
-    if (!state.ignited && state.vy < 0 &&
-      (pr.kapReq >= 0.98 || (pr.tgo <= 2.2 * pr.tLat && pr.kapReq >= pr.kMin))) {
-      state.ignited = true;
+    //
+    // Without air that guard leaves a tumbling vehicle with nothing to fly on.
+    // There is no weathervane and no fin authority, and RCS on its own needs
+    // longer than the whole descent to null a real body rate, so the gimbal
+    // has to be available: light the engine rather than coast into the ground
+    // sideways. A large crossrange divert is a different problem and this law
+    // does not solve it -- see the note above lateralGuide().
+    if (!state.ignited && state.vy < 0) {
+      var inertia = (mass * VEH.L * VEH.L) / 12;
+      var rcsAlpha = (VEH.rcsT * VEH.rcsArm) / inertia;
+      var bodyRate = Math.hypot(state.wphi, state.wpsi);
+      var tiltNow = Math.acos(clamp(Math.cos(state.phi) * Math.cos(state.psi), -1, 1));
+      var attitudeLost = bodyRate / Math.max(rcsAlpha, 1e-9) > 0.5 * pr.tgo || tiltNow > VEH.maxTilt;
+      if (pr.kapReq >= 0.98
+        || (pr.tgo <= 2.2 * pr.tLat && pr.kapReq >= pr.kMin)
+        || (airFrac() < 0.25 && attitudeLost)) {
+        state.ignited = true;
+      }
     }
 
     var ax, ay, az, thrustFrac;
@@ -1896,6 +1931,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       var b = clamp(alt / 28, 0.3, 1);
       ax *= b; az *= b;
     }
+
+    // An engine does not step from zero to commanded thrust inside one frame.
+    // The spool also removes the lurch a tilted vehicle showed at ignition,
+    // where a full-thrust vector appeared sideways in a single step.
+    var spool = PHYS.spoolRate * Math.max(dt || 0, 1e-4);
+    state.thrFrac = thrustFrac > state.thrFrac
+      ? Math.min(thrustFrac, state.thrFrac + spool)
+      : Math.max(thrustFrac, state.thrFrac - spool);
+    thrustFrac = state.thrFrac;
 
     state.gAcmd = Math.hypot(ax, ay, az);
 
@@ -1995,7 +2039,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (state.phase !== "falling") return;
     state.tPlus += dt;
     var mass = VEH.dry + state.fuel;
-    var u = state.autopilot ? guidance() : manualControl(dt);
+    var u = state.autopilot ? guidance(dt) : manualControl(dt);
 
     rk4Step(state, u, dt, mass);
     // Isp is defined against standard Earth gravity by convention, not the
@@ -2062,7 +2106,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   function updateHud() {
     if (altEl) altEl.textContent = Math.round(state.y);
     if (vspeedEl) vspeedEl.textContent = state.vy.toFixed(1);
-    if (fuelEl) fuelEl.textContent = Math.round((state.fuel / VEH.fuel0) * 100) + "%";
+    if (fuelEl) fuelEl.textContent = Math.round((state.fuel / (state.fuel0 || VEH.fuel0)) * 100) + "%";
     if (lateralEl) lateralEl.textContent = Math.round(Math.sqrt(state.x * state.x + state.z * state.z));
     if (tiltHudEl) tiltHudEl.textContent = (Math.sqrt(state.phi * state.phi + state.psi * state.psi) / DEG).toFixed(1) + "°";
     if (gimbalHudEl) gimbalHudEl.textContent = (state.defPhi / DEG).toFixed(1) + "° / " + (state.defPsi / DEG).toFixed(1) + "°";
@@ -2215,9 +2259,20 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     return document.fullscreenElement === stage || document.webkitFullscreenElement === stage;
   }
 
+  var fullEnterIcon = document.getElementById("rlFullEnter");
+  var fullExitIcon = document.getElementById("rlFullExit");
+
   function syncFullscreen() {
     var fs = isFullscreen();
-    if (fullBtn) fullBtn.textContent = fs ? "Minimize" : "Maximize";
+    if (fullBtn) {
+      var label = fs ? "Minimize" : "Maximize";
+      fullBtn.title = label;
+      fullBtn.setAttribute("aria-label", label);
+    }
+    // SVG elements do not reflect the hidden IDL attribute, so `.hidden = x`
+    // would set an inert JS property instead of the attribute.
+    if (fullEnterIcon) fullEnterIcon.toggleAttribute("hidden", fs);
+    if (fullExitIcon) fullExitIcon.toggleAttribute("hidden", !fs);
     if (!fs) stage.classList.remove("stats-open");
     if (statsBtn) statsBtn.setAttribute("aria-expanded", String(stage.classList.contains("stats-open")));
     resize();
@@ -2529,7 +2584,16 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
      phase chip, a slide-up verdict), restyled onto this site's own
      tokens rather than the reference's separate color system. */
   .rl-panelhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-  .rl-cbtn.rl-fullbtn { display: inline-block; width: auto; flex: 0 0 auto; padding: 5px 12px; font-size: 10px; }
+  .rl-cbtn.rl-fullbtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: auto; flex: 0 0 auto; padding: 6px;
+  }
+  .rl-fullicon {
+    width: 15px; height: 15px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .rl-fullicon[hidden] { display: none; }
 
   .rl-viewport { position: relative; border-radius: 6px; overflow: hidden; }
 
