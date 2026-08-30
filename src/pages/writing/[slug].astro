@@ -4,9 +4,11 @@ import Nav from '../../components/Nav.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import { interactiveWriting } from '../../data/writing';
 import TsiolkovskyEquation from '../../components/writing/TsiolkovskyEquation.astro';
+import OutboxPattern from '../../components/writing/OutboxPattern.astro';
 
 const ARTICLE_COMPONENTS: Record<string, any> = {
   'tsiolkovsky-rocket-equation': TsiolkovskyEquation,
+  'transactional-outbox': OutboxPattern,
 };
 
 export function getStaticPaths() {
@@ -63,14 +65,20 @@ const articleSchema = {
 </BaseLayout>
 
 <style>
-  .writing-page { padding: 28px 4px 0; max-width: 900px; margin: 0 auto; }
+  /* --measure is px-based, not ch: the masthead and the body use different
+     fonts, and ch would put their left edges in different places. */
+  .writing-page { --measure: 34rem; padding: 28px 4px 0; max-width: 880px; margin: 0 auto; }
   .back-link {
     font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--card-desc); transition: color .4s ease; display: inline-block; margin: 24px 0 8px;
+    color: var(--card-desc); transition: color .4s ease;
+    display: block; max-width: var(--measure); margin: 24px auto 8px;
   }
   .back-link:hover, .back-link:focus-visible { color: var(--card-label); }
 
-  .writing-head { margin: 18px 0 30px; padding-bottom: 24px; border-bottom: 1px solid var(--card-border); }
+  .writing-head {
+    max-width: var(--measure); margin: 18px auto 30px;
+    padding-bottom: 24px; border-bottom: 1px solid var(--card-border);
+  }
   .writing-head h1 {
     font-family: var(--font-head); font-weight: 400; font-size: 38px; line-height: 1.15;
     color: var(--headline-color); margin: 0 0 14px; text-wrap: balance; max-width: 20ch;

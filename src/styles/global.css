@@ -704,7 +704,17 @@ img { max-width: 100%; display: block; }
 
 /* .writing-block alone only styles paragraphs; articles also need headings,
    lists, code and quotes. Scoped so existing uses are untouched. */
-.writing-prose { display: block; max-width: 68ch; }
+/* Text sits in a centred reading column; code, tables and figures span the
+   full container so they are not squeezed into the measure. */
+.writing-prose {
+  display: grid; gap: 0; max-width: none;
+  grid-template-columns: 1fr min(var(--measure, 34rem), 100%) 1fr;
+}
+.writing-prose > * { grid-column: 2; min-width: 0; }
+.writing-prose > pre,
+.writing-prose > figure,
+.writing-prose > table,
+.writing-prose > .prose-wide { grid-column: 1 / -1; }
 /* Doubled class: `.writing-block p` is (0,1,1) and `* + *` only (0,1,0),
    so the single-class version loses and paragraphs sit flush. */
 .writing-block.writing-prose > * + * { margin-top: 18px; }

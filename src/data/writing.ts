@@ -12,6 +12,14 @@ export interface WritingEntry {
 
 export const interactiveWriting: WritingEntry[] = [
   {
+    slug: 'transactional-outbox',
+    title: 'The transactional outbox',
+    description:
+      'Writing to your database and publishing an event cannot both succeed. What the outbox really buys you, and the ordering bug most implementations ship with.',
+    topics: ['Distributed Systems', 'Architecture', 'Data & Storage'],
+    publishDate: new Date('2026-08-30'),
+  },
+  {
     slug: 'tsiolkovsky-rocket-equation',
     title: 'The Tsiolkovsky rocket equation',
     description:

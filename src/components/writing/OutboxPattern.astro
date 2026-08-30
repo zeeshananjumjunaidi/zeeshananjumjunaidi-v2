@@ -1,0 +1,376 @@
+---
+// Title, standfirst, date and topics are rendered by the route's masthead.
+---
+
+<p class="ob-lede">A service takes an order. It writes a row to its database, then publishes an <code>order.created</code> event so that billing, inventory and notifications can each do their part. Two writes, two systems, and nothing that makes them one.</p>
+
+<p>Most of the time both succeed. The interesting case is the gap between them, where the commit lands and the process is killed before the publish. At a million orders a day, a window that catches one write in ten thousand is a hundred orders a day that were paid for and never shipped.</p>
+
+<h2>The dual write</h2>
+
+<pre><code>BEGIN;
+  INSERT INTO orders (id, customer_id, total) VALUES ($1, $2, $3);
+COMMIT;
+
+publish("order.created", payload);   -- a second commit, to a second system</code></pre>
+
+<p>Both orderings are broken. Commit first, and a crash before the publish leaves an order that exists in your database and nowhere else. Publish first, and a rollback leaves billing charging for an order that never existed.</p>
+
+<p>A retry does not help, because the failure that matters is the process not living long enough to run it. Nor does pushing the retry onto a durable queue, since writing to the queue is the same problem again. The distributed transaction that would genuinely solve it, XA, puts a coordinator on the critical path of every write and is not supported by Kafka at all.</p>
+
+<h2>One commit instead of two</h2>
+
+<p>Your database can already make several writes atomic. So write the event into a table in the same database, in the same transaction as the business data, and let a separate process publish it.</p>
+
+<pre><code>BEGIN;
+  INSERT INTO orders (id, customer_id, total) VALUES ($1, $2, $3);
+  INSERT INTO outbox (id, aggregate_id, type, payload)
+  VALUES ($4, $1, 'order.created', $5);
+COMMIT;</code></pre>
+
+<p>Now there is one commit. Either the order and its event both exist or neither does. The publish can still fail, but the event is durable before anyone attempts it, so failing means "not yet" rather than "never".</p>
+
+<div class="ob-wrap prose-wide">
+<table>
+  <thead>
+    <tr><th>Column</th><th>Type</th><th class="wrap">Why it is there</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>id</td><td>uuid</td><td class="wrap">Travels with the message; consumers deduplicate on it</td></tr>
+    <tr><td>aggregate_id</td><td>text</td><td class="wrap">Partition key, keeps one entity's events in order</td></tr>
+    <tr><td>type</td><td>text</td><td class="wrap">Routing. <code>order.created</code>, not <code>orders_row_changed</code></td></tr>
+    <tr><td>payload</td><td>jsonb</td><td class="wrap">A domain fact with its own shape, not a dump of the row</td></tr>
+    <tr><td>published_at</td><td>timestamptz</td><td class="wrap">Null until the broker acknowledges; the relay's work queue</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>What actually changes</h2>
+
+<p>The outbox does not remove the crash window, it moves it. The window now sits between publishing and recording that you published, and anything caught in it is sent twice instead of lost.</p>
+
+<figure class="ob-demo">
+  <div class="ob-ctrl">
+    <label for="obRate">Crash window failure rate</label>
+    <input type="range" id="obRate" min="1" max="300" step="1" value="40" />
+    <output id="obRateOut" for="obRate">0.40%</output>
+  </div>
+
+  <div class="ob-tape">
+    <div class="ob-tape-head">Dual write</div>
+    <canvas id="obDw" width="640" height="30" role="img" aria-label="A running tape of published events under the dual write, where events caught by a crash are marked as lost."></canvas>
+  </div>
+
+  <div class="ob-tape">
+    <div class="ob-tape-head">Outbox</div>
+    <canvas id="obOb" width="640" height="30" role="img" aria-label="The same tape under the outbox, where the same crashes produce duplicated events instead of lost ones."></canvas>
+  </div>
+
+  <div class="ob-legend">
+    <span><i class="sw ok"></i>delivered once</span>
+    <span><i class="sw bad"></i>lost</span>
+    <span><i class="sw dup"></i>duplicated</span>
+  </div>
+
+  <div class="ob-stats">
+    <div class="ob-stat">
+      <div class="k">Events written</div>
+      <div class="v" id="obTotal">0</div>
+    </div>
+    <div class="ob-stat">
+      <div class="k">Lost, dual write</div>
+      <div class="v bad" id="obLost">0</div>
+      <div class="sub">Nothing downstream knows they existed</div>
+    </div>
+    <div class="ob-stat">
+      <div class="k">Duplicated, outbox</div>
+      <div class="v dup" id="obDup">0</div>
+      <div class="sub">The consumer drops the second copy</div>
+    </div>
+  </div>
+
+  <div class="ob-actions">
+    <button type="button" id="obRun">Pause</button>
+    <button type="button" id="obReset">Reset</button>
+  </div>
+
+  <figcaption>Both tapes run on the same sequence of failures, because it is the same crash window in either design. Only the consequence differs.</figcaption>
+</figure>
+
+<p>That is the trade, and it is a good one. A lost event is unrecoverable without an audit process you have to build and then trust. A duplicate is a problem you solve once, in the consumer.</p>
+
+<h2>Getting the events out</h2>
+
+<p>Something has to read the table and publish. The simple version polls:</p>
+
+<pre><code>SELECT id, type, payload FROM outbox
+WHERE published_at IS NULL
+ORDER BY id LIMIT 100
+FOR UPDATE SKIP LOCKED;</code></pre>
+
+<p><code>SKIP LOCKED</code> is doing the real work there. It lets several relay workers run at once, each claiming a different batch instead of blocking behind the first. The alternative is to stop polling and tail the database's replication log with Debezium or similar: lower latency, no query load, events in commit order, and one more piece of infrastructure to operate. Start with polling.</p>
+
+<h2>The ordering bug</h2>
+
+<p>Sooner or later someone replaces the null scan with a high-water mark: remember the last id, then <code>WHERE id > $last_seen</code>. It looks obviously better, and it silently drops rows.</p>
+
+<p>T1 inserts and takes id 100. T2 inserts, takes 101, and commits first. The relay wakes, sees 101, publishes it, and stores 101 as its mark. A moment later T1 commits. Row 100 is now visible, sits below the mark, and is never read again.</p>
+
+<div class="ob-callout">
+  <span class="tag">Worth internalising</span>
+  <p>Sequence numbers are handed out in insert order. Rows become visible in commit order. Any cursor that assumes those are the same order skips rows, under exactly the concurrency production has and your test environment does not.</p>
+</div>
+
+<p>Staying with <code>published_at IS NULL</code> avoids it. Row 100 arrives late, but it does arrive, and you have traded loss for out-of-order delivery. If you need strict order, tail the log instead, which reads in commit order and cannot have the problem. And be clear about which order you actually need: global ordering is expensive and rarely the requirement, while per-entity ordering is what people usually mean and comes from partitioning on <code>aggregate_id</code>.</p>
+
+<h2>You are signing up for duplicates</h2>
+
+<p>None of this delivers exactly-once. Publishing and recording the publish are two writes to two systems, which is the original problem moved one step downstream, and it cannot be moved any further. The consumer is the only place it can be solved.</p>
+
+<ul>
+  <li><strong>Naturally idempotent work.</strong> <code>UPDATE orders SET status = 'paid' WHERE id = $1</code> is the same run once or five times. Prefer this; it costs nothing.</li>
+  <li><strong>A dedupe table.</strong> Insert the event id under a unique constraint before doing the work, and treat a conflict as "already seen". Needs a retention policy bounded by your longest redelivery window.</li>
+</ul>
+
+<p>Kafka's exactly-once semantics are exactly-once processing <em>inside Kafka</em>. They say nothing about what your consumer does to a payment provider.</p>
+
+<h2>Housekeeping, and when to skip it</h2>
+
+<p>An outbox that is never cleaned becomes the largest table in the database. Delete rows once published, and on PostgreSQL expect that churn to cause autovacuum and index bloat trouble well before disk does; partitioning by day and dropping whole partitions avoids it. Treat the table as a queue rather than a log, and keep any permanent record somewhere built for one.</p>
+
+<p>Three cases where you do not want an outbox at all:</p>
+
+<ul>
+  <li>The reader shares your database. Do not publish anything, read the table.</li>
+  <li>The event is genuinely just "this row changed". Point change data capture at the real table. The outbox earns its place when the event is a domain fact with its own shape, so you can refactor columns without breaking three teams.</li>
+  <li>There is no local transaction to ride on. If the second write is a call to a payment provider, no outbox helps: you need an idempotency key on the call and a job that reconciles both sides.</li>
+</ul>
+
+<p>The same trick works at the other end, where it is called an inbox. The consumer records the event id and performs its side effect in one transaction, so a redelivery finds the id already there and does nothing.</p>
+
+<blockquote>The outbox does not make distributed writes atomic. It gives you one commit instead of two, and converts silent loss into visible duplication. The rest belongs to the consumer, which is the only place it was ever solvable.</blockquote>
+
+<h2>Further reading</h2>
+
+<ul class="ob-refs">
+  <li>Richardson, C., <a href="https://microservices.io/patterns/data/transactional-outbox.html">Transactional Outbox</a>, microservices.io.</li>
+  <li>Debezium, <a href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html">Outbox Event Router</a>, for the log-tailing version.</li>
+  <li>Kleppmann, M., <em>Designing Data-Intensive Applications</em>, O'Reilly, 2017. Chapter 11 on message ordering, chapter 12 on end-to-end idempotency.</li>
+</ul>
+
+<style>
+  .ob-lede::first-letter {
+    float: left; font-family: var(--font-head); font-size: 58px; line-height: 0.82;
+    font-weight: 400; margin: 0.14em 0.1em 0 0; color: var(--card-label);
+  }
+
+  .ob-callout {
+    margin: 30px 0; padding: 18px 20px; border-radius: 8px;
+    background: color-mix(in srgb, var(--card-label) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--card-label) 26%, transparent);
+  }
+  .ob-callout p { margin: 0; }
+  .ob-callout .tag {
+    display: block; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--card-label); margin-bottom: 8px;
+  }
+
+  /* The global prose table sets white-space: nowrap, which suits the short
+     columns but not the explanatory one. */
+  .ob-wrap { margin: 26px 0; }
+  .ob-wrap td.wrap, .ob-wrap th.wrap { white-space: normal; min-width: 20ch; }
+
+  .ob-demo {
+    --ob-ok: color-mix(in srgb, var(--card-desc) 32%, transparent);
+    --ob-bad: #d9614f;
+    --ob-dup: var(--card-label);
+    margin: 34px 0; padding: 20px;
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
+  }
+  :root[data-theme="light"] .ob-demo { --ob-bad: #a8372a; }
+
+  .ob-demo figcaption {
+    font-family: var(--font-body); font-size: 12.5px; line-height: 1.6;
+    color: var(--card-desc); margin-top: 16px;
+  }
+  .ob-ctrl { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  .ob-ctrl label {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+    color: var(--card-desc); min-width: 13rem;
+  }
+  .ob-ctrl output {
+    font-family: var(--font-mono); font-size: 12px; color: var(--headline-color);
+    min-width: 4rem; text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .ob-ctrl input[type="range"] { flex: 1; accent-color: var(--card-label); min-width: 0; }
+
+  .ob-tape { margin-bottom: 12px; }
+  .ob-tape-head {
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--card-desc); margin-bottom: 6px;
+  }
+  .ob-demo canvas { display: block; width: 100%; height: 30px; }
+
+  .ob-legend {
+    display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px;
+    font-family: var(--font-mono); font-size: 10px; color: var(--card-desc);
+  }
+  .ob-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .ob-legend .sw { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+  .ob-legend .sw.ok { background: var(--ob-ok); }
+  .ob-legend .sw.bad { background: var(--ob-bad); }
+  .ob-legend .sw.dup { background: var(--ob-dup); }
+
+  .ob-stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 10px; margin: 18px 0 16px;
+  }
+  .ob-stat { border: 1px solid var(--card-border); border-radius: 7px; padding: 12px 13px; }
+  .ob-stat .k {
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--card-desc); margin-bottom: 6px;
+  }
+  .ob-stat .v {
+    font-family: var(--font-mono); font-size: 20px; color: var(--headline-color);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .ob-stat .v.bad { color: var(--ob-bad); }
+  .ob-stat .v.dup { color: var(--ob-dup); }
+  .ob-stat .sub {
+    font-family: var(--font-mono); font-size: 10px; line-height: 1.5;
+    margin-top: 7px; color: var(--card-desc);
+  }
+
+  .ob-actions { display: flex; gap: 8px; }
+  .ob-actions button {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--card-desc); cursor: pointer;
+    background: none; border: 1px solid var(--card-border); border-radius: 5px;
+    padding: 7px 14px; transition: color .3s ease, border-color .3s ease;
+  }
+  .ob-actions button:hover, .ob-actions button:focus-visible {
+    color: var(--card-label); border-color: var(--card-border-hover);
+  }
+
+  .ob-refs { padding-left: 20px; }
+  .ob-refs li {
+    font-family: var(--font-body); font-weight: 300; font-size: 14.5px; line-height: 1.7;
+    color: var(--card-desc); margin-top: 8px;
+  }
+
+  @media (max-width: 560px) {
+    .ob-ctrl { flex-wrap: wrap; }
+    .ob-ctrl label { min-width: 100%; }
+  }
+</style>
+
+<script>
+  var demo = document.querySelector(".ob-demo");
+  var rate = document.getElementById("obRate");
+  var dwCv = document.getElementById("obDw");
+  var obCv = document.getElementById("obOb");
+  var runBtn = document.getElementById("obRun");
+  var resetBtn = document.getElementById("obReset");
+
+  if (demo && rate && dwCv && obCv && runBtn && resetBtn) {
+    var CELLS = 120;
+    var PER_FRAME = 2;
+    var EMPTY = 0, OK = 1, HIT = 2;
+
+    var dwTape = new Uint8Array(CELLS);
+    var obTape = new Uint8Array(CELLS);
+    var head = 0;
+    var total = 0, lost = 0, dup = 0;
+    var running = true;
+    var raf = 0;
+
+    var totalEl = document.getElementById("obTotal");
+    var lostEl = document.getElementById("obLost");
+    var dupEl = document.getElementById("obDup");
+    var rateOut = document.getElementById("obRateOut");
+
+    function token(name, fallback) {
+      var v = getComputedStyle(demo).getPropertyValue(name).trim();
+      return v || fallback;
+    }
+
+    function paint(cv, tape, hitColor) {
+      var ctx = cv.getContext("2d");
+      var dpr = window.devicePixelRatio || 1;
+      var w = cv.clientWidth || 640;
+      var h = cv.clientHeight || 30;
+      if (cv.width !== Math.round(w * dpr)) {
+        cv.width = Math.round(w * dpr);
+        cv.height = Math.round(h * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      var gap = 1;
+      var cw = (w - gap * (CELLS - 1)) / CELLS;
+      var ok = token("--ob-ok", "rgba(150,140,120,0.32)");
+      var edge = token("--card-border", "#3d2c1e");
+
+      for (var i = 0; i < CELLS; i++) {
+        var v = tape[i];
+        if (v === EMPTY) continue;
+        ctx.fillStyle = v === HIT ? hitColor : ok;
+        ctx.fillRect(i * (cw + gap), 0, cw, h);
+      }
+
+      // The sweep head, so a paused tape still reads as a position in time.
+      ctx.fillStyle = edge;
+      ctx.fillRect(head * (cw + gap), 0, cw, h);
+    }
+
+    function render() {
+      totalEl.textContent = total.toLocaleString();
+      lostEl.textContent = lost.toLocaleString();
+      dupEl.textContent = dup.toLocaleString();
+      paint(dwCv, dwTape, token("--ob-bad", "#d9614f"));
+      paint(obCv, obTape, token("--ob-dup", "#e3c069"));
+    }
+
+    function step() {
+      var p = parseInt(rate.value, 10) / 10000;
+      for (var i = 0; i < PER_FRAME; i++) {
+        // One draw feeds both tapes: it is the same crash window either way.
+        var caught = Math.random() < p;
+        dwTape[head] = caught ? HIT : OK;
+        obTape[head] = caught ? HIT : OK;
+        if (caught) { lost++; dup++; }
+        total++;
+        head = (head + 1) % CELLS;
+        if (head === 0) { dwTape.fill(EMPTY); obTape.fill(EMPTY); }
+      }
+      render();
+      if (running) raf = requestAnimationFrame(step);
+    }
+
+    function setRunning(on) {
+      running = on;
+      runBtn.textContent = on ? "Pause" : "Run";
+      cancelAnimationFrame(raf);
+      if (on) raf = requestAnimationFrame(step);
+    }
+
+    rate.addEventListener("input", function () {
+      rateOut.textContent = (parseInt(rate.value, 10) / 100).toFixed(2) + "%";
+    });
+    runBtn.addEventListener("click", function () { setRunning(!running); });
+    resetBtn.addEventListener("click", function () {
+      dwTape.fill(EMPTY);
+      obTape.fill(EMPTY);
+      head = 0; total = 0; lost = 0; dup = 0;
+      render();
+    });
+    window.addEventListener("resize", render);
+    new MutationObserver(render).observe(document.documentElement, {
+      attributes: true, attributeFilter: ["data-theme", "class"]
+    });
+
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    render();
+    setRunning(!reduce);
+  }
+</script>

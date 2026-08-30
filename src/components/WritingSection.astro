@@ -5,31 +5,33 @@ const entries = interactiveWriting
   .filter((a) => !a.draft)
   .sort((a, b) => b.publishDate.getTime() - a.publishDate.getTime());
 
-// An article's own `topics` should come from this list, or its chip won't match.
-const topics = [
-  'Robotics',
-  'Perception',
-  'State Estimation',
-  'Motion Planning',
-  'Control Systems',
-  'Simulation',
-  'Physics',
-  'Orbital Mechanics',
-  'Propulsion',
-  'Machine Learning',
-  'AI Systems Engineering',
-  'Distributed Systems',
-  'Architecture',
-  'Data & Storage',
-  'Networking',
-  'Concurrency',
-  'Reliability',
-  'Observability',
-  'Delivery & Deployment',
-  'Testing',
-  'Identity & Trust',
-  'Application Security',
-  'Risk & Compliance',
+// An article's own `topics` should come from one of these groups, or its chip
+// won't match.
+const topicGroups = [
+  {
+    label: 'Robotics & autonomy',
+    topics: ['Robotics', 'Perception', 'State Estimation', 'Motion Planning', 'Control Systems', 'Simulation'],
+  },
+  {
+    label: 'Physics & spaceflight',
+    topics: ['Physics', 'Orbital Mechanics', 'Propulsion'],
+  },
+  {
+    label: 'Machine learning',
+    topics: ['Machine Learning', 'AI Systems Engineering'],
+  },
+  {
+    label: 'Systems & infrastructure',
+    topics: ['Distributed Systems', 'Architecture', 'Data & Storage', 'Networking', 'Concurrency'],
+  },
+  {
+    label: 'Running things in production',
+    topics: ['Reliability', 'Observability', 'Delivery & Deployment', 'Testing'],
+  },
+  {
+    label: 'Security & trust',
+    topics: ['Identity & Trust', 'Application Security', 'Risk & Compliance'],
+  },
 ];
 
 const written = new Set(entries.flatMap((a) => a.topics));
@@ -41,36 +43,57 @@ const written = new Set(entries.flatMap((a) => a.topics));
   </div>
 
   {entries.length > 0 && (
-    <ul class="writing-list">
-      {entries.map((entry) => (
-        <li class="writing-item">
-          <a href={`/writing/${entry.slug}`}>
-            <span class="writing-item-title">{entry.title}</span>
-            <span class="writing-item-desc">{entry.description}</span>
-          </a>
-          {entry.publishDate && (
-            <span class="writing-item-date">
-              {entry.publishDate.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
+    <>
+      <div class="writing-group-label"><span class="section-meta">Published</span></div>
+      <ul class="writing-list">
+        {entries.map((entry) => (
+          <li class="writing-item">
+            <a href={`/writing/${entry.slug}`}>
+              <span class="writing-item-title">{entry.title}</span>
+              <span class="writing-item-desc">{entry.description}</span>
+            </a>
+            {entry.publishDate && (
+              <span class="writing-item-date">
+                {entry.publishDate.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
   )}
 
-  <div class="writing-block" style="margin-top:22px;">
-    <div class="tag-row">
-      {topics.map((topic) => (
-        <span
-          class:list={['tag', { 'tag-written': written.has(topic) }]}
-          title={written.has(topic) ? 'Something written on this' : undefined}
-        >{topic}</span>
-      ))}
-    </div>
+  <div class="writing-group-label" style="margin-top:30px;"><span class="section-meta">Topics ahead</span></div>
+  <div class="topic-groups">
+    {topicGroups.map((group) => (
+      <div class="topic-group">
+        <span class="topic-group-label">{group.label}</span>
+        <div class="tag-row">
+          {group.topics.map((topic) => (
+            <span
+              class:list={['tag', { 'tag-written': written.has(topic) }]}
+              title={written.has(topic) ? 'Something written on this' : undefined}
+            >{topic}</span>
+          ))}
+        </div>
+      </div>
+    ))}
   </div>
+
 </section>
 
 <style>
+  .writing-group-label { margin-top: 26px; }
+  .topic-groups {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 20px 30px; margin-top: 16px;
+  }
+  .topic-group-label {
+    display: block; font-family: var(--font-body); font-weight: 300; font-size: 13px;
+    color: var(--card-desc); margin-bottom: 9px;
+  }
+  .topic-group .tag-row { gap: 6px; }
+
   .writing-list { list-style: none; margin: 22px 0 0; padding: 0; }
   .writing-item {
     display: flex; align-items: baseline; gap: 16px;
