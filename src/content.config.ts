@@ -17,15 +17,6 @@ const lab = defineCollection({
   }),
 });
 
-const writing = defineCollection({
-  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/writing' }),
-  schema: z.object({
-    title: z.string(),
-    description: z.string(),
-    topics: z.array(z.string()).default([]),
-    publishDate: z.date().optional(),
-    draft: z.boolean().default(true),
-  }),
-});
-
-export const collections = { lab, writing };
+// Writing lives in src/data/writing.ts + src/components/writing/ instead of a
+// collection: articles are .astro pages so they can carry interactive figures.
+export const collections = { lab };

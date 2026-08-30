@@ -701,6 +701,76 @@ img { max-width: 100%; display: block; }
   text-underline-offset: 3px; transition: text-decoration-color .3s ease;
 }
 .writing-block a:hover, .writing-block a:focus-visible { text-decoration-color: var(--card-label); }
+
+/* Markdown output. .writing-block on its own only ever held paragraphs (lab
+   write-ups build them by hand); an authored article brings headings, lists,
+   code and quotes with it, so those need a home too. Scoped to .writing-prose
+   so existing uses are untouched. */
+.writing-prose { display: block; max-width: 68ch; }
+/* Doubled class on purpose: `.writing-block p` is (0,1,1) and a `* + *`
+   selector is only (0,1,0), because the universal selector counts for
+   nothing -- so the plain version lost and every paragraph sat flush. */
+.writing-block.writing-prose > * + * { margin-top: 18px; }
+
+/* Shiki token colours, mapped onto this site's palette (see the shikiConfig
+   note in astro.config.mjs). Anything unmapped falls back to the body text
+   colour rather than a colour from someone else's theme. */
+.writing-prose {
+  --astro-code-background: var(--card-bg);
+  --astro-code-foreground: var(--subhead-color);
+  --astro-code-token-constant: var(--card-label);
+  --astro-code-token-string: var(--card-label);
+  --astro-code-token-comment: var(--card-desc);
+  --astro-code-token-keyword: var(--headline-color);
+  --astro-code-token-parameter: var(--subhead-color);
+  --astro-code-token-function: var(--headline-color);
+  --astro-code-token-string-expression: var(--card-label);
+  --astro-code-token-punctuation: var(--card-desc);
+  --astro-code-token-link: var(--card-label);
+}
+.writing-prose h2 {
+  font-family: var(--font-head); font-weight: 400; font-size: 25px; line-height: 1.25;
+  color: var(--headline-color); margin-top: 44px; text-wrap: balance;
+}
+.writing-prose h3 {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--headline-color); margin-top: 32px;
+}
+.writing-prose ul, .writing-prose ol { padding-left: 22px; }
+.writing-prose li {
+  font-family: var(--font-body); font-weight: 300; font-size: 16px; line-height: 1.8;
+  color: var(--subhead-color); margin-top: 7px;
+}
+.writing-prose code {
+  font-family: var(--font-mono); font-size: 0.85em;
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 3px;
+  padding: 1px 5px; color: var(--card-label);
+}
+/* Wide code and tables scroll inside their own box; the page never does. */
+.writing-prose pre {
+  background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px;
+  padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6;
+}
+.writing-prose pre code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+.writing-prose blockquote {
+  border-left: 2px solid var(--card-label); padding-left: 16px; margin-left: 0;
+  color: var(--card-desc); font-style: italic;
+}
+.writing-prose blockquote p { color: inherit; font-style: inherit; }
+.writing-prose hr { border: 0; border-top: 1px solid var(--card-border); margin-top: 40px; }
+.writing-prose img { max-width: 100%; height: auto; border-radius: 8px; }
+.writing-prose strong { color: var(--headline-color); font-weight: 600; }
+.writing-prose table {
+  width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px;
+  display: block; overflow-x: auto;
+}
+.writing-prose th, .writing-prose td {
+  text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--card-border);
+  color: var(--subhead-color); white-space: nowrap;
+}
+.writing-prose th {
+  font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--section-meta);
+}
 kbd {
   font-family: var(--font-mono); font-size: 0.85em; font-style: normal;
   padding: 2px 7px; border: 1px solid var(--card-border); border-radius: 5px;

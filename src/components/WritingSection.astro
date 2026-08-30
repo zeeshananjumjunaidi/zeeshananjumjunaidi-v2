@@ -1,4 +1,13 @@
 ---
+// Articles come from src/data/writing.ts; each has a component in
+// src/components/writing/. The topic chips below are the standing plan,
+// kept for the topics with nothing written yet.
+import { interactiveWriting } from '../data/writing';
+
+const entries = interactiveWriting
+  .filter((a) => !a.draft)
+  .sort((a, b) => b.publishDate.getTime() - a.publishDate.getTime());
+
 const topics = [
   'Identity & Trust',
   'Distributed Systems',
@@ -19,9 +28,55 @@ const topics = [
 <section id="writing" class="section" aria-labelledby="writing-label">
   <h2 class="section-heading" id="writing-label">Writing</h2>
   <div class="writing-block">
-    <p>I'm working on a series of interactive articles on the working knowledge I actually use. I've written a few so far. Once they're in shape, I'll polish them with AI and publish them here. Expected topics: identity and trust, distributed systems, the data layer, networking, observability, ML concepts, AI systems engineering, architecture, concurrency, reliability, delivery, compliance, application security, testing.</p>
+    <p>I'm working on a series of articles on the working knowledge I actually use. Some are up, and more topics are listed below.</p>
+  </div>
+
+  {entries.length > 0 && (
+    <ul class="writing-list">
+      {entries.map((entry) => (
+        <li class="writing-item">
+          <a href={`/writing/${entry.slug}`}>
+            <span class="writing-item-title">{entry.title}</span>
+            <span class="writing-item-desc">{entry.description}</span>
+          </a>
+          {entry.publishDate && (
+            <span class="writing-item-date">
+              {entry.publishDate.toLocaleDateString('en-GB', { year: 'numeric', month: 'short' })}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )}
+
+  <div class="writing-block" style="margin-top:22px;">
     <div class="tag-row">
       {topics.map((topic) => <span class="tag">{topic}</span>)}
     </div>
   </div>
 </section>
+
+<style>
+  .writing-list { list-style: none; margin: 22px 0 0; padding: 0; }
+  .writing-item {
+    display: flex; align-items: baseline; gap: 16px;
+    padding: 13px 0; border-top: 1px solid var(--card-border);
+  }
+  .writing-item:last-child { border-bottom: 1px solid var(--card-border); }
+  .writing-item a { flex: 1 1 auto; min-width: 0; text-decoration: none; }
+  .writing-item-title {
+    display: block; font-family: var(--font-head); font-weight: 400; font-size: 19px;
+    color: var(--headline-color); transition: color .3s ease;
+  }
+  .writing-item a:hover .writing-item-title,
+  .writing-item a:focus-visible .writing-item-title { color: var(--card-label); }
+  .writing-item-desc {
+    display: block; margin-top: 5px; max-width: 70ch;
+    font-family: var(--font-body); font-weight: 300; font-size: 14.5px; line-height: 1.6;
+    color: var(--card-desc);
+  }
+  .writing-item-date {
+    flex: 0 0 auto; font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--section-meta);
+  }
+</style>

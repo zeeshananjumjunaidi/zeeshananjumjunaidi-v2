@@ -1,0 +1,94 @@
+---
+// One page per article. Articles are .astro components rather than markdown
+// so they can carry interactive figures; metadata lives in src/data/writing.ts.
+// `draft: true` keeps a piece out of the build entirely rather than
+// publishing it at a guessable URL.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Nav from '../../components/Nav.astro';
+import SiteFooter from '../../components/SiteFooter.astro';
+import { interactiveWriting } from '../../data/writing';
+import TsiolkovskyEquation from '../../components/writing/TsiolkovskyEquation.astro';
+
+// Same shape as SIM_COMPONENTS in lab/[slug].astro: slug in, component out.
+const ARTICLE_COMPONENTS: Record<string, any> = {
+  'tsiolkovsky-rocket-equation': TsiolkovskyEquation,
+};
+
+export function getStaticPaths() {
+  return interactiveWriting
+    .filter((a) => !a.draft)
+    .map((a) => ({ params: { slug: a.slug }, props: { meta: a } }));
+}
+
+const { meta } = Astro.props;
+const ArticleComponent = ARTICLE_COMPONENTS[Astro.params.slug as string];
+
+const published = meta.publishDate
+  ? meta.publishDate.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })
+  : null;
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: meta.title,
+  description: meta.description,
+  datePublished: meta.publishDate ? meta.publishDate.toISOString() : undefined,
+  author: { '@type': 'Person', name: 'Zeeshan Anjum Junaidi', url: 'https://zeeshananjum.com' },
+  keywords: meta.topics.join(', '),
+};
+---
+<BaseLayout title={`${meta.title} - Zeeshan Anjum Junaidi`} description={meta.description}>
+  <script type="application/ld+json" is:inline set:html={JSON.stringify(articleSchema)} />
+  <div class="writing-page">
+    <Nav />
+
+    <a class="back-link" href="/#writing">&larr; Back to writing</a>
+
+    <header class="writing-head">
+      <h1>{meta.title}</h1>
+      <p class="writing-standfirst">{meta.description}</p>
+      {(published || meta.topics.length > 0) && (
+        <div class="writing-meta">
+          {published && <span class="writing-date">{published}</span>}
+          {meta.topics.length > 0 && (
+            <div class="tag-row">
+              {meta.topics.map((topic: string) => <span class="tag">{topic}</span>)}
+            </div>
+          )}
+        </div>
+      )}
+    </header>
+
+    <article class="writing-block writing-prose">
+      {ArticleComponent && <ArticleComponent />}
+    </article>
+  </div>
+
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .writing-page { padding: 28px 4px 0; max-width: 900px; margin: 0 auto; }
+  .back-link {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--card-desc); transition: color .4s ease; display: inline-block; margin: 24px 0 8px;
+  }
+  .back-link:hover, .back-link:focus-visible { color: var(--card-label); }
+
+  .writing-head { margin: 18px 0 30px; padding-bottom: 24px; border-bottom: 1px solid var(--card-border); }
+  .writing-head h1 {
+    font-family: var(--font-head); font-weight: 400; font-size: 38px; line-height: 1.15;
+    color: var(--headline-color); margin: 0 0 14px; text-wrap: balance; max-width: 20ch;
+  }
+  .writing-standfirst {
+    font-family: var(--font-body); font-weight: 300; font-size: 17.5px; line-height: 1.7;
+    color: var(--subhead-color); margin: 0 0 18px; max-width: 62ch;
+  }
+  .writing-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+  .writing-date {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--section-meta);
+  }
+
+  .writing-prose { margin-bottom: 72px; }
+</style>

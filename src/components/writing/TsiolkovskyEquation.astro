@@ -1,0 +1,491 @@
+---
+// The rocket equation, with a live figure for the mass-fraction curve.
+// Retheming only: the source draft carried its own palette and type stack,
+// and this drops both in favour of the site's tokens so the piece reads as
+// part of the site rather than a transplant. The maths is untouched.
+//
+// The title, standfirst, date and topics come from the route's masthead
+// (see src/data/writing.ts), so this file starts at the opening paragraph.
+---
+
+<p class="tsi-lede">Every other vehicle humans have built cheats. A car pushes on the road, a boat pushes on water, a plane pushes on air. Each of them borrows momentum from something that was already there, which is why a car can carry its own weight in passengers and still have room for luggage.</p>
+
+<p>A rocket in vacuum has nothing to push against. The only mass available to push on is the mass it brought with it, so every increment of speed has to be bought by throwing part of the vehicle backwards and never getting it back. That single constraint, followed honestly to its conclusion, produces the most consequential equation in spaceflight.</p>
+
+<div class="tsi-eq">
+  &Delta;<em>v</em> = <em>v</em><sub>e</sub> ln <span class="tsi-frac"><span class="num"><em>m</em><sub>0</sub></span><span class="den"><em>m</em><sub>f</sub></span></span>
+  <span class="tsi-eq-lbl">The rocket equation</span>
+</div>
+
+<p><em>v</em><sub>e</sub> is the exhaust velocity, the speed at which propellant leaves the nozzle relative to the vehicle. <em>m</em><sub>0</sub> is the mass you start with, fully fuelled. <em>m</em><sub>f</sub> is what remains when the tanks run dry: structure, engines, and payload. Their ratio is the <strong>mass ratio</strong>, and it is the only thing about your vehicle's mass that the equation cares about. And &Delta;<em>v</em>, delta-v, is the total change in velocity the vehicle can produce.</p>
+
+<p>Konstantin Tsiolkovsky derived it in 1897 and published it in 1903, working alone as a provincial schoolteacher in Kaluga. The same result had been obtained by William Moore in 1813 and would be found independently again by Robert Goddard and Hermann Oberth. It keeps being rediscovered because it is not really about rockets. It is about momentum conservation, and it was waiting for anyone who bothered to ask the question properly.</p>
+
+<h2>Deriving it</h2>
+
+<p>The derivation is short enough to do in your head once you have seen it, and it is worth doing once so the logarithm stops feeling arbitrary.</p>
+
+<p>Work in an inertial frame and consider one instant. Before the instant, the vehicle has mass <em>m</em> and velocity <em>v</em>, so the system momentum is <em>mv</em>.</p>
+
+<p>During the instant, the rocket expels a small parcel of propellant of mass d<em>m</em><sub>p</sub>. Two things now exist. The rocket, lighter by d<em>m</em><sub>p</sub> and faster by d<em>v</em>. And the parcel, moving at <em>v</em> &minus; <em>v</em><sub>e</sub>, because it was thrown backwards at <em>v</em><sub>e</sub> <em>relative to the rocket</em>, and the rocket was itself moving at <em>v</em>.</p>
+
+<p>Nothing external acts on the system, so momentum is unchanged:</p>
+
+<div class="tsi-eq plain">
+  <em>mv</em> = (<em>m</em> &minus; d<em>m</em><sub>p</sub>)(<em>v</em> + d<em>v</em>) + d<em>m</em><sub>p</sub>(<em>v</em> &minus; <em>v</em><sub>e</sub>)
+</div>
+
+<p>Expand the right-hand side and almost everything cancels:</p>
+
+<div class="tsi-eq plain">
+  <em>mv</em> = <em>mv</em> + <em>m</em>&thinsp;d<em>v</em> &minus; <em>v</em>&thinsp;d<em>m</em><sub>p</sub> &minus; d<em>m</em><sub>p</sub>&thinsp;d<em>v</em> + <em>v</em>&thinsp;d<em>m</em><sub>p</sub> &minus; <em>v</em><sub>e</sub>&thinsp;d<em>m</em><sub>p</sub>
+</div>
+
+<p>The <em>mv</em> terms cancel, and both <em>v</em>&thinsp;d<em>m</em><sub>p</sub> terms cancel against each other. The term d<em>m</em><sub>p</sub>&thinsp;d<em>v</em> is a product of two infinitesimals, second order, and vanishes in the limit. What survives is:</p>
+
+<div class="tsi-eq plain">
+  <em>m</em>&thinsp;d<em>v</em> = <em>v</em><sub>e</sub>&thinsp;d<em>m</em><sub>p</sub>
+  &nbsp;&nbsp;&rarr;&nbsp;&nbsp;
+  d<em>v</em> = <em>v</em><sub>e</sub> <span class="tsi-frac"><span class="num">d<em>m</em><sub>p</sub></span><span class="den"><em>m</em></span></span>
+</div>
+
+<p>This intermediate line is the physically interesting one, and it deserves a moment. Each kilogram of propellant delivers the same fixed <em>momentum</em>, <em>v</em><sub>e</sub> per kilogram. But the <em>velocity</em> it buys is that momentum divided by whatever the vehicle currently masses. Since the vehicle is getting lighter as it burns, propellant spent late in the burn is worth more than propellant spent early.</p>
+
+<p>Now switch from propellant expelled to vehicle mass. The vehicle loses exactly what the nozzle gains, so d<em>m</em><sub>p</sub> = &minus;d<em>m</em>, and integrating from the wet mass to the dry mass:</p>
+
+<div class="tsi-eq plain">
+  &int;<sub>0</sub><sup>&Delta;v</sup> d<em>v</em> = &minus;<em>v</em><sub>e</sub> &int;<sub><em>m</em><sub>0</sub></sub><sup><em>m</em><sub>f</sub></sup> <span class="tsi-frac"><span class="num">d<em>m</em></span><span class="den"><em>m</em></span></span>
+</div>
+
+<p>The integral of d<em>m</em>&thinsp;/&thinsp;<em>m</em> is ln <em>m</em>. That is the whole answer to "where does the logarithm come from": it is what you get when the thing you are dividing by is the same thing you are consuming.</p>
+
+<div class="tsi-eq">
+  &Delta;<em>v</em> = &minus;<em>v</em><sub>e</sub>(ln <em>m</em><sub>f</sub> &minus; ln <em>m</em><sub>0</sub>) = <em>v</em><sub>e</sub> ln <span class="tsi-frac"><span class="num"><em>m</em><sub>0</sub></span><span class="den"><em>m</em><sub>f</sub></span></span>
+</div>
+
+<h2>Why the logarithm is brutal</h2>
+
+<p>Read forwards, the equation looks gentle. Burn more propellant, gain more speed, with diminishing returns. Nothing alarming.</p>
+
+<p>The alarm arrives when you read it backwards. You do not usually get to choose your mass ratio and see what speed falls out. You have a mission, the mission demands a specific &Delta;<em>v</em>, and you have to find a vehicle that delivers it. Solve for mass ratio and the logarithm inverts:</p>
+
+<div class="tsi-eq">
+  <span class="tsi-frac"><span class="num"><em>m</em><sub>0</sub></span><span class="den"><em>m</em><sub>f</sub></span></span> = <em>e</em><sup>&thinsp;&Delta;<em>v</em>&thinsp;/&thinsp;<em>v</em><sub>e</sub></sup>
+  <span class="tsi-eq-lbl">The same equation, read as a requirement</span>
+</div>
+
+<p>Your mission requirement now sits in an exponent. With a realistic <em>v</em><sub>e</sub> of 3,000 m/s, buying 3 km/s costs 63% of your liftoff mass in propellant. Buying 6 km/s costs 86%. Buying 9 km/s, roughly what it takes to reach low Earth orbit, costs 95%, and every engine, tank, wire, weld and gram of payload has to fit inside the remaining 5%.</p>
+
+<p>Drag the sliders below and watch the curve go vertical. The interesting region is the far right, where each additional percentage point of propellant fraction is bought at a savage price in structural margin.</p>
+
+<figure class="tsi-demo">
+  <div class="tsi-ctrl">
+    <label for="tsiPf">Propellant fraction</label>
+    <input type="range" id="tsiPf" min="5" max="97" step="1" value="60" />
+    <output id="tsiPfOut" for="tsiPf">60%</output>
+  </div>
+
+  <div class="tsi-ctrl">
+    <label for="tsiVe">Exhaust velocity</label>
+    <input type="range" id="tsiVe" min="1500" max="4500" step="50" value="3000" />
+    <output id="tsiVeOut" for="tsiVe">3,000 m/s</output>
+  </div>
+
+  <div class="tsi-stats">
+    <div class="tsi-stat">
+      <div class="k">Mass ratio</div>
+      <div class="v" id="tsiMr">2.50</div>
+    </div>
+    <div class="tsi-stat">
+      <div class="k">Delta-v achieved</div>
+      <div class="v" id="tsiDv">2,749 m/s</div>
+      <div class="sub"><b id="tsiEsc">escapes Ganymede</b><br /><span id="tsiNext">short of Mercury</span></div>
+    </div>
+    <div class="tsi-stat">
+      <div class="k">Structure + payload</div>
+      <div class="v" id="tsiSp">40%</div>
+    </div>
+  </div>
+
+  <canvas id="tsiChart" width="640" height="270" role="img" aria-label="Curve of achievable delta-v against propellant mass fraction, rising steeply as the fraction approaches 100 percent."></canvas>
+
+  <figcaption>Escape figures are surface escape velocities for an idealised impulsive burn: no atmosphere, no gravity losses, no finite burn time. A real vehicle leaving a real body needs considerably more than the number shown.</figcaption>
+</figure>
+
+<h2>Engines beat tanks, and it is not close</h2>
+
+<p>Look again at where the two variables sit. <em>v</em><sub>e</sub> multiplies. Mass ratio passes through a logarithm first. That asymmetry is the entire design logic of rocketry, and it is worth making concrete.</p>
+
+<p>Take a vehicle at 90% propellant fraction with <em>v</em><sub>e</sub> = 3,000 m/s. It has 6,908 m/s of &Delta;<em>v</em>. Now try to buy roughly 2,000 m/s more, two ways.</p>
+
+<div class="tsi-scroller">
+  <table class="tsi-table">
+    <caption>Two routes to about 8,980 m/s</caption>
+    <thead>
+      <tr><th>Route</th><th class="num">Propellant</th><th class="num"><em>v</em><sub>e</sub></th><th class="num">&Delta;<em>v</em></th><th>What it costs you</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Baseline</td><td class="num">90%</td><td class="num">3,000</td><td class="num">6,908</td><td>&mdash;</td></tr>
+      <tr><td>Build lighter</td><td class="num">95%</td><td class="num">3,000</td><td class="num">8,987</td><td>Half your entire dry mass budget, gone</td></tr>
+      <tr><td>Build better engines</td><td class="num">90%</td><td class="num">3,900</td><td class="num">8,980</td><td>A 30% better engine, airframe untouched</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>Halving the dry mass budget is the difference between a buildable vehicle and an aluminium foil fantasy. A 30% improvement in exhaust velocity is a hard engineering problem, but it is a normal one. The logarithm punishes you for chasing mass fraction and rewards you generously for chasing exhaust velocity.</p>
+
+<p>Which raises the obvious question: why not just keep improving the engine?</p>
+
+<h3>Specific impulse, and the chemical ceiling</h3>
+
+<p>Engineers usually quote exhaust velocity as <strong>specific impulse</strong>, <em>I</em><sub>sp</sub>, measured in seconds. The two are the same number in different clothes:</p>
+
+<div class="tsi-eq plain">
+  <em>v</em><sub>e</sub> = <em>I</em><sub>sp</sub> &middot; <em>g</em><sub>0</sub>, &nbsp; where <em>g</em><sub>0</sub> = 9.80665 m/s<sup>2</sup>
+</div>
+
+<p>The <em>g</em><sub>0</sub> here is a unit conversion, not a statement about local gravity. Specific impulse is the same in orbit as on the pad.</p>
+
+<div class="tsi-scroller">
+  <table class="tsi-table">
+    <caption>Practical exhaust velocities, vacuum figures</caption>
+    <thead>
+      <tr><th>Propellant</th><th class="num"><em>I</em><sub>sp</sub> (s)</th><th class="num"><em>v</em><sub>e</sub> (m/s)</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Solid propellant</td><td class="num">~270</td><td class="num">~2,650</td><td>Simple, throttle-free, not restartable</td></tr>
+      <tr><td>Kerosene + LOX</td><td class="num">310&ndash;340</td><td class="num">3,040&ndash;3,330</td><td>Dense, storable-ish, the workhorse</td></tr>
+      <tr><td>Methane + LOX</td><td class="num">360&ndash;380</td><td class="num">3,530&ndash;3,730</td><td>Clean-burning, restartable, reuse-friendly</td></tr>
+      <tr><td>Hydrogen + LOX</td><td class="num">440&ndash;465</td><td class="num">4,310&ndash;4,560</td><td>The chemical ceiling. Bulky, cryogenic, awkward</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>That last row is a wall, not a frontier. Exhaust velocity in a chemical rocket is set by combustion temperature and the molecular weight of the exhaust, and you want the hottest possible flame producing the lightest possible molecules. Hydrogen and oxygen are already close to the best the periodic table offers. No amount of money or cleverness gets a chemical engine to 8,000 m/s.</p>
+
+<h2>Thrust is not efficiency</h2>
+
+<p>Which invites a natural but wrong idea: use an ion thruster. They reach exhaust velocities around 30,000 m/s, nearly ten times the chemical ceiling. Why is anything still burning kerosene?</p>
+
+<p>Because efficiency and thrust are different quantities, and in electric propulsion they actively trade against each other.</p>
+
+<div class="tsi-eq plain">
+  <em>F</em> = <em>&#7745;</em> <em>v</em><sub>e</sub>
+</div>
+
+<p>Thrust is mass flow rate times exhaust velocity. An ion thruster achieves its enormous <em>v</em><sub>e</sub> by accelerating an extraordinarily thin stream of xenon to extraordinary speed. The <em>v</em><sub>e</sub> term is huge, the flow rate term is minuscule, and the product is tiny.</p>
+
+<p>It gets worse once power enters. The kinetic energy going into the exhaust is <em>P</em> = &frac12; <em>&#7745;</em> <em>v</em><sub>e</sub><sup>2</sup>, so for a fixed power supply, substituting for the flow rate gives:</p>
+
+<div class="tsi-eq">
+  <em>F</em> = <span class="tsi-frac"><span class="num">2<em>P</em></span><span class="den"><em>v</em><sub>e</sub></span></span>
+  <span class="tsi-eq-lbl">At fixed power, thrust falls as efficiency rises</span>
+</div>
+
+<p>Thrust is <em>inversely</em> proportional to exhaust velocity at fixed power. Every unit of efficiency is paid for directly in thrust. A chemical rocket escapes this trap because its energy arrives inside the propellant itself, as chemical bonds, so available power scales with flow rate instead of being capped by a solar array.</p>
+
+<p>The magnitudes are almost comic. The NSTAR ion thruster that flew on the Dawn spacecraft produced about 92 millinewtons, roughly the weight of a coin resting in your palm. A single Merlin engine produces about 845,000 newtons. Ion propulsion is superb for spending years quietly accelerating in deep space, and completely useless for departing or arriving anywhere with meaningful gravity.</p>
+
+<div class="tsi-callout">
+  <span class="tag">The equation's blind spot</span>
+  <p>The rocket equation contains no time, no thrust, and no gravity. It will cheerfully hand you a &Delta;<em>v</em> figure for a vehicle that cannot lift itself off the ground. Any simulation or design study needs a thrust-to-weight constraint sitting alongside it, because &Delta;<em>v</em> tells you what you can afford, not whether you can move.</p>
+</div>
+
+<h2>Staging: cheating the logarithm</h2>
+
+<p>Suppose you want 9,400 m/s, the realistic cost of reaching low Earth orbit from the surface of the Earth, using kerosene at <em>v</em><sub>e</sub> = 3,000 m/s. The required mass ratio is <em>e</em><sup>3.13</sup> &asymp; 22.9, so your dry mass, everything that is not propellant, must be under 4.4% of liftoff mass. Tanks, engines, plumbing, avionics, structure and payload, all inside one part in twenty-three. That is beyond what chemical vehicles with useful payloads have achieved.</p>
+
+<p>Now split the job across two stages, each delivering 4,700 m/s. Each needs a mass ratio of only <em>e</em><sup>1.57</sup> &asymp; 4.79, meaning a dry mass fraction of about 21%. That is comfortably buildable.</p>
+
+<p>The trick is that <em>m</em><sub>f</sub> punishes you for every gram you are still carrying at burnout, and an empty first-stage tank is pure dead weight. Dropping it lets you restart the logarithm with a much smaller vehicle. Staging is not an optimisation, it is the reason orbital flight is possible at all.</p>
+
+<h2>What the equation leaves out</h2>
+
+<p>The clean derivation assumed an isolated system with no external forces. Reality supplies several, and they show up as extra &Delta;<em>v</em> you must budget for but never see as velocity.</p>
+
+<p><strong>Gravity losses.</strong> While your engine burns, gravity keeps pulling. The velocity you actually gain is the thrust term minus a gravity term:</p>
+
+<div class="tsi-eq plain">
+  <span class="tsi-frac"><span class="num">d<em>v</em></span><span class="den">d<em>t</em></span></span> = <span class="tsi-frac"><span class="num"><em>F</em></span><span class="den"><em>m</em></span></span> &minus; <em>g</em> sin&thinsp;&gamma;
+</div>
+
+<p>where &gamma; is the flight path angle. Ascend vertically for 100 seconds and you have handed roughly 981 m/s to gravity for nothing. A typical launch to orbit loses something like 1.5 km/s this way, plus 100 to 300 m/s to atmospheric drag. This is why orbital velocity at low Earth orbit is 7.8 km/s but the budget is 9.4 km/s, and why rockets pitch over so early: horizontal thrust does not fight gravity.</p>
+
+<p><strong>Finite burn time.</strong> Escape velocity assumes a single instantaneous kick. Any real burn takes minutes, during which the vehicle is climbing out of the well the whole time, so the impulsive figure is a floor rather than an estimate.</p>
+
+<p><strong>Varying exhaust velocity.</strong> Nozzles are tuned for a particular ambient pressure. A sea-level engine underperforms in vacuum and a vacuum nozzle cannot be used at sea level, so <em>v</em><sub>e</sub> drifts through ascent.</p>
+
+<h3>The landing case</h3>
+
+<p>Propulsive landing is where all of this bites hardest, because it is the regime in which the classical equation is least informative on its own.</p>
+
+<p>Hovering is the clearest illustration. A hovering vehicle produces thrust exactly equal to its weight and makes no progress whatsoever. It is spending &Delta;<em>v</em> at a rate of <em>g</em> per second, about 9.81 m/s of budget every second on Earth, purchasing nothing. Gravity losses are total.</p>
+
+<p>The efficient answer is counterintuitive and slightly alarming: fall as long as possible, then burn as hard as possible as late as possible, arriving at zero velocity exactly at zero altitude. Minimising burn duration minimises the time gravity spends taxing you. This is the constant-thrust landing burn, known in the trade as a suicide burn or hoverslam, and it is optimal precisely because the rocket equation says nothing about hovering while physics charges you for it.</p>
+
+<p>Two consequences follow for anyone modelling a lander. High thrust-to-weight is not a luxury but the dominant term in landing efficiency. And the landing propellant has to be carried all the way up and all the way back, which means it appears in <em>m</em><sub>f</sub> for every earlier burn, sitting inside the logarithm and quietly taxing the entire mission.</p>
+
+<p>The <a href="/lab/rocket-landing">Rocket Landing</a> lab is that argument made runnable: its booster carries 5,200 kg of propellant on a 22,200 kg dry mass, which is a mass ratio of 1.234 and about 582 m/s of &Delta;<em>v</em> for the whole descent. Watching the guidance law decide <em>when</em> to light the engine is watching it spend that budget.</p>
+
+<h2>The equation in one paragraph</h2>
+
+<blockquote>Speed is bought with mass, and the currency is exponential. Exhaust velocity multiplies your budget; mass ratio only ever enters through a logarithm. So better engines beat lighter tanks, chemistry caps the engines at roughly 4.5 km/s, staging exists to restart the logarithm partway up, and none of it accounts for gravity, which will charge you separately.</blockquote>
+
+<h2>Further reading</h2>
+
+<ul class="tsi-refs">
+  <li>Tsiolkovsky, K. E., <em>Исследование мировых пространств реактивными приборами</em>, 1903 &mdash; the original. <a href="https://www.tsiolkovsky.org/en/the-cosmic-philosophy/collected-works-of-k-e-tsiokovskiy-volume-ii-reactive-flying-machines-en/">An English translation is available</a>; it is worth reading in full if the history interests you, or worth handing to an LLM for a summary if it does not.</li>
+  <li>Sutton, G. P. &amp; Biblarz, O., <em>Rocket Propulsion Elements</em>, 9th ed., Wiley, 2016.</li>
+</ul>
+
+<p class="tsi-figures">Reference figures: standard gravity <em>g</em><sub>0</sub> = 9.80665 m/s<sup>2</sup>. Low Earth orbit velocity 7.8 km/s; surface-to-LEO budget approximately 9.4 km/s. Earth surface escape velocity 11.186 km/s; Moon 2.38 km/s; Mars 5.03 km/s. Specific impulse ranges are representative vacuum values and vary by engine.</p>
+
+<style>
+  /* Equations. Centred, italic, on a card ground -- the `plain` variant drops
+     the ground for the run of algebra in the derivation, where a stack of
+     boxes would read as five separate results rather than one worked line. */
+  .tsi-eq {
+    margin: 30px 0; padding: 20px 16px;
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px;
+    text-align: center; font-family: var(--font-body); font-size: 20px; font-style: italic;
+    color: var(--headline-color); overflow-x: auto;
+  }
+  .tsi-eq.plain { background: none; border: 0; padding: 8px 0; margin: 22px 0; }
+  .tsi-eq em { font-style: italic; }
+  .tsi-eq-lbl {
+    display: block; font-family: var(--font-mono); font-style: normal; font-size: 10px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--card-desc); margin-top: 14px;
+  }
+  /* Stacked fraction: a rule between two centred rows, nudged down so the
+     bar sits on the text baseline of the surrounding line. */
+  .tsi-frac { display: inline-block; vertical-align: -0.55em; text-align: center; margin: 0 3px; }
+  .tsi-frac > span { display: block; padding: 0 6px; }
+  .tsi-frac .num { border-bottom: 1.4px solid currentColor; padding-bottom: 2px; }
+  .tsi-frac .den { padding-top: 2px; }
+
+  .tsi-lede::first-letter {
+    float: left; font-family: var(--font-head); font-size: 58px; line-height: 0.82;
+    font-weight: 400; margin: 0.14em 0.1em 0 0; color: var(--card-label);
+  }
+
+  .tsi-callout {
+    margin: 30px 0; padding: 18px 20px; border-radius: 8px;
+    background: color-mix(in srgb, var(--card-label) 9%, transparent);
+    border: 1px solid color-mix(in srgb, var(--card-label) 26%, transparent);
+  }
+  .tsi-callout p { margin: 0; }
+  .tsi-callout .tag {
+    display: block; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--card-label); margin-bottom: 8px;
+  }
+
+  /* Tables scroll inside their own box so the page never does. */
+  .tsi-scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 26px 0; }
+  .tsi-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; }
+  .tsi-table caption {
+    caption-side: top; text-align: left; font-family: var(--font-mono); font-size: 10.5px;
+    color: var(--card-desc); padding-bottom: 10px;
+  }
+  .tsi-table th {
+    text-align: left; font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--section-meta); padding: 0 14px 8px 0; border-bottom: 1px solid var(--card-border);
+    white-space: nowrap;
+  }
+  .tsi-table td {
+    padding: 9px 14px 9px 0; border-bottom: 1px solid var(--card-border);
+    color: var(--subhead-color); vertical-align: top;
+  }
+  .tsi-table td.num, .tsi-table th.num {
+    text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; white-space: nowrap;
+  }
+
+  /* Interactive figure */
+  .tsi-demo {
+    margin: 34px 0; padding: 20px;
+    background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
+  }
+  .tsi-demo figcaption {
+    font-family: var(--font-body); font-size: 12.5px; line-height: 1.6;
+    color: var(--card-desc); margin-top: 16px;
+  }
+  .tsi-ctrl { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+  .tsi-ctrl label {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+    color: var(--card-desc); min-width: 10.5rem;
+  }
+  .tsi-ctrl output {
+    font-family: var(--font-mono); font-size: 12px; color: var(--headline-color);
+    min-width: 5.5rem; text-align: right; font-variant-numeric: tabular-nums;
+  }
+  .tsi-ctrl input[type="range"] { flex: 1; accent-color: var(--card-label); min-width: 0; }
+
+  .tsi-stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 10px; margin: 18px 0;
+  }
+  .tsi-stat { border: 1px solid var(--card-border); border-radius: 7px; padding: 12px 13px; }
+  .tsi-stat .k {
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--card-desc); margin-bottom: 6px;
+  }
+  .tsi-stat .v {
+    font-family: var(--font-mono); font-size: 20px; color: var(--headline-color);
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .tsi-stat .sub {
+    font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5;
+    margin-top: 7px; color: var(--card-desc);
+  }
+  .tsi-stat .sub b { color: var(--card-label); font-weight: 500; }
+  .tsi-demo canvas { display: block; width: 100%; height: 270px; }
+
+  .tsi-refs { padding-left: 20px; }
+  .tsi-refs li {
+    font-family: var(--font-body); font-weight: 300; font-size: 14.5px; line-height: 1.7;
+    color: var(--card-desc); margin-top: 8px;
+  }
+  .tsi-figures {
+    font-family: var(--font-mono) !important; font-size: 11px !important; line-height: 1.7 !important;
+    color: var(--card-desc) !important;
+    border-top: 1px solid var(--card-border); padding-top: 16px; margin-top: 34px !important;
+  }
+
+  @media (max-width: 560px) {
+    .tsi-eq { font-size: 17px; }
+    .tsi-ctrl { flex-wrap: wrap; }
+    .tsi-ctrl label { min-width: 100%; }
+  }
+</style>
+
+<script>
+  // Escape velocities at the surface, m/s. Sorted ascending so the readout can
+  // report the largest body this delta-v clears and the next one out of reach.
+  var BODIES = [
+    { n: "Deimos", v: 6 }, { n: "Phobos", v: 11 }, { n: "Enceladus", v: 239 },
+    { n: "Vesta", v: 363 }, { n: "Ceres", v: 510 }, { n: "Charon", v: 590 },
+    { n: "Pluto", v: 1210 }, { n: "Triton", v: 1455 }, { n: "Europa", v: 2025 },
+    { n: "the Moon", v: 2380 }, { n: "Callisto", v: 2440 }, { n: "Io", v: 2558 },
+    { n: "Titan", v: 2639 }, { n: "Ganymede", v: 2741 }, { n: "Mercury", v: 4250 },
+    { n: "Mars", v: 5030 }, { n: "Venus", v: 10360 }, { n: "Earth", v: 11186 },
+    { n: "Uranus", v: 21300 }, { n: "Neptune", v: 23500 }
+  ];
+
+  var pf = document.getElementById("tsiPf");
+  var ve = document.getElementById("tsiVe");
+  var cv = document.getElementById("tsiChart");
+
+  if (pf && ve && cv) {
+    var ctx = cv.getContext("2d");
+    var Y_MAX = 20000;
+    var PAD = { l: 52, r: 10, t: 12, b: 34 };
+
+    // Read the live token values rather than hard-coding colours, so the
+    // chart follows the site's light/dark toggle like everything else.
+    function token(name, fallback) {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fallback;
+    }
+
+    function fit() {
+      var dpr = window.devicePixelRatio || 1;
+      var w = cv.clientWidth || 640;
+      var h = cv.clientHeight || 270;
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w: w, h: h };
+    }
+
+    function draw(vExh, frac, dv) {
+      var d = fit();
+      var W = d.w, H = d.h;
+      var x0 = PAD.l, x1 = W - PAD.r, y0 = H - PAD.b, y1 = PAD.t;
+      var muted = token("--card-desc", "#847d74");
+      var rule = token("--card-border", "#e0d9cf");
+      var curve = token("--card-label", "#b8451f");
+      var marker = token("--headline-color", "#1c1a17");
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.lineWidth = 1;
+
+      var X = function (p) { return x0 + (p / 100) * (x1 - x0); };
+      var Y = function (v) { return y0 - Math.min(v, Y_MAX) / Y_MAX * (y0 - y1); };
+
+      ctx.strokeStyle = rule;
+      ctx.fillStyle = muted;
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (var g = 0; g <= 20000; g += 5000) {
+        var gy = Y(g);
+        ctx.beginPath();
+        ctx.moveTo(x0, gy);
+        ctx.lineTo(x1, gy);
+        ctx.stroke();
+        ctx.fillText((g / 1000) + "k", x0 - 8, gy);
+      }
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      for (var p = 0; p <= 100; p += 25) ctx.fillText(p + "%", X(p), y0 + 9);
+
+      ctx.strokeStyle = curve;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (var i = 1; i <= 98; i++) {
+        var f = i / 100;
+        var val = vExh * Math.log(1 / (1 - f));
+        var px = X(i), py = Y(val);
+        if (i === 1) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        if (val >= Y_MAX) break;
+      }
+      ctx.stroke();
+
+      ctx.fillStyle = marker;
+      ctx.beginPath();
+      ctx.arc(X(frac * 100), Y(dv), 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function update() {
+      var p = parseInt(pf.value, 10);
+      var v = parseInt(ve.value, 10);
+      var f = p / 100;
+      var mr = 1 / (1 - f);
+      var dv = v * Math.log(mr);
+
+      document.getElementById("tsiPfOut").textContent = p + "%";
+      document.getElementById("tsiVeOut").textContent = v.toLocaleString() + " m/s";
+      document.getElementById("tsiMr").textContent = mr.toFixed(2);
+      document.getElementById("tsiDv").textContent = Math.round(dv).toLocaleString() + " m/s";
+      document.getElementById("tsiSp").textContent = (100 - p) + "%";
+
+      var cleared = null, next = null;
+      for (var i = 0; i < BODIES.length; i++) {
+        if (dv >= BODIES[i].v) cleared = BODIES[i];
+        else { next = BODIES[i]; break; }
+      }
+      document.getElementById("tsiEsc").textContent = cleared
+        ? "escapes " + cleared.n + " (" + cleared.v.toLocaleString() + " m/s)"
+        : "escapes nothing listed";
+      document.getElementById("tsiNext").textContent = next
+        ? "short of " + next.n + " by " + Math.round(next.v - dv).toLocaleString() + " m/s"
+        : "escapes every body listed";
+
+      draw(v, f, dv);
+    }
+
+    pf.addEventListener("input", update);
+    ve.addEventListener("input", update);
+    window.addEventListener("resize", update);
+    // The canvas paints token colours, so it has to be redrawn when the
+    // theme changes -- both the OS preference and this site's own toggle.
+    if (window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      if (mq.addEventListener) mq.addEventListener("change", update);
+    }
+    new MutationObserver(update).observe(document.documentElement, {
+      attributes: true, attributeFilter: ["data-theme", "class"]
+    });
+    update();
+  }
+</script>
