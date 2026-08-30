@@ -715,9 +715,35 @@ img { max-width: 100%; display: block; }
 .writing-prose > figure,
 .writing-prose > table,
 .writing-prose > .prose-wide { grid-column: 1 / -1; }
-/* Doubled class: `.writing-block p` is (0,1,1) and `* + *` only (0,1,0),
-   so the single-class version loses and paragraphs sit flush. */
+
+/* A table set to display:block shrinks to its content instead of filling the
+   slot, so the wrapper takes the scrolling and the table stays a table. */
+.writing-prose .prose-wide { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.writing-prose .prose-wide > table { display: table; width: 100%; }
+
+/* Grid does not collapse margins, so a UA margin would add to these rather
+   than merge with them. Zero everything and set each gap once, in cascade
+   order: default, then blocks that want air, then headings. Article
+   components must not set vertical margins on their top-level elements.
+   Doubled class throughout: `.writing-block p` is (0,1,1) and would
+   otherwise beat a single-class rule. */
+.writing-block.writing-prose > * { margin: 0; }
 .writing-block.writing-prose > * + * { margin-top: 18px; }
+.writing-block.writing-prose > pre,
+.writing-block.writing-prose > figure,
+.writing-block.writing-prose > table,
+.writing-block.writing-prose > blockquote,
+.writing-block.writing-prose > .prose-wide,
+.writing-block.writing-prose > .prose-block,
+.writing-block.writing-prose > pre + *,
+.writing-block.writing-prose > figure + *,
+.writing-block.writing-prose > table + *,
+.writing-block.writing-prose > blockquote + *,
+.writing-block.writing-prose > .prose-wide + *,
+.writing-block.writing-prose > .prose-block + * { margin-top: 30px; }
+.writing-block.writing-prose > h2 { margin-top: 52px; }
+.writing-block.writing-prose > h3 { margin-top: 34px; }
+.writing-block.writing-prose > :first-child { margin-top: 0; }
 
 /* Shiki token colours, mapped onto the site palette. */
 .writing-prose {
@@ -735,11 +761,11 @@ img { max-width: 100%; display: block; }
 }
 .writing-prose h2 {
   font-family: var(--font-head); font-weight: 400; font-size: 25px; line-height: 1.25;
-  color: var(--headline-color); margin-top: 44px; text-wrap: balance;
+  color: var(--headline-color); text-wrap: balance;
 }
 .writing-prose h3 {
   font-family: var(--font-mono); font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
-  color: var(--headline-color); margin-top: 32px;
+  color: var(--headline-color);
 }
 .writing-prose ul, .writing-prose ol { padding-left: 22px; }
 .writing-prose li {

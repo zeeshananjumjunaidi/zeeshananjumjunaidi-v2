@@ -6,6 +6,6 @@
   "year": "2020",
   "description": "Moving a mouse pointer with your eyes.",
   "preview": "radar",
-  "featured": true,
+  "featured": false,
   "order": 0
 }

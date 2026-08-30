@@ -6,7 +6,7 @@
 
 <p>A rocket in vacuum has nothing to push against. The only mass available to push on is the mass it brought with it, so every increment of speed has to be bought by throwing part of the vehicle backwards and never getting it back. That single constraint, followed honestly to its conclusion, produces the most consequential equation in spaceflight.</p>
 
-<div class="tsi-eq">
+<div class="tsi-eq prose-block">
   &Delta;<em>v</em> = <em>v</em><sub>e</sub> ln <span class="tsi-frac"><span class="num"><em>m</em><sub>0</sub></span><span class="den"><em>m</em><sub>f</sub></span></span>
   <span class="tsi-eq-lbl">The rocket equation</span>
 </div>
@@ -25,19 +25,19 @@
 
 <p>Nothing external acts on the system, so momentum is unchanged:</p>
 
-<div class="tsi-eq plain">
+<div class="tsi-eq plain prose-block">
   <em>mv</em> = (<em>m</em> &minus; d<em>m</em><sub>p</sub>)(<em>v</em> + d<em>v</em>) + d<em>m</em><sub>p</sub>(<em>v</em> &minus; <em>v</em><sub>e</sub>)
 </div>
 
 <p>Expand the right-hand side and almost everything cancels:</p>
 
-<div class="tsi-eq plain">
+<div class="tsi-eq plain prose-block">
   <em>mv</em> = <em>mv</em> + <em>m</em>&thinsp;d<em>v</em> &minus; <em>v</em>&thinsp;d<em>m</em><sub>p</sub> &minus; d<em>m</em><sub>p</sub>&thinsp;d<em>v</em> + <em>v</em>&thinsp;d<em>m</em><sub>p</sub> &minus; <em>v</em><sub>e</sub>&thinsp;d<em>m</em><sub>p</sub>
 </div>
 
 <p>The <em>mv</em> terms cancel, and both <em>v</em>&thinsp;d<em>m</em><sub>p</sub> terms cancel against each other. The term d<em>m</em><sub>p</sub>&thinsp;d<em>v</em> is a product of two infinitesimals, second order, and vanishes in the limit. What survives is:</p>
 
-<div class="tsi-eq plain">
+<div class="tsi-eq plain prose-block">
   <em>m</em>&thinsp;d<em>v</em> = <em>v</em><sub>e</sub>&thinsp;d<em>m</em><sub>p</sub>
   &nbsp;&nbsp;&rarr;&nbsp;&nbsp;
   d<em>v</em> = <em>v</em><sub>e</sub> <span class="tsi-frac"><span class="num">d<em>m</em><sub>p</sub></span><span class="den"><em>m</em></span></span>
@@ -47,13 +47,13 @@
 
 <p>Now switch from propellant expelled to vehicle mass. The vehicle loses exactly what the nozzle gains, so d<em>m</em><sub>p</sub> = &minus;d<em>m</em>, and integrating from the wet mass to the dry mass:</p>
 
-<div class="tsi-eq plain">
+<div class="tsi-eq plain prose-block">
   &int;<sub>0</sub><sup>&Delta;v</sup> d<em>v</em> = &minus;<em>v</em><sub>e</sub> &int;<sub><em>m</em><sub>0</sub></sub><sup><em>m</em><sub>f</sub></sup> <span class="tsi-frac"><span class="num">d<em>m</em></span><span class="den"><em>m</em></span></span>
 </div>
 
 <p>The integral of d<em>m</em>&thinsp;/&thinsp;<em>m</em> is ln <em>m</em>. That is the whole answer to "where does the logarithm come from": it is what you get when the thing you are dividing by is the same thing you are consuming.</p>
 
-<div class="tsi-eq">
+<div class="tsi-eq prose-block">
   &Delta;<em>v</em> = &minus;<em>v</em><sub>e</sub>(ln <em>m</em><sub>f</sub> &minus; ln <em>m</em><sub>0</sub>) = <em>v</em><sub>e</sub> ln <span class="tsi-frac"><span class="num"><em>m</em><sub>0</sub></span><span class="den"><em>m</em><sub>f</sub></span></span>
 </div>
 
@@ -63,7 +63,7 @@
 
 <p>The alarm arrives when you read it backwards. You do not usually get to choose your mass ratio and see what speed falls out. You have a mission, the mission demands a specific &Delta;<em>v</em>, and you have to find a vehicle that delivers it. Solve for mass ratio and the logarithm inverts:</p>
 
-<div class="tsi-eq">
+<div class="tsi-eq prose-block">
   <span class="tsi-frac"><span class="num"><em>m</em><sub>0</sub></span><span class="den"><em>m</em><sub>f</sub></span></span> = <em>e</em><sup>&thinsp;&Delta;<em>v</em>&thinsp;/&thinsp;<em>v</em><sub>e</sub></sup>
   <span class="tsi-eq-lbl">The same equation, read as a requirement</span>
 </div>
@@ -134,7 +134,7 @@
 
 <p>Engineers usually quote exhaust velocity as <strong>specific impulse</strong>, <em>I</em><sub>sp</sub>, measured in seconds. The two are the same number in different clothes:</p>
 
-<div class="tsi-eq plain">
+<div class="tsi-eq plain prose-block">
   <em>v</em><sub>e</sub> = <em>I</em><sub>sp</sub> &middot; <em>g</em><sub>0</sub>, &nbsp; where <em>g</em><sub>0</sub> = 9.80665 m/s<sup>2</sup>
 </div>
 
@@ -163,7 +163,7 @@
 
 <p>Because efficiency and thrust are different quantities, and in electric propulsion they actively trade against each other.</p>
 
-<div class="tsi-eq plain">
+<div class="tsi-eq plain prose-block">
   <em>F</em> = <em>&#7745;</em> <em>v</em><sub>e</sub>
 </div>
 
@@ -171,7 +171,7 @@
 
 <p>It gets worse once power enters. The kinetic energy going into the exhaust is <em>P</em> = &frac12; <em>&#7745;</em> <em>v</em><sub>e</sub><sup>2</sup>, so for a fixed power supply, substituting for the flow rate gives:</p>
 
-<div class="tsi-eq">
+<div class="tsi-eq prose-block">
   <em>F</em> = <span class="tsi-frac"><span class="num">2<em>P</em></span><span class="den"><em>v</em><sub>e</sub></span></span>
   <span class="tsi-eq-lbl">At fixed power, thrust falls as efficiency rises</span>
 </div>
@@ -180,7 +180,7 @@
 
 <p>The magnitudes are almost comic. The NSTAR ion thruster that flew on the Dawn spacecraft produced about 92 millinewtons, roughly the weight of a coin resting in your palm. A single Merlin engine produces about 845,000 newtons. Ion propulsion is superb for spending years quietly accelerating in deep space, and completely useless for departing or arriving anywhere with meaningful gravity.</p>
 
-<div class="tsi-callout">
+<div class="tsi-callout prose-block">
   <span class="tag">The equation's blind spot</span>
   <p>The rocket equation contains no time, no thrust, and no gravity. It will cheerfully hand you a &Delta;<em>v</em> figure for a vehicle that cannot lift itself off the ground. Any simulation or design study needs a thrust-to-weight constraint sitting alongside it, because &Delta;<em>v</em> tells you what you can afford, not whether you can move.</p>
 </div>
@@ -199,7 +199,7 @@
 
 <p><strong>Gravity losses.</strong> While your engine burns, gravity keeps pulling. The velocity you actually gain is the thrust term minus a gravity term:</p>
 
-<div class="tsi-eq plain">
+<div class="tsi-eq plain prose-block">
   <span class="tsi-frac"><span class="num">d<em>v</em></span><span class="den">d<em>t</em></span></span> = <span class="tsi-frac"><span class="num"><em>F</em></span><span class="den"><em>m</em></span></span> &minus; <em>g</em> sin&thinsp;&gamma;
 </div>
 
@@ -238,12 +238,12 @@
   /* .plain drops the ground for the run of algebra in the derivation, where a
      stack of boxes would read as separate results rather than one worked line. */
   .tsi-eq {
-    margin: 30px 0; padding: 20px 16px;
+    padding: 20px 16px;
     background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px;
     text-align: center; font-family: var(--font-body); font-size: 20px; font-style: italic;
     color: var(--headline-color); overflow-x: auto;
   }
-  .tsi-eq.plain { background: none; border: 0; padding: 8px 0; margin: 22px 0; }
+  .tsi-eq.plain { background: none; border: 0; padding: 8px 0; }
   .tsi-eq em { font-style: italic; }
   .tsi-eq-lbl {
     display: block; font-family: var(--font-mono); font-style: normal; font-size: 10px;
@@ -260,7 +260,7 @@
   }
 
   .tsi-callout {
-    margin: 30px 0; padding: 18px 20px; border-radius: 8px;
+    padding: 18px 20px; border-radius: 8px;
     background: color-mix(in srgb, var(--card-label) 9%, transparent);
     border: 1px solid color-mix(in srgb, var(--card-label) 26%, transparent);
   }
@@ -270,7 +270,7 @@
     text-transform: uppercase; color: var(--card-label); margin-bottom: 8px;
   }
 
-  .tsi-scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 26px 0; }
+  .tsi-scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tsi-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 12.5px; }
   .tsi-table caption {
     caption-side: top; text-align: left; font-family: var(--font-mono); font-size: 10.5px;
@@ -291,7 +291,7 @@
 
   /* Interactive figure */
   .tsi-demo {
-    margin: 34px 0; padding: 20px;
+    padding: 20px;
     background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px;
   }
   .tsi-demo figcaption {
