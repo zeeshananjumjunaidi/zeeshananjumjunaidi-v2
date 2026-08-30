@@ -86,6 +86,7 @@ const CONCEPTS = [
             <span class="rl-hud-v" id="fuel">100%</span>
             <div class="rl-hud-row"><span>Gimbal</span><b id="gimbalHud">0.0&deg; / 0.0&deg;</b></div>
             <div class="rl-hud-row"><span>Fins</span><b id="finHud">0.0&deg; / 0.0&deg;</b></div>
+            <div class="rl-hud-row"><span>RCS</span><b id="rcsHud">off</b></div>
           </div>
 
           <div class="rl-hudpanel rl-hud-bl">
@@ -882,6 +883,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   var tiltHudEl = document.getElementById("tiltHud");
   var gimbalHudEl = document.getElementById("gimbalHud");
   var finHudEl = document.getElementById("finHud");
+  var rcsHudEl = document.getElementById("rcsHud");
   var instrumentsEl = document.getElementById("instruments");
   var attDotEl = document.getElementById("attDot");
   var attCmdEl = document.getElementById("attCmd");
@@ -944,7 +946,11 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     // Grid-fin geometry (Article §04's own numbers): lift-curve slope,
     // reference area, moment arm from the CoM, and the fin actuator's
     // own (faster, smaller-surface) limits.
-    finS: 16, finArm: 14, finCL: 2.0, maxFin: 20 * DEG, finRate: 120 * DEG
+    finS: 16, finArm: 14, finCL: 2.0, maxFin: 20 * DEG, finRate: 120 * DEG,
+    // Cold-gas RCS in the interstage. Tiny authority next to the gimbal, but
+    // it is the only actuator that works with the engine off and no air, so
+    // it covers the gap the other two leave high in the coast.
+    rcsT: 2500, rcsArm: 19, rcsIsp: 70, n2_0: 45
   };
 
   // Physics + guidance constants. Full translation (x,y,z) and attitude
@@ -1013,6 +1019,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       ignited: false,
       autopilot: true,
       thrustFrac: 0, defPhi: 0, defPsi: 0, finPhi: 0, finPsi: 0, // last-applied control, for the visuals
+      rcsPhi: 0, rcsPsi: 0, n2: VEH.n2_0,
       cmdPhi: 0, cmdPsi: 0, // attitude the controller is ASKING for -- the flight director needle
       // Guidance internals, surfaced for the flight strip. Null until the
       // autopilot has actually run a cycle -- in manual there is no
@@ -1300,7 +1307,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // do none of that, which is why a plain-sprite version pops and
   // strobes instead of breathing.
   var POOLS = [];
-  var fire, smoke, dust, debris, prevNz = null, flashLight;
+  var fire, smoke, dust, debris, airFlow, rcsGas, prevNz = null, flashLight;
   var EM = { fire: 0, smoke: 0, dust: 0 };
 
   function makePool(n, tex, blending, order) {
@@ -1352,6 +1359,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     smoke = makePool(800, texPuff, THREE.NormalBlending, 4);
     dust = makePool(700, texPuff, THREE.NormalBlending, 4);
     debris = makePool(420, texSoft, THREE.AdditiveBlending, 5);
+    airFlow = makePool(600, texSoft, THREE.NormalBlending, 2);
+    rcsGas = makePool(260, texPuff, THREE.NormalBlending, 4);
     clearParticles();
     // The glow sprite shares the fire sprite's falloff, so the throat and
     // the particles leaving it are the same shape of light.
@@ -1367,6 +1376,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       for (var a = 0; a < PARTICLE_ATTRS.length; a++) P.geo.attributes[PARTICLE_ATTRS[a]].needsUpdate = true;
     }
     EM.fire = EM.smoke = EM.dust = 0;
+    EM_AIR = EM_RCS = 0;
     prevNz = null;
     if (flashLight) flashLight.intensity = 0;
   }
@@ -1448,6 +1458,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       ? { drag: 1.1, grav: -W.g * 0.2, buoy: 0.8, turb: 1.8, fadeIn: 0.14, pow: 1.2, ramp: 1.0, floor: 0.5, bounce: 0, windK: 0.4 }
       : { drag: 0.02, grav: -W.g, buoy: 0, turb: 0, fadeIn: 0.02, pow: 1.6, ramp: 1.0, floor: 0.3, bounce: 0.25, windK: 0 });
     stepPool(debris, dt, { drag: 0.25, grav: -W.g, buoy: 0, turb: 0, fadeIn: 0.01, pow: 1.1, ramp: 2.2, floor: 0.6, bounce: 0.3, windK: 0 });
+    // Airflow keeps its own velocity: drag would stop it dead beside the
+    // vehicle instead of sweeping past. No floor, it lives above the ground.
+    stepPool(airFlow, dt, { drag: 0.02, grav: 0, buoy: 0, turb: 0.4, fadeIn: 0.06, pow: 1.5, ramp: 1.0, floor: -1e5, bounce: 0, windK: 0 });
+    stepPool(rcsGas, dt, { drag: 1.8, grav: 0, buoy: 0.6, turb: 1.2, fadeIn: 0.02, pow: 1.3, ramp: 1.0, floor: -1e5, bounce: 0, windK: 0 });
     if (flashLight && flashLight.intensity > 0) flashLight.intensity = Math.max(0, flashLight.intensity - dt * 18);
   }
 
@@ -1535,6 +1549,94 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
             g[0], g[1], g[2]);
         }
       }
+    }
+  }
+
+  // Streaks of air swept past the vehicle along the RELATIVE wind, which is
+  // where the angle of attack becomes visible: tilt the vehicle and the flow
+  // keeps running along its own direction while the body no longer matches it.
+  var EM_AIR = 0, EM_RCS = 0;
+  function emitAirflow(dt) {
+    if (!airFlow || dt <= 0 || state.phase !== "falling") return;
+    var w = world();
+    if (w.rho0 <= 0) return;
+
+    var windX = windInput ? Number(windInput.value) : 0;
+    var rvx = state.vx - windX, rvy = state.vy, rvz = state.vz;
+    var speed = Math.hypot(rvx, rvy, rvz);
+    if (speed < 25) return;
+
+    var bodyUy = Math.cos(state.phi) * Math.cos(state.psi);
+    var alt = Math.max(0, state.y - VEH.arm * bodyUy);
+    var rho = w.rho0 * Math.exp(-alt / w.H);
+    var q = 0.5 * rho * speed * speed;
+    // Nothing worth drawing until the air is actually doing something.
+    var strength = clamp(q / 9000, 0, 1);
+    if (strength <= 0.02) return;
+
+    // Unit vector the air travels along, and two axes across it to scatter on.
+    var fx = -rvx / speed, fy = -rvy / speed, fz = -rvz / speed;
+    var ax = Math.abs(fy) < 0.9 ? 0 : 1, ay = Math.abs(fy) < 0.9 ? 1 : 0;
+    var px = ay * fz - 0 * fy, py = 0 * fx - ax * fz, pz = ax * fy - ay * fx;
+    var pm = Math.hypot(px, py, pz) || 1;
+    px /= pm; py /= pm; pz /= pm;
+    var qx = fy * pz - fz * py, qy = fz * px - fx * pz, qz = fx * py - fy * px;
+
+    // Angle of attack: how far the body axis has departed from the flow.
+    // Tilting into the airstream is what thickens the effect.
+    var bx = -Math.sin(state.phi);
+    var by = Math.cos(state.phi) * Math.cos(state.psi);
+    var bz = Math.cos(state.phi) * Math.sin(state.psi);
+    var aoa = Math.acos(clamp(-(bx * fx + by * fy + bz * fz), -1, 1));
+    var aoaBoost = 1 + 2.4 * Math.sin(Math.min(aoa, Math.PI / 2));
+
+    EM_AIR += strength * aoaBoost * 190 * dt;
+    var n = Math.min(Math.floor(EM_AIR), 30);
+    EM_AIR -= Math.floor(EM_AIR);
+
+    var cx = state.x, cy = restY + state.y, cz = state.z;
+    for (var i = 0; i < n; i++) {
+      // Hugging the body and spawned upstream only, so they read as flow
+      // arriving and sweeping past rather than haze scattered around it.
+      var r = 3 + Math.random() * 15;
+      var a = Math.random() * 6.283;
+      var off = 24 + Math.random() * 46;
+      var ox = px * Math.cos(a) * r + qx * Math.sin(a) * r - fx * off;
+      var oy = py * Math.cos(a) * r + qy * Math.sin(a) * r - fy * off;
+      var oz = pz * Math.cos(a) * r + qz * Math.sin(a) * r - fz * off;
+      var sp = speed * (0.88 + Math.random() * 0.24);
+      emit(airFlow, cx + ox, cy + oy, cz + oz,
+        fx * sp, fy * sp, fz * sp,
+        0.30 + Math.random() * 0.22, 1.1 + Math.random() * 1.4, 1.6,
+        (0.08 + 0.26 * strength) * Math.min(aoaBoost, 2),
+        0.40, 0.45, 0.53, 0.60, 0.64, 0.70);
+    }
+  }
+
+  // Cold-gas puffs from the interstage, fired opposite the torque they make.
+  function emitRcs(dt) {
+    if (!rcsGas || dt <= 0) return;
+    var on = Math.abs(state.rcsPhi) + Math.abs(state.rcsPsi);
+    if (on <= 0 || state.n2 <= 0) return;
+
+    EM_RCS += on * 70 * dt;
+    var n = Math.min(Math.floor(EM_RCS), 10);
+    EM_RCS -= Math.floor(EM_RCS);
+    if (n <= 0) return;
+
+    var pod = new THREE.Vector3(0, VEH.rcsArm, 0).applyEuler(rocket.rotation).add(rocket.position);
+    // Gas leaves along +x for a positive phi command and +z for psi, rotated
+    // into the vehicle's own frame.
+    var dir = new THREE.Vector3(state.rcsPhi, 0, state.rcsPsi).normalize().applyEuler(rocket.rotation);
+    for (var i = 0; i < n; i++) {
+      var sp = 26 + Math.random() * 20;
+      emit(rcsGas,
+        pod.x + (Math.random() - 0.5) * 2, pod.y + (Math.random() - 0.5) * 2, pod.z + (Math.random() - 0.5) * 2,
+        dir.x * sp + state.vx * 0.5 + (Math.random() - 0.5) * 6,
+        dir.y * sp + state.vy * 0.5 + (Math.random() - 0.5) * 6,
+        dir.z * sp + state.vz * 0.5 + (Math.random() - 0.5) * 6,
+        0.45 + Math.random() * 0.35, 2.0 + Math.random() * 1.6, 3.6, 0.7,
+        0.95, 0.96, 0.98, 0.72, 0.75, 0.80);
     }
   }
 
@@ -1657,7 +1759,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   // each actuator's own limits and rate -- shared by the autopilot and
   // manual attitude hold so both actuators respond the same way no
   // matter who is asking for the torque.
-  function allocate(uPhi, uPsi) {
+  var RCS_DEADBAND = 0.035;
+  function allocate(uPhi, uPsi, engineOff) {
     var maxGimbalStep = VEH.gimbalRate * PHYS.step;
     var defPhi = clamp(clamp(uPhi, -VEH.maxGimbal, VEH.maxGimbal), state.defPhi - maxGimbalStep, state.defPhi + maxGimbalStep);
     var defPsi = clamp(clamp(uPsi, -VEH.maxGimbal, VEH.maxGimbal), state.defPsi - maxGimbalStep, state.defPsi + maxGimbalStep);
@@ -1666,7 +1769,16 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     var finPhi = clamp(clamp(PHYS.finGain * uPhi, -VEH.maxFin, VEH.maxFin), state.finPhi - maxFinStep, state.finPhi + maxFinStep);
     var finPsi = clamp(clamp(PHYS.finGain * uPsi, -VEH.maxFin, VEH.maxFin), state.finPsi - maxFinStep, state.finPsi + maxFinStep);
 
-    return { defPhi: defPhi, defPsi: defPsi, finPhi: finPhi, finPsi: finPsi };
+    // Cold gas is a valve, not a servo: full thrust or nothing, outside a
+    // deadband. Held back for the engine-off coast so it isn't wasted
+    // fighting the gimbal, which is stronger by two orders of magnitude.
+    var rcsPhi = 0, rcsPsi = 0;
+    if (engineOff && state.n2 > 0) {
+      if (Math.abs(uPhi) > RCS_DEADBAND) rcsPhi = uPhi > 0 ? 1 : -1;
+      if (Math.abs(uPsi) > RCS_DEADBAND) rcsPsi = uPsi > 0 ? 1 : -1;
+    }
+
+    return { defPhi: defPhi, defPsi: defPsi, finPhi: finPhi, finPsi: finPsi, rcsPhi: rcsPhi, rcsPsi: rcsPsi };
   }
 
   // Manual mode, full authority: throttle and both tilt axes are
@@ -1704,9 +1816,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
     var uPhi = -(PHYS.Kp * (manualPhiCmd - state.phi) - PHYS.Kd * state.wphi);
     var uPsi = -(PHYS.Kp * (manualPsiCmd - state.psi) - PHYS.Kd * state.wpsi);
-    var alloc = allocate(uPhi, uPsi);
+    var alloc = allocate(uPhi, uPsi, frac <= 0);
 
-    return { thrust: frac * VEH.maxT, defPhi: alloc.defPhi, defPsi: alloc.defPsi, finPhi: alloc.finPhi, finPsi: alloc.finPsi };
+    return { thrust: frac * VEH.maxT, defPhi: alloc.defPhi, defPsi: alloc.defPsi,
+      finPhi: alloc.finPhi, finPsi: alloc.finPsi, rcsPhi: alloc.rcsPhi, rcsPsi: alloc.rcsPsi };
   }
 
   // Ported from the reference file's own guidance stack (deriv/rk4 +
@@ -1871,9 +1984,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 
     var uPhi = -(PHYS.Kp * (phiCmd - state.phi) - PHYS.Kd * state.wphi);
     var uPsi = -(PHYS.Kp * (psiCmd - state.psi) - PHYS.Kd * state.wpsi);
-    var alloc = allocate(uPhi, uPsi);
+    var alloc = allocate(uPhi, uPsi, thrustFrac <= 0);
 
-    return { thrust: thrustFrac * VEH.maxT, defPhi: alloc.defPhi, defPsi: alloc.defPsi, finPhi: alloc.finPhi, finPsi: alloc.finPsi };
+    return { thrust: thrustFrac * VEH.maxT, defPhi: alloc.defPhi, defPsi: alloc.defPsi,
+      finPhi: alloc.finPhi, finPsi: alloc.finPsi, rcsPhi: alloc.rcsPhi, rcsPsi: alloc.rcsPsi };
   }
 
   // Article §01's state vector (x,y,z,vx,vy,vz,φ,ψ,ωφ,ωψ), Article §02's
@@ -1941,8 +2055,10 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
       vy: (u.thrust * uy) / mass - w.g - dragK * relVy,
       vz: (u.thrust * uz) / mass - dragK * relVz,
       phi: s.wphi, psi: s.wpsi,
-      wphi: (-u.thrust * VEH.arm * Math.sin(u.defPhi) - finK * Math.sin(u.finPhi || 0) + wvPhi - cD * s.wphi) / I,
-      wpsi: (-u.thrust * VEH.arm * Math.sin(u.defPsi) - finK * Math.sin(u.finPsi || 0) + wvPsi - cD * s.wpsi) / I
+      wphi: (-u.thrust * VEH.arm * Math.sin(u.defPhi) - finK * Math.sin(u.finPhi || 0)
+        - (u.rcsPhi || 0) * VEH.rcsT * VEH.rcsArm + wvPhi - cD * s.wphi) / I,
+      wpsi: (-u.thrust * VEH.arm * Math.sin(u.defPsi) - finK * Math.sin(u.finPsi || 0)
+        - (u.rcsPsi || 0) * VEH.rcsT * VEH.rcsArm + wvPsi - cD * s.wpsi) / I
     };
   }
   function advance(s, k, h) {
@@ -1976,6 +2092,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     state.defPsi = u.defPsi;
     state.finPhi = u.finPhi;
     state.finPsi = u.finPsi;
+    state.rcsPhi = u.rcsPhi || 0;
+    state.rcsPsi = u.rcsPsi || 0;
+    var rcsOn = Math.abs(state.rcsPhi) + Math.abs(state.rcsPsi);
+    if (rcsOn > 0) {
+      state.n2 = Math.max(0, state.n2 - (rcsOn * VEH.rcsT / (VEH.rcsIsp * STD_G0)) * dt);
+    }
     // Peak load is a high-water mark, referenced to standard g the way
     // an accelerometer trace would be, not to the local world's gravity.
     state.peakG = Math.max(state.peakG, u.thrust / mass / STD_G0);
@@ -2036,6 +2158,11 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     if (tiltHudEl) tiltHudEl.textContent = (Math.sqrt(state.phi * state.phi + state.psi * state.psi) / DEG).toFixed(1) + "°";
     if (gimbalHudEl) gimbalHudEl.textContent = (state.defPhi / DEG).toFixed(1) + "° / " + (state.defPsi / DEG).toFixed(1) + "°";
     if (finHudEl) finHudEl.textContent = (state.finPhi / DEG).toFixed(1) + "° / " + (state.finPsi / DEG).toFixed(1) + "°";
+    if (rcsHudEl) {
+      var firing = Math.abs(state.rcsPhi) + Math.abs(state.rcsPsi) > 0;
+      rcsHudEl.textContent = firing ? "firing · " + state.n2.toFixed(1) + " kg" : state.n2.toFixed(1) + " kg";
+      rcsHudEl.classList.toggle("tone-ok", firing);
+    }
     if (tplusEl) tplusEl.textContent = state.tPlus.toFixed(1) + " s";
     if (tgoHudEl) tgoHudEl.textContent = (state.ignited && state.tGo != null) ? state.tGo.toFixed(1) + " s" : "––";
     if (phaseEl) {
@@ -2284,6 +2411,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     updateCamera(dt);
     updateEngineVisual();
     emitPlume(simDt);
+    emitAirflow(simDt);
+    emitRcs(simDt);
     updateParticles(simDt);
     updateHud();
     updateInstruments();
