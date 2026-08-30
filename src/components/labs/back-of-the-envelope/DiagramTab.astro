@@ -269,6 +269,13 @@
 .dg-node[data-shape="text"][data-color="azure"] { color: color-mix(in srgb, #0078D4 70%, var(--headline-color)); }
 
 .dg-node.has-icon { flex-direction: column; gap: 5px; }
+.dg-node.has-metric { flex-direction: column; gap: 4px; }
+.dg-node-metric {
+  font-family: var(--font-mono); font-size: 9.5px; line-height: 1.2;
+  color: var(--card-desc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; letter-spacing: 0.02em; flex-shrink: 0;
+}
+.dg-node-metric b { color: var(--card-label); font-weight: 500; font-variant-numeric: tabular-nums; }
 .dg-node-icon-svg {
   width: 22px; height: 22px; flex-shrink: 0; fill: none; stroke: currentColor;
   stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; color: var(--card-desc);
@@ -470,6 +477,8 @@
 </style>
 
 <script>
+  import { METRICS, metricByKey, readMetric } from "./metrics.js";
+
 (function () {
   var wrap = document.getElementById("dgCanvasWrap");
   if (!wrap) return;
@@ -1213,13 +1222,53 @@
     });
   }
 
+  var METRIC_MIN_H = 84;
+
+  function paintMetric(el) {
+    var def = metricByKey(el.dataset.metric);
+    if (!def) { el.textContent = ""; return; }
+    var m = readMetric(el.dataset.metric);
+    el.innerHTML = "";
+    var b = document.createElement("b");
+    // "34,378 RPS read RPS" reads badly, so drop a unit the label already carries.
+    var dupUnit = m.unit && def.short.toLowerCase().indexOf(m.unit.toLowerCase()) !== -1;
+    b.textContent = m.value + (m.unit && !dupUnit ? " " + m.unit : "");
+    el.appendChild(b);
+    el.appendChild(document.createTextNode(" " + def.short));
+    el.title = def.short + ": " + b.textContent;
+  }
+
+  // Repaint in place rather than re-rendering nodes, so a calculator change
+  // mid-drag does not tear down the element being dragged.
+  function refreshMetrics() {
+    nodeLayer.querySelectorAll(".dg-node-metric").forEach(paintMetric);
+  }
+
+  function setSelectionMetric(key) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (!n || n.type === "container") return;
+      n.metric = key || null;
+      // A default-height box has no room for a third line.
+      if (key && n.h < METRIC_MIN_H) n.h = METRIC_MIN_H;
+    });
+    renderNodes();
+    save();
+  }
+
   function createNodeEl(node) {
     var el = document.createElement("div");
     var animClass = (node.animate === "heartbeat" || node.animate === "error") ? " dg-anim-" + node.animate : "";
-    el.className = "dg-node" + (node.type === "container" ? " container" : "") + (node.icon ? " has-icon" : "") + animClass;
+    el.className = "dg-node" + (node.type === "container" ? " container" : "") + (node.icon ? " has-icon" : "")
+      + (node.metric ? " has-metric" : "") + animClass;
     el.dataset.id = node.id;
     if (node.color) el.dataset.color = node.color;
     el.dataset.shape = node.shape || "rect";
+    // Catches nodes that arrived from an import or an older save at a height
+    // that would clip the metric line.
+    if (node.metric && node.h < METRIC_MIN_H) node.h = METRIC_MIN_H;
     el.style.left = node.x + "px";
     el.style.top = node.y + "px";
     el.style.width = node.w + "px";
@@ -1237,6 +1286,14 @@
     label.textContent = node.label;
     label.spellcheck = false;
     el.appendChild(label);
+
+    if (node.metric) {
+      var metricEl = document.createElement("div");
+      metricEl.className = "dg-node-metric";
+      metricEl.dataset.metric = node.metric;
+      el.appendChild(metricEl);
+      paintMetric(metricEl);
+    }
 
     if (node.animate === "notify") {
       var badge = document.createElement("div");
@@ -1993,7 +2050,8 @@
           icon: (nd && NODE_ICONS[nd.icon]) ? nd.icon : "",
           // Export writes `animate` but this list used to omit it, so any
           // diagram with animated nodes lost them on the way back in.
-          animate: (nd && ["notify", "fill", "spinner", "heartbeat", "error"].indexOf(nd.animate) !== -1) ? nd.animate : null
+          animate: (nd && ["notify", "fill", "spinner", "heartbeat", "error"].indexOf(nd.animate) !== -1) ? nd.animate : null,
+          metric: (nd && metricByKey(nd.metric)) ? nd.metric : null
         };
       });
       var validIds = {};
@@ -2040,6 +2098,8 @@
   // Presets and save slots load a diagram this way rather than reaching into
   // this script -- the tab stays self-contained and only accepts the same
   // {nodes, edges} shape its own Export produces.
+  document.addEventListener("boe:metrics-changed", refreshMetrics);
+
   document.addEventListener("boe:load-diagram", function (ev) {
     var data = ev && ev.detail;
     if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) return;
@@ -2397,6 +2457,17 @@
           onPick: setSelectionIcon
         });
         items.push({ swatches: true, onPick: setSelectionColor });
+        items.push({ heading: "Metric" });
+        items.push({
+          label: (node.metric ? "" : "• ") + "None",
+          action: function () { setSelectionMetric(null); }
+        });
+        METRICS.forEach(function (m) {
+          items.push({
+            label: (node.metric === m.key ? "• " : "") + m.short,
+            action: function () { setSelectionMetric(m.key); }
+          });
+        });
         items.push({
           optionRow: true, rowLabel: "Animate", current: node.animate || "none",
           options: [

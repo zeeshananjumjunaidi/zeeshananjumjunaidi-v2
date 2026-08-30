@@ -62,4 +62,21 @@ initPresets({
   renderAll: renderAll
 });
 
+// Any input redraws its tab synchronously, so a frame later the outputs the
+// diagram scrapes are current. Reset and preset loads arrive as clicks.
+var root = document.querySelector(".boe-root");
+if (root) {
+  var pending = 0;
+  var notifyMetrics = function () {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(function () {
+      document.dispatchEvent(new CustomEvent("boe:metrics-changed"));
+    });
+  };
+  root.addEventListener("input", notifyMetrics);
+  root.addEventListener("change", notifyMetrics);
+  root.addEventListener("click", notifyMetrics);
+}
+
 traffic.render();
+document.dispatchEvent(new CustomEvent("boe:metrics-changed"));
