@@ -209,7 +209,7 @@
 
 .dg-node.selected { border-color: var(--card-label); border-width: 2px; }
 .dg-node.drop-target { border-color: var(--card-label); box-shadow: 0 0 0 3px color-mix(in srgb, var(--card-label) 30%, transparent); }
-.dg-node-label { outline: none; width: 100%; overflow-wrap: break-word; }
+.dg-node-label { outline: none; width: 100%; overflow-wrap: break-word; flex-shrink: 0; }
 .dg-node-label[contenteditable="true"] { cursor: text; background: color-mix(in srgb, var(--card-label) 8%, transparent); }
 
 .dg-node.container {
@@ -271,9 +271,9 @@
 .dg-node.has-icon { flex-direction: column; gap: 5px; }
 .dg-node.has-metric { flex-direction: column; gap: 4px; }
 .dg-node-metric {
-  font-family: var(--font-mono); font-size: 9.5px; line-height: 1.2;
-  color: var(--card-desc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 100%; letter-spacing: 0.02em; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 9.5px; line-height: 1.35;
+  color: var(--card-desc); letter-spacing: 0.02em; flex-shrink: 0;
+  width: 100%; overflow-wrap: break-word; text-align: center;
 }
 .dg-node-metric b { color: var(--card-label); font-weight: 500; font-variant-numeric: tabular-nums; }
 .dg-node-icon-svg {
@@ -477,7 +477,8 @@
 </style>
 
 <script>
-  import { METRICS, metricByKey, readMetric } from "./metrics.js";
+  import { canonicalId, formatMetric } from "./metrics.js";
+  import { openMetricDialog } from "./metric-dialog.js";
 
 (function () {
   var wrap = document.getElementById("dgCanvasWrap");
@@ -565,7 +566,23 @@
     desktop: '<rect x="3" y="3" width="14" height="10" rx="1"/><path d="M10 13v4"/><path d="M7 17h6"/>',
     sensor: '<circle cx="10" cy="14.5" r="1.3" fill="currentColor" stroke="none"/><path d="M7 11.3a4.2 4.2 0 0 1 6 0"/><path d="M4.5 8.7a7.8 7.8 0 0 1 11 0"/>',
     loadbalancer: '<circle cx="4" cy="10" r="1.2" fill="currentColor" stroke="none"/><path d="M5.2 10h2"/><path d="M7.2 10 13 4M7.2 10h5.8M7.2 10 13 16"/><rect x="13" y="2.5" width="4" height="3" rx="0.6"/><rect x="13" y="8.5" width="4" height="3" rx="0.6"/><rect x="13" y="14.5" width="4" height="3" rx="0.6"/>',
-    observability: '<path d="M3 10.5h2.6l1.6-4.5 2.6 9 2-7 1.3 2.5H17"/>'
+    observability: '<path d="M3 10.5h2.6l1.6-4.5 2.6 9 2-7 1.3 2.5H17"/>',
+    internetgateway: '<circle cx="10" cy="10" r="4.5"/><path d="M5.5 10h9"/><path d="M10 5.5a7.5 7.5 0 0 1 0 9 7.5 7.5 0 0 1 0-9"/><path d="M1.5 10h2M16.5 10h2"/><path d="M2.8 8.7 1.5 10l1.3 1.3M17.2 8.7 18.5 10l-1.3 1.3"/>',
+    natgateway: '<rect x="3" y="4.5" width="14" height="11" rx="1.5"/><path d="M6 8h3.5M6 10h3.5M6 12h3.5"/><path d="M11 10h3"/><path d="M12.8 8.4 14.4 10l-1.6 1.6"/>',
+    dns: '<circle cx="8.5" cy="8.5" r="5"/><path d="M3.5 8.5h10"/><path d="M8.5 3.5a8 8 0 0 1 0 10 8 8 0 0 1 0-10"/><path d="M12.4 12.4 17 17"/>',
+    proxy: '<rect x="8" y="3.5" width="4" height="13" rx="1"/><path d="M1.5 10H8M12 10h6.5"/><path d="M16.8 8.4 18.5 10l-1.7 1.6"/><path d="M3.2 11.6 1.5 10l1.7-1.6"/>',
+    waf: '<path d="M10 2.5 16 5v5c0 3.6-2.6 6.3-6 7.5C6.6 16.3 4 13.6 4 10V5z"/><path d="M4.3 9h11.4"/><path d="M10 5.2V9"/><path d="M7 9v4.6M13 9v4.6"/>',
+    vpn: '<path d="M1.5 13H6M14 13h4.5"/><rect x="6" y="9.5" width="8" height="6.5" rx="1.2"/><path d="M7.8 9.5V7.6a2.2 2.2 0 0 1 4.4 0v1.9"/>',
+    search: '<circle cx="8.5" cy="8.5" r="5.2"/><path d="M12.4 12.4 17 17"/><path d="M6 7.2h5M6 9.6h3.2"/>',
+    warehouse: '<path d="M2.5 8 10 2.8 17.5 8v9.2h-15z"/><path d="M6.5 17.2v-5.4h7v5.4"/><path d="M6.5 14.2h7"/>',
+    replica: '<ellipse cx="6" cy="5.5" rx="3.5" ry="1.6"/><path d="M2.5 5.5v6a3.5 1.6 0 0 0 7 0v-6"/><ellipse cx="14" cy="8.5" rx="3.5" ry="1.6"/><path d="M10.5 8.5v6a3.5 1.6 0 0 0 7 0v-6"/>',
+    worker: '<circle cx="10" cy="10" r="3"/><path d="M10 2.6v2.2M10 15.2v2.2M2.6 10h2.2M15.2 10h2.2M4.8 4.8l1.6 1.6M13.6 13.6l1.6 1.6M15.2 4.8l-1.6 1.6M6.4 13.6l-1.6 1.6"/>',
+    scheduler: '<circle cx="10" cy="10.5" r="6.5"/><path d="M10 6.8v4l2.6 1.7"/><path d="M7 2.2 5 4M13 2.2 15 4"/>',
+    ratelimiter: '<path d="M2.5 3.5h15l-5.8 6.8v6.2l-3.4-2.1v-4.1z"/>',
+    secrets: '<circle cx="6.5" cy="10" r="3.4"/><path d="M9.9 10h7.6"/><path d="M14.6 10v3M17.5 10v2.4"/>',
+    auth: '<rect x="2.5" y="4" width="15" height="12" rx="1.5"/><circle cx="7.2" cy="8.8" r="1.9"/><path d="M4.4 13.6a2.9 2.9 0 0 1 5.6 0"/><path d="M12.2 8.5h3.4M12.2 11.5h3.4"/>',
+    registry: '<circle cx="10" cy="4.4" r="2"/><circle cx="4.6" cy="14.6" r="2"/><circle cx="15.4" cy="14.6" r="2"/><path d="M10 6.4v3.4M10 9.8 5.9 13.2M10 9.8l4.1 3.4"/>',
+    stream: '<path d="M2 6.5c2.6-2.6 5.2 2.6 7.8 0S15.4 4 18 6.5"/><path d="M2 10.5c2.6-2.6 5.2 2.6 7.8 0s5.6-2.5 8.2 0"/><path d="M2 14.5c2.6-2.6 5.2 2.6 7.8 0s5.6-2.5 8.2 0"/>'
   };
   // Grouped for the "+ Component" palette; flattened for the node context
   // menu's Icon row, where grouping doesn't matter since it's icon-only.
@@ -575,33 +592,54 @@
       { icon: "external", label: "External" },
       { icon: "mobile", label: "Mobile" },
       { icon: "desktop", label: "Desktop" },
-      { icon: "sensor", label: "Sensor" }
+      { icon: "sensor", label: "Sensor" },
+      { icon: "auth", label: "Identity provider" }
     ] },
     { heading: "Compute", items: [
       { icon: "server", label: "Server" },
       { icon: "vm", label: "VM / Pod" },
-      { icon: "function", label: "Function" }
+      { icon: "function", label: "Function" },
+      { icon: "worker", label: "Worker" },
+      { icon: "scheduler", label: "Scheduler" }
     ] },
     { heading: "Data", items: [
       { icon: "db", label: "Database" },
+      { icon: "replica", label: "Read replica" },
       { icon: "cache", label: "Cache" },
-      { icon: "bucket", label: "Object storage" }
+      { icon: "bucket", label: "Object storage" },
+      { icon: "search", label: "Search index" },
+      { icon: "warehouse", label: "Data warehouse" }
     ] },
-    { heading: "Messaging & network", items: [
+    { heading: "Edge & network", items: [
+      { icon: "cloud", label: "CDN" },
+      { icon: "dns", label: "DNS" },
+      { icon: "internetgateway", label: "Internet gateway" },
+      { icon: "natgateway", label: "NAT gateway" },
+      { icon: "loadbalancer", label: "Load balancer" },
+      { icon: "gateway", label: "API gateway" },
+      { icon: "proxy", label: "Reverse proxy" },
+      { icon: "vpn", label: "VPN tunnel" }
+    ] },
+    { heading: "Security", items: [
+      { icon: "firewall", label: "Firewall" },
+      { icon: "waf", label: "WAF" },
+      { icon: "secrets", label: "Secrets store" },
+      { icon: "ratelimiter", label: "Rate limiter" }
+    ] },
+    { heading: "Messaging", items: [
       { icon: "queue", label: "Queue" },
       { icon: "eventbus", label: "Event bus" },
-      { icon: "gateway", label: "Gateway" },
-      { icon: "loadbalancer", label: "Load balancer" },
-      { icon: "firewall", label: "Firewall" },
-      { icon: "cloud", label: "CDN" }
+      { icon: "stream", label: "Stream processor" }
+    ] },
+    { heading: "Platform", items: [
+      { icon: "registry", label: "Service registry" },
+      { icon: "observability", label: "Monitoring" }
     ] },
     { heading: "AI", items: [
       { icon: "aiagent", label: "AI Agent" }
-    ] },
-    { heading: "Observability", items: [
-      { icon: "observability", label: "Monitoring" }
     ] }
   ];
+
   var COMPONENT_PRESETS = [].concat.apply([], COMPONENT_GROUPS.map(function (g) { return g.items; }));
   function iconSvg(key, cls) {
     var d = NODE_ICONS[key];
@@ -1225,37 +1263,76 @@
   var METRIC_MIN_H = 84;
 
   function paintMetric(el) {
-    var def = metricByKey(el.dataset.metric);
-    if (!def) { el.textContent = ""; return; }
-    var m = readMetric(el.dataset.metric);
+    var m = formatMetric(el.dataset.metric);
+    if (!m) { el.textContent = ""; return; }
     el.innerHTML = "";
     var b = document.createElement("b");
-    // "34,378 RPS read RPS" reads badly, so drop a unit the label already carries.
-    var dupUnit = m.unit && def.short.toLowerCase().indexOf(m.unit.toLowerCase()) !== -1;
-    b.textContent = m.value + (m.unit && !dupUnit ? " " + m.unit : "");
+    b.textContent = m.value;
     el.appendChild(b);
-    el.appendChild(document.createTextNode(" " + def.short));
-    el.title = def.short + ": " + b.textContent;
+    el.appendChild(document.createTextNode(" " + m.short));
+    el.title = m.label;
+  }
+
+  // Nodes are absolutely positioned at a fixed height, so wrapped text would
+  // spill past the border. Grow the box to whatever its content needs.
+  // offsetHeight rather than getBoundingClientRect: the canvas is transformed.
+  function fitNodeHeight(el, node) {
+    if (node.type === "container" || node.shape === "text") return;
+    var cs = getComputedStyle(el);
+    var gap = parseFloat(cs.rowGap) || 0;
+    var total = 0, n = 0;
+    for (var i = 0; i < el.children.length; i++) {
+      var k = el.children[i];
+      if (k.classList.contains("dg-port") || k.classList.contains("dg-resize-handle")) continue;
+      if (k.classList.contains("dg-node-badge") || k.classList.contains("dg-node-fillbar")) continue;
+      total += k.offsetHeight;
+      n++;
+    }
+    if (!n) return;
+    var need = Math.ceil(
+      total + gap * (n - 1)
+      + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+      + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth)
+    );
+    if (need > node.h) {
+      node.h = need;
+      el.style.height = need + "px";
+      return true;
+    }
+    return false;
   }
 
   // Repaint in place rather than re-rendering nodes, so a calculator change
   // mid-drag does not tear down the element being dragged.
   function refreshMetrics() {
-    nodeLayer.querySelectorAll(".dg-node-metric").forEach(paintMetric);
+    var grew = false;
+    nodeLayer.querySelectorAll(".dg-node-metric").forEach(function (el) {
+      paintMetric(el);
+      var host = el.closest(".dg-node");
+      var node = host && nodeById(host.dataset.id);
+      if (node && fitNodeHeight(host, node)) grew = true;
+    });
+    if (grew) renderEdges();
   }
 
-  function setSelectionMetric(key) {
+  function setSelectionMetric(id) {
     if (selectedNodeIds.size === 0) return;
     pushUndo();
-    selectedNodeIds.forEach(function (id) {
-      var n = nodeById(id);
-      if (!n || n.type === "container") return;
-      n.metric = key || null;
-      // A default-height box has no room for a third line.
-      if (key && n.h < METRIC_MIN_H) n.h = METRIC_MIN_H;
+    selectedNodeIds.forEach(function (n) {
+      var node = nodeById(n);
+      if (!node || node.type === "container") return;
+      node.metric = id ? canonicalId(id) : null;
+      if (id && node.h < METRIC_MIN_H) node.h = METRIC_MIN_H;
     });
     renderNodes();
+    renderEdges();
     save();
+  }
+
+  function currentMetricId() {
+    var first = selectedNodeIds.values().next();
+    var node = first.done ? null : nodeById(first.value);
+    return node ? node.metric || null : null;
   }
 
   function createNodeEl(node) {
@@ -1336,6 +1413,7 @@
     }
 
     nodeLayer.appendChild(el);
+    fitNodeHeight(el, node);
     wireNodeEvents(el, node, label, handles);
     return el;
   }
@@ -2051,7 +2129,7 @@
           // Export writes `animate` but this list used to omit it, so any
           // diagram with animated nodes lost them on the way back in.
           animate: (nd && ["notify", "fill", "spinner", "heartbeat", "error"].indexOf(nd.animate) !== -1) ? nd.animate : null,
-          metric: (nd && metricByKey(nd.metric)) ? nd.metric : null
+          metric: (nd && typeof nd.metric === "string") ? canonicalId(nd.metric) : null
         };
       });
       var validIds = {};
@@ -2457,25 +2535,12 @@
           onPick: setSelectionIcon
         });
         items.push({ swatches: true, onPick: setSelectionColor });
-        items.push({ heading: "Metric" });
+        items.push("separator");
         items.push({
-          label: (node.metric ? "" : "• ") + "None",
-          action: function () { setSelectionMetric(null); }
+          label: node.metric ? "Change pinned number…" : "Pin a number…",
+          action: function () { openMetricDialog(currentMetricId(), setSelectionMetric); }
         });
-        METRICS.forEach(function (m) {
-          items.push({
-            label: (node.metric === m.key ? "• " : "") + m.short,
-            action: function () { setSelectionMetric(m.key); }
-          });
-        });
-        items.push({
-          optionRow: true, rowLabel: "Animate", current: node.animate || "none",
-          options: [
-            { key: "none", label: "Off" }, { key: "notify", label: "Notify" }, { key: "fill", label: "Fill" },
-            { key: "spinner", label: "Spinner" }, { key: "heartbeat", label: "Heartbeat" }, { key: "error", label: "Error" }
-          ],
-          onPick: setSelectionAnimate
-        });
+        if (node.metric) items.push({ label: "Unpin number", action: function () { setSelectionMetric(null); } });
       }
       if (selectedNodeIds.size >= 2) items.push({ label: "Group", action: function () { groupBtn.click(); } });
       if (node.groupId) items.push({ label: "Ungroup", action: function () { ungroupBtn.click(); } });

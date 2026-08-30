@@ -63,9 +63,12 @@ const CONCEPTS = [
       <button type="button" class="rl-tabbtn" data-tab="concepts">Concepts <span class="rl-soon">Soon</span></button>
     </div>
 
-    <div class="rl-tab" data-tab="simulator">
+    <div class="rl-tab" data-tab="simulator" id="rlStage">
       <div class="panel">
-        <h2>Descent camera</h2>
+        <div class="rl-panelhead">
+          <h2>Descent camera</h2>
+          <button type="button" class="rl-cbtn rl-fullbtn" id="rlFull">Maximize</button>
+        </div>
         <div class="rl-viewport">
           <canvas id="scene"></canvas>
 
@@ -150,6 +153,9 @@ const CONCEPTS = [
         </div>
       </div>
 
+      <div class="rl-drawer-wrap" id="rlDrawerWrap">
+        <button type="button" class="rl-drawer-handle" id="rlStatsToggle" aria-expanded="false" aria-controls="rlDrawer">Stats &amp; controls</button>
+        <div class="rl-drawer" id="rlDrawer">
       <div class="rl-cpanels">
         <div class="rl-cpanel">
           <h3>Flight</h3>
@@ -225,6 +231,8 @@ const CONCEPTS = [
             <div class="rl-cell-f">{c.f}</div>
           </div>
         ))}
+      </div>
+        </div>
       </div>
     </div>
 
@@ -2198,6 +2206,46 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     camera.updateProjectionMatrix();
   }
 
+  // ---- maximize + the stats drawer ----
+  var stage = document.getElementById("rlStage");
+  var fullBtn = document.getElementById("rlFull");
+  var statsBtn = document.getElementById("rlStatsToggle");
+
+  function isFullscreen() {
+    return document.fullscreenElement === stage || document.webkitFullscreenElement === stage;
+  }
+
+  function syncFullscreen() {
+    var fs = isFullscreen();
+    if (fullBtn) fullBtn.textContent = fs ? "Minimize" : "Maximize";
+    if (!fs) stage.classList.remove("stats-open");
+    if (statsBtn) statsBtn.setAttribute("aria-expanded", String(stage.classList.contains("stats-open")));
+    resize();
+  }
+
+  if (fullBtn && stage) {
+    fullBtn.addEventListener("click", function () {
+      if (isFullscreen()) {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } else if (stage.requestFullscreen) {
+        stage.requestFullscreen();
+      } else if (stage.webkitRequestFullscreen) {
+        stage.webkitRequestFullscreen();
+      }
+      fullBtn.blur();
+    });
+  }
+  if (statsBtn && stage) {
+    statsBtn.addEventListener("click", function () {
+      stage.classList.toggle("stats-open");
+      statsBtn.setAttribute("aria-expanded", String(stage.classList.contains("stats-open")));
+      statsBtn.blur();
+    });
+  }
+  document.addEventListener("fullscreenchange", syncFullscreen);
+  document.addEventListener("webkitfullscreenchange", syncFullscreen);
+
   buildLights();
   buildGround();
   buildRocket();
@@ -2480,7 +2528,73 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
      spatial layout as the reference file (corner readouts, a centered
      phase chip, a slide-up verdict), restyled onto this site's own
      tokens rather than the reference's separate color system. */
+  .rl-panelhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .rl-cbtn.rl-fullbtn { display: inline-block; width: auto; flex: 0 0 auto; padding: 5px 12px; font-size: 10px; }
+
   .rl-viewport { position: relative; border-radius: 6px; overflow: hidden; }
+
+  /* ---- maximized: the camera takes the screen and the numbers live in a
+     drawer that slides up over the bottom edge, so the vehicle stays visible
+     while it is open. The drawer height is a fixed vh so the closed
+     translate can match it without measuring. */
+  .rl-drawer-handle { display: none; }
+
+  #rlStage:fullscreen {
+    background: var(--bg, var(--card-bg));
+    padding: 16px; box-sizing: border-box;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  #rlStage:fullscreen .panel {
+    position: relative;
+    flex: 1 1 auto; min-height: 0; margin: 0;
+    display: flex; flex-direction: column;
+  }
+  #rlStage:fullscreen .rl-panelhead h2 { display: none; }
+  #rlStage:fullscreen .rl-panelhead {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 7; margin: 0;
+  }
+  /* Both want the top centre, so the phase chip moves under the button. */
+  #rlStage:fullscreen .rl-phasechip { top: 48px; }
+  #rlStage:fullscreen .rl-viewport { flex: 1 1 auto; min-height: 0; }
+  #rlStage:fullscreen .rl-viewport canvas { width: 100%; height: 100%; aspect-ratio: auto; }
+
+  #rlStage:fullscreen .rl-drawer-wrap {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+    display: flex; flex-direction: column; align-items: center;
+    transform: translateY(42vh); transition: transform .28s ease;
+    pointer-events: none;
+  }
+  #rlStage.stats-open:fullscreen .rl-drawer-wrap { transform: translateY(0); }
+
+  #rlStage:fullscreen .rl-drawer-handle {
+    display: block; pointer-events: auto; cursor: pointer;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--card-desc); background: color-mix(in srgb, var(--card-bg) 94%, transparent);
+    border: 1px solid var(--card-border); border-bottom: 0;
+    border-radius: 7px 7px 0 0; padding: 7px 18px;
+    transition: color .3s ease, border-color .3s ease;
+  }
+  #rlStage:fullscreen .rl-drawer-handle:hover,
+  #rlStage:fullscreen .rl-drawer-handle:focus-visible {
+    color: var(--card-label); border-color: var(--card-border-hover);
+  }
+  #rlStage:fullscreen .rl-drawer-handle::after { content: " ▲"; }
+  #rlStage.stats-open:fullscreen .rl-drawer-handle::after { content: " ▼"; }
+
+  #rlStage:fullscreen .rl-drawer {
+    pointer-events: auto; width: 100%; box-sizing: border-box;
+    height: 42vh; overflow-y: auto;
+    background: color-mix(in srgb, var(--card-bg) 94%, transparent);
+    border-top: 1px solid var(--card-border);
+    padding: 14px 18px 18px;
+    backdrop-filter: blur(6px);
+  }
+  #rlStage:fullscreen .rl-drawer .rl-cpanels { margin-top: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #rlStage:fullscreen .rl-drawer-wrap { transition: none; }
+  }
   .rl-viewport canvas { border-radius: 0; cursor: grab; touch-action: none; }
   .rl-viewport canvas:active { cursor: grabbing; }
 

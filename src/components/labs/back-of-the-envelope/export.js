@@ -85,6 +85,32 @@ export function collectSection(tabKey) {
   return { key: tabKey, title: btn ? btn.textContent.trim() : tabKey, panels: panels, notes: notes };
 }
 
+// Nodes carry a "tab::output label" pin. Resolved here rather than importing
+// metrics.js, which imports this module.
+function resolvePins(nodes) {
+  var seen = {};
+  var pins = [];
+  nodes.forEach(function (n) {
+    if (!n || typeof n.metric !== "string") return;
+    var at = n.metric.indexOf("::");
+    if (at === -1) return;
+    var tab = n.metric.slice(0, at);
+    var label = n.metric.slice(at + 2);
+    if (!(tab in seen)) seen[tab] = collectSection(tab);
+    var section = seen[tab];
+    var value = "—", unit = "";
+    if (section) {
+      section.panels.forEach(function (panel) {
+        panel.outputs.forEach(function (o) {
+          if (o.label === label) { value = o.value; unit = o.unit; }
+        });
+      });
+    }
+    pins.push({ node: n.label || n.id, tab: tab, label: label, value: value, unit: unit });
+  });
+  return pins;
+}
+
 export function collectDiagram() {
   try {
     var raw = localStorage.getItem(DIAGRAM_KEY);
@@ -109,7 +135,7 @@ export function buildPayload(title, description, selectedKeys) {
   selectedKeys.forEach(function (key) {
     if (key === "diagram") {
       var dg = collectDiagram();
-      sections.push({ key: "diagram", title: "Diagram", nodes: dg.nodes, edges: dg.edges });
+      sections.push({ key: "diagram", title: "Diagram", nodes: dg.nodes, edges: dg.edges, pins: resolvePins(dg.nodes) });
     } else {
       var s = collectSection(key);
       if (s) sections.push(s);
@@ -207,6 +233,16 @@ export function toMarkdown(payload) {
     lines.push("## " + section.title);
     lines.push("");
     if (section.key === "diagram") {
+      if (section.pins && section.pins.length) {
+        lines.push("Numbers pinned to nodes:");
+        lines.push("");
+        lines.push("| Node | Metric | Value |");
+        lines.push("| --- | --- | --- |");
+        section.pins.forEach(function (pin) {
+          lines.push("| " + pin.node + " | " + pin.label + " | " + pin.value + (pin.unit ? " " + pin.unit : "") + " |");
+        });
+        lines.push("");
+      }
       lines.push("Diagram data (re-importable via the Diagram tab's Import button):");
       lines.push("");
       lines.push("```json");
@@ -419,7 +455,7 @@ export function initExport() {
     var payload = buildPayload(titleEl.value, descEl.value, selectedKeys());
     var doc = { title: payload.title, description: payload.description, generated: payload.generated, sections: {} };
     payload.sections.forEach(function (s) {
-      if (s.key === "diagram") doc.sections.diagram = { nodes: s.nodes, edges: s.edges };
+      if (s.key === "diagram") doc.sections.diagram = { pinned: s.pins, nodes: s.nodes, edges: s.edges };
       else doc.sections[s.key] = { title: s.title, panels: s.panels, notes: s.notes };
     });
     downloadBlob(slugify(payload.title) + ".yaml", "text/yaml", toYaml(doc));

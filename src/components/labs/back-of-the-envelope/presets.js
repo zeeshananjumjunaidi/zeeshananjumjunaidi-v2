@@ -14,7 +14,7 @@ function fieldEls() {
   return Array.prototype.slice.call(document.querySelectorAll(FIELD_SELECTOR));
 }
 
-function readFields() {
+export function readFields() {
   var out = {};
   fieldEls().forEach(function (el) {
     out[el.id] = el.type === "checkbox" ? el.checked : el.value;
@@ -24,7 +24,7 @@ function readFields() {
 
 // Missing keys are left alone rather than reset, so a snapshot taken before a
 // new field existed still loads cleanly and the new field keeps its default.
-function writeFields(fields) {
+export function writeFields(fields) {
   if (!fields) return;
   fieldEls().forEach(function (el) {
     if (!Object.prototype.hasOwnProperty.call(fields, el.id)) return;

@@ -13,10 +13,23 @@ import { initLatency } from "./latency.js";
 import { initAvailability } from "./availability.js";
 import { initCost } from "./cost.js";
 import { initExport } from "./export.js";
-import { initPresets } from "./presets.js";
+import { initPresets, readFields, writeFields } from "./presets.js";
+import { initMetricDialog } from "./metric-dialog.js";
 
 initTabs();
 initExport();
+initMetricDialog();
+
+// Restore before the first render, so the cascade computes from the numbers
+// the user left rather than the defaults. Diagram nodes pinned to an output
+// would otherwise come back showing figures for a system nobody designed.
+var INPUTS_KEY = "boe-inputs-v1";
+try {
+  var savedInputs = JSON.parse(localStorage.getItem(INPUTS_KEY) || "null");
+  if (savedInputs) writeFields(savedInputs);
+} catch (e) {
+  /* a corrupt entry just means the defaults stand */
+}
 
 var traffic = initTraffic(function () { storage.render(); });
 var storage = initStorage(traffic.state, function () { cache.render(); });
@@ -53,6 +66,7 @@ if (resetBtn) {
     availability.reset();
     cost.reset();
     renderAll();
+    try { localStorage.removeItem(INPUTS_KEY); } catch (e) { /* nothing to clear */ }
   });
 }
 
@@ -67,6 +81,13 @@ initPresets({
 var root = document.querySelector(".boe-root");
 if (root) {
   var pending = 0;
+  var savePending = 0;
+  var persistInputs = function () {
+    clearTimeout(savePending);
+    savePending = setTimeout(function () {
+      try { localStorage.setItem(INPUTS_KEY, JSON.stringify(readFields())); } catch (e) { /* quota */ }
+    }, 400);
+  };
   var notifyMetrics = function () {
     cancelAnimationFrame(pending);
     pending = requestAnimationFrame(function () {
@@ -76,6 +97,8 @@ if (root) {
   root.addEventListener("input", notifyMetrics);
   root.addEventListener("change", notifyMetrics);
   root.addEventListener("click", notifyMetrics);
+  root.addEventListener("input", persistInputs);
+  root.addEventListener("change", persistInputs);
 }
 
 traffic.render();
