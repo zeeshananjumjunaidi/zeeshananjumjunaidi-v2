@@ -1,0 +1,274 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Nav from '../components/Nav.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+---
+<BaseLayout
+  title="No route found - Zeeshan Anjum Junaidi"
+  description="That page does not exist."
+  noindex
+>
+  <div class="plate">
+    <span class="ember one"></span>
+    <span class="ember two"></span>
+
+    <div class="panel">
+      <Nav />
+
+      <div class="nf-head">
+        <span class="eyebrow">Error 404</span>
+        <h1 class="nf-title">No route found</h1>
+        <p class="nf-path">
+          <span class="nf-path-k">requested</span>
+          <code id="nfPath">/</code>
+        </p>
+      </div>
+
+      <figure class="nf-figure">
+        <canvas id="nfCanvas" aria-hidden="true"></canvas>
+        <figcaption class="nf-cap">
+          <span class="nf-stat"><b id="nfNodes">0</b> nodes expanded</span>
+          <span class="nf-verdict" id="nfVerdict">searching&hellip;</span>
+        </figcaption>
+      </figure>
+
+      <p class="nf-body">
+        The search covers every cell it can reach. Your page isn't one of them.
+      </p>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" href="/">Back to the index</a>
+        <a class="btn btn-secondary" href="/#lab">See the Lab</a>
+        <a class="btn btn-secondary" href="/#writing">Writing</a>
+      </div>
+    </div>
+  </div>
+
+  <SiteFooter />
+</BaseLayout>
+
+<style>
+  .nf-head { padding: 30px 0 6px; display: flex; flex-direction: column; gap: 12px; }
+  .nf-title {
+    font-family: var(--font-head); font-weight: 400;
+    font-size: clamp(34px, 7vw, 62px); line-height: 1.06; letter-spacing: -0.01em;
+    background: var(--name-grad); background-size: 200% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: var(--name-shadow); margin: 0;
+    animation: inkRise 1.3s .1s cubic-bezier(.2,.7,.2,1) both, foilSweep 13s 1.2s linear infinite;
+  }
+  .nf-path {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin: 0;
+    font-family: var(--font-mono); font-size: 12px;
+  }
+  .nf-path-k {
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--section-meta);
+  }
+  /* The path is attacker-controlled text on a static host, so it is set with
+     textContent below, never innerHTML. Wraps because a long URL should not
+     widen the page. */
+  .nf-path code {
+    font-family: var(--font-mono); font-size: 12px; color: var(--tone-bad);
+    background: var(--tag-bg); border: 1px solid var(--tag-border); border-radius: 3px;
+    padding: 3px 8px; overflow-wrap: anywhere;
+  }
+
+  .nf-figure { margin: 26px 0 0; }
+  #nfCanvas {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--card-border); border-radius: 8px; background: var(--card-bg);
+  }
+  .nf-cap {
+    display: flex; justify-content: space-between; align-items: baseline;
+    flex-wrap: wrap; gap: 6px 16px; margin-top: 10px;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--section-meta);
+  }
+  .nf-stat b { color: var(--card-label); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .nf-verdict { color: var(--section-meta); transition: color .4s ease; }
+  .nf-verdict.failed { color: var(--tone-bad); }
+
+  .nf-body {
+    font-family: var(--font-body); font-weight: 300; font-size: 16px; line-height: 1.85;
+    color: var(--subhead-color); max-width: 62ch; margin: 26px 0 24px;
+  }
+  .cta-row { padding-bottom: 12px; }
+</style>
+
+<script>
+  /* A 404 is a routing failure, so this draws one: a flood fill from the entry
+     point that presses against a sealed wall and exhausts without reaching the
+     goal. Same family as the Lab's planners, no dependencies, 2D canvas. */
+  const canvas = document.getElementById("nfCanvas") as HTMLCanvasElement | null;
+  const pathEl = document.getElementById("nfPath");
+  const nodesEl = document.getElementById("nfNodes");
+  const verdictEl = document.getElementById("nfVerdict");
+
+  if (pathEl) pathEl.textContent = location.pathname + location.search;
+
+  if (canvas) {
+    const ctx = canvas.getContext("2d")!;
+
+    /* The grid is sized from the available width rather than fixed, so a phone
+       gets fewer, readable cells instead of 48 columns squeezed to 5px each.
+       Everything downstream is derived, and the layout is rebuilt on resize. */
+    let COLS = 48, ROWS = 22, cell = 13, WALL_X = 37;
+    let START = { x: 2, y: 11 }, GOAL = { x: 45, y: 11 };
+    const walls = new Set<number>();
+    const key = (x: number, y: number) => y * COLS + x;
+
+    function layout() {
+      const w = canvas!.clientWidth || 600;
+      COLS = Math.max(18, Math.min(48, Math.round(w / 13)));
+      cell = Math.max(6, Math.floor(w / COLS));
+      ROWS = Math.max(11, Math.round(COLS * 0.46));
+      WALL_X = COLS - Math.max(5, Math.round(COLS * 0.22)); // sealed, no gap
+      START = { x: 2, y: Math.floor(ROWS / 2) };
+      GOAL = { x: COLS - 3, y: Math.floor(ROWS / 2) };
+    }
+
+    // Deterministic obstacles, so the open half reads as a real search space
+    // rather than an empty field. Seeded LCG keeps it identical every load.
+    function buildWalls() {
+      walls.clear();
+      let seed = 20260901;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      for (let y = 0; y < ROWS; y++) walls.add(key(WALL_X, y));
+      const span = WALL_X - 8;
+      if (span < 2) return; // too narrow for obstacles; the barrier alone reads
+      for (let i = 0; i < Math.round(COLS * ROWS * 0.045); i++) {
+        const x = 5 + Math.floor(rnd() * span);
+        const y = 1 + Math.floor(rnd() * (ROWS - 2));
+        const len = 2 + Math.floor(rnd() * 4);
+        const vert = rnd() > 0.5;
+        for (let j = 0; j < len; j++) {
+          const cx = vert ? x : x + j, cy = vert ? y + j : y;
+          if (cx >= WALL_X || cy >= ROWS) continue;
+          if (Math.abs(cx - START.x) < 3 && Math.abs(cy - START.y) < 3) continue;
+          walls.add(key(cx, cy));
+        }
+      }
+    }
+
+    let visited: Set<number>, frontier: { x: number; y: number }[], expanded: number, done: boolean;
+    let holdUntil = 0;
+
+    function reset() {
+      visited = new Set([key(START.x, START.y)]);
+      frontier = [{ ...START }];
+      expanded = 0;
+      done = false;
+      if (verdictEl) { verdictEl.textContent = "searching…"; verdictEl.classList.remove("failed"); }
+    }
+
+    function step(budget: number) {
+      while (budget-- > 0 && frontier.length) {
+        const c = frontier.shift()!;
+        expanded++;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = c.x + dx, ny = c.y + dy;
+          if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) continue;
+          const k = key(nx, ny);
+          if (visited.has(k) || walls.has(k)) continue;
+          visited.add(k);
+          frontier.push({ x: nx, y: ny });
+        }
+      }
+      if (!frontier.length && !done) {
+        done = true;
+        holdUntil = performance.now() + 2600;
+        if (verdictEl) { verdictEl.textContent = "search exhausted · unreachable"; verdictEl.classList.add("failed"); }
+      }
+      if (nodesEl) nodesEl.textContent = String(expanded);
+    }
+
+    // Canvas colours come from the theme tokens, re-read whenever the toggle
+    // flips data-theme, so this tracks light/dark like everything else.
+    let tok: Record<string, string> = {};
+    function readTokens() {
+      const s = getComputedStyle(document.documentElement);
+      for (const n of ["--card-border", "--card-label", "--grid-visited", "--card-bg", "--tone-bad", "--card-desc"]) {
+        tok[n] = s.getPropertyValue(n).trim();
+      }
+    }
+
+    function resize() {
+      layout();
+      buildWalls();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas!.width = Math.round(COLS * cell * dpr);
+      canvas!.height = Math.round(ROWS * cell * dpr);
+      canvas!.style.height = ROWS * cell + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function draw() {
+      const g = 1; // hairline gap so cells read as a grid, not a blob
+      ctx.clearRect(0, 0, COLS * cell, ROWS * cell);
+      const frontierSet = new Set(frontier.map((c) => key(c.x, c.y)));
+
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const k = key(x, y);
+          let fill = "";
+          if (walls.has(k)) fill = tok["--card-border"];
+          else if (frontierSet.has(k)) fill = tok["--card-label"];
+          else if (visited.has(k)) fill = tok["--grid-visited"];
+          if (!fill) continue;
+          ctx.fillStyle = fill;
+          ctx.fillRect(x * cell, y * cell, cell - g, cell - g);
+        }
+      }
+
+      ctx.fillStyle = tok["--card-label"];
+      ctx.fillRect(START.x * cell, START.y * cell, cell - g, cell - g);
+
+      // The goal only turns red once the search has actually given up.
+      ctx.fillStyle = done ? tok["--tone-bad"] : tok["--card-desc"];
+      const gx = GOAL.x * cell, gy = GOAL.y * cell, s = cell - g;
+      ctx.fillRect(gx, gy, s, s);
+      if (done) {
+        ctx.strokeStyle = tok["--tone-bad"];
+        ctx.lineWidth = 1;
+        const pulse = 2 + 2 * Math.sin(performance.now() / 260);
+        ctx.strokeRect(gx - pulse, gy - pulse, s + pulse * 2, s + pulse * 2);
+      }
+    }
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    readTokens();
+    resize();
+    reset();
+
+    if (reduced) {
+      // No animation: run the search to completion and draw the outcome once.
+      step(COLS * ROWS * 4);
+      draw();
+    } else {
+      const loop = () => {
+        if (!done) step(6);
+        else if (performance.now() > holdUntil) reset();
+        draw();
+        requestAnimationFrame(loop);
+      };
+      requestAnimationFrame(loop);
+    }
+
+    new MutationObserver(() => { readTokens(); draw(); })
+      .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+    // Resizing changes the grid, so the search in flight no longer matches the
+    // walls under it. Rebuild and restart rather than draw a stale frontier.
+    let t = 0;
+    window.addEventListener("resize", () => {
+      clearTimeout(t);
+      t = window.setTimeout(() => {
+        resize();
+        reset();
+        if (reduced) step(COLS * ROWS * 4);
+        draw();
+      }, 150);
+    });
+  }
+</script>

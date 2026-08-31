@@ -8,6 +8,7 @@ interface Props {
   imageAlt?: string;
   type?: 'website' | 'profile' | 'article';
   publishedTime?: string;
+  noindex?: boolean;
 }
 
 // Square, 460px. Fine as a fallback, wrong for a 1.91:1 banner slot.
@@ -20,6 +21,7 @@ const {
   imageAlt,
   type = 'website',
   publishedTime,
+  noindex = false,
 } = Astro.props;
 
 /* Every page claimed summary_large_image, including the ones falling back to
@@ -39,7 +41,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 <title>{title}</title>
 <meta name="description" content={description}>
 <meta name="author" content="Zeeshan Anjum Junaidi">
-<meta name="robots" content="index, follow">
+<meta name="robots" content={noindex ? 'noindex, follow' : 'index, follow'}>
 <link rel="canonical" href={canonicalURL}>
 
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
