@@ -17,7 +17,10 @@ const CELLS = [
 
 // Planned outline for the Concepts tab. Numbered because it is genuinely
 // a sequence: each rung assumes the one before it and nothing after it.
-const CONCEPTS = [
+// A topic is plain text until something exists behind it, at which point it
+// carries an href. The ladder is written a rung at a time, so most stay text.
+type Topic = string | { t: string; href: string };
+const CONCEPTS: { level: string; blurb: string; topics: Topic[] }[] = [
   {
     level: "Foundations",
     blurb: "The vocabulary, from a standing start. No control theory assumed.",
@@ -25,7 +28,7 @@ const CONCEPTS = [
       "Reference frames, and why mixing them causes most flight-software bugs",
       "State vectors: choosing what to track",
       "Newton's laws in three axes",
-      "Mass as a state, not a constant",
+      { t: "Mass as a state, not a constant", href: "/writing/tsiolkovsky-rocket-equation" },
       "Reading a free-body diagram"
     ]
   },
@@ -835,7 +838,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     <div class="rl-tab" data-tab="concepts" hidden>
       <div class="rl-cs">
         <header class="rl-cs-head">
-          <span class="rl-cs-eyebrow">Not written yet</span>
+          <span class="rl-cs-eyebrow">In progress</span>
           <h2>Concepts, from the ground up</h2>
           <p>
             The Article tab moves fast and assumes you can already read a
@@ -845,7 +848,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
           </p>
           <p class="rl-cs-note">
             The outline below is what it will cover. I am writing it a rung at
-            a time, so it will appear in pieces rather than all at once.
+            a time, so it will appear in pieces rather than all at once. Rungs that
+            are already written link out.
           </p>
         </header>
 
@@ -858,7 +862,13 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
               </div>
               <p class="rl-rung-blurb">{c.blurb}</p>
               <ul class="rl-rung-list">
-                {c.topics.map((t) => <li>{t}</li>)}
+                {c.topics.map((t) => (
+                  typeof t === "string"
+                    ? <li>{t}</li>
+                    : <li class="written">
+                        <a href={t.href}>{t.t}<span class="rl-rung-tag">Written</span></a>
+                      </li>
+                ))}
               </ul>
             </section>
           ))}
@@ -869,8 +879,25 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 </div>
 
 <script>
-  import * as THREE from "three";
-  import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+  /* three.js and the booster model come to about 1.1MB, and on a phone the
+     canvas sits well below the fold behind the title, tags and writeup. Held
+     back until the canvas is nearly in view so the page's text renders and
+     is interactive without waiting on any of it. A visitor who switches to
+     the Article tab first never brings the canvas into view at all, so they
+     never pay for the simulator. rootMargin starts the fetch 400px early,
+     which on a normal scroll is enough for it to be ready on arrival. */
+  await new Promise(function (resolve) {
+    var el = document.getElementById("scene");
+    if (!el || !("IntersectionObserver" in window)) return resolve();
+    var io = new IntersectionObserver(function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].isIntersecting) { io.disconnect(); return resolve(); }
+      }
+    }, { rootMargin: "400px" });
+    io.observe(el);
+  });
+  var THREE = await import("three");
+  var GLTFLoader = (await import("three/examples/jsm/loaders/GLTFLoader.js")).GLTFLoader;
 
   var canvas = document.getElementById("scene");
   var throttleInput = document.getElementById("throttle");
@@ -2511,6 +2538,15 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   updateReadout(performance.now());
   tick();
 
+</script>
+
+<!--
+  Tab switching is deliberately its own script. The simulator below waits on
+  a dynamic import before it runs, and anything sharing that module would be
+  stuck behind the same await -- including, previously, this, which meant the
+  tabs went dead until three.js had landed.
+-->
+<script>
   var tabs = document.querySelectorAll(".rl-tabbtn");
   var panels = document.querySelectorAll(".rl-tab");
   tabs.forEach(function (btn) {
@@ -3105,6 +3141,27 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     content: ""; position: absolute; left: 2px; top: 15px;
     width: 5px; height: 5px; border-radius: 50%;
     border: 1px solid var(--card-desc); opacity: 0.7;
+  }
+  /* A rung with something behind it: filled marker rather than the hollow
+     one, so the ladder reads at a glance as mostly outline with the
+     occasional piece actually written. */
+  .rl-rung-list li.written::before { background: var(--card-label); border-color: var(--card-label); opacity: 1; }
+  .rl-rung-list li.written a {
+    display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0 10px;
+    color: var(--headline-color);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--card-label) 40%, transparent);
+    text-underline-offset: 3px;
+    transition: color .3s ease, text-decoration-color .3s ease;
+  }
+  .rl-rung-list li.written a:hover,
+  .rl-rung-list li.written a:focus-visible {
+    color: var(--card-label); text-decoration-color: var(--card-label);
+  }
+  .rl-rung-tag {
+    font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--card-label); border: 1px solid color-mix(in srgb, var(--card-label) 45%, transparent);
+    border-radius: 999px; padding: 2px 7px; text-decoration: none;
   }
 
   .rl-eq {

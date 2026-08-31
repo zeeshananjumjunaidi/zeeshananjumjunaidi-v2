@@ -9,6 +9,10 @@
     <div class="canvaswrap panel">
       <canvas id="cv" width="560" height="560"></canvas>
       <div class="overlay" id="ovl">planning…</div>
+      <div class="stick" id="stick" aria-hidden="true">
+        <span class="stick-nub"></span>
+        <span class="stick-cap">drive</span>
+      </div>
     </div>
     <div class="side panel">
       <h2>Status</h2>
@@ -53,13 +57,6 @@
         <label for="showTree">show search</label></div>
     </div>
     <button id="reset">Reset</button>
-  </div>
-
-  <div class="dpad">
-    <button data-k="fwd" aria-label="Drive forward">▲</button>
-    <button data-k="left" aria-label="Steer left">◀</button>
-    <button data-k="back" aria-label="Reverse">▼</button>
-    <button data-k="right" aria-label="Steer right">▶</button>
   </div>
 
   <section class="concepts">
@@ -206,10 +203,33 @@
      tool was unusable there. Same affordance as the SLAM Playground's pad,
      laid out as a cross since this one steers rather than strafes. Gated on
      manual because it means nothing while the planner is driving. */
-  .dpad{display:none;grid-template-columns:repeat(3,54px);gap:6px;margin-top:14px;justify-content:center}
-  .dpad button{height:46px;padding:0;font-size:17px;touch-action:none;user-select:none}
-  .dpad button[data-k="fwd"]{grid-column:2}
-  @media (pointer:coarse){ .sim-root.manual .dpad{display:grid} }
+  /* Same reasoning as the SLAM Playground's stick: a pad below the canvas
+     means scrolling away from the car to steer it. This sits on the canvas.
+     One stick is enough here, unlike the drone: forward/back on the vertical
+     axis, steering on the horizontal, which is the whole of the car's input.
+     Manual only, since in autonomous mode the canvas is the goal-setting
+     surface and a stick would sit on top of that gesture. */
+  .stick{
+    display:none;position:absolute;left:14px;bottom:28px;
+    width:104px;height:104px;border-radius:50%;
+    background:color-mix(in srgb, #0d1117 55%, transparent);
+    border:1px solid color-mix(in srgb, var(--car) 45%, transparent);
+    touch-action:none;user-select:none;-webkit-user-select:none;
+    align-items:center;justify-content:center;
+  }
+  .stick-nub{
+    width:42px;height:42px;border-radius:50%;
+    background:color-mix(in srgb, var(--car) 70%, transparent);
+    box-shadow:0 0 0 1px color-mix(in srgb, #0d1117 60%, transparent);
+    pointer-events:none;transition:transform .12s ease;
+  }
+  .stick.held .stick-nub{transition:none}
+  .stick-cap{
+    position:absolute;bottom:-15px;left:0;right:0;text-align:center;
+    font-family:var(--font-mono);font-size:8.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--car);opacity:.75;pointer-events:none;
+  }
+  @media (pointer:coarse){ .sim-root.manual .stick{display:flex} }
 
   .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
     background:rgba(11,15,20,.55);border-radius:6px;font-size:14px;color:#e6edf3}
@@ -566,14 +586,44 @@ const KEY={KeyW:'fwd',ArrowUp:'fwd',KeyS:'back',ArrowDown:'back',
            KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
 addEventListener('keydown',e=>{const k=KEY[e.code]; if(k&&mode==='manual'){keys[k]=true;e.preventDefault();}});
 addEventListener('keyup',e=>{const k=KEY[e.code]; if(k){keys[k]=false;}});
-/* No pointer capture: the release has to come from pointerleave when a
-   thumb slides off the button, and capture would suppress it. */
-for(const btn of document.querySelectorAll('.dpad button')){
-  const k=btn.dataset.k;
-  btn.addEventListener('pointerdown',e=>{ keys[k]=true; e.preventDefault(); });
-  btn.addEventListener('pointerup',   ()=> keys[k]=false);
-  btn.addEventListener('pointerleave',()=> keys[k]=false);
-  btn.addEventListener('pointercancel',()=> keys[k]=false);
+/* Thumbstick, thresholded into the same four booleans the keyboard sets.
+   The nub tracks the finger continuously even though the model only reads
+   on/off, because a stick that does not move under your thumb reads as
+   broken. Pointer capture keeps a finger that slides past the ring driving
+   rather than silently sticking. */
+const STICK_R=34, STICK_DEAD=9;
+// Leaving manual mode hides the stick mid-press, so it never gets its own
+// pointerup. The mode buttons call this to recentre the nub and drop the keys.
+let resetStick=()=>{};
+{
+  const stick=$('stick'), nub=stick.querySelector('.stick-nub');
+  let id=null;
+  const release=()=>{
+    keys.fwd=keys.back=keys.left=keys.right=false;
+    nub.style.transform='';
+    stick.classList.remove('held');
+    id=null;
+  };
+  resetStick=release;
+  const apply=e=>{
+    const b=stick.getBoundingClientRect();
+    let dx=e.clientX-(b.left+b.width/2), dy=e.clientY-(b.top+b.height/2);
+    const len=Math.hypot(dx,dy);
+    if(len>STICK_R){ dx=dx/len*STICK_R; dy=dy/len*STICK_R; }
+    nub.style.transform=`translate(${dx}px, ${dy}px)`;
+    keys.fwd  = dy < -STICK_DEAD;
+    keys.back = dy >  STICK_DEAD;
+    keys.left = dx < -STICK_DEAD;
+    keys.right= dx >  STICK_DEAD;
+  };
+  stick.addEventListener('pointerdown',e=>{
+    if(id!==null) return;
+    id=e.pointerId; stick.setPointerCapture(id);
+    stick.classList.add('held'); apply(e); e.preventDefault();
+  });
+  stick.addEventListener('pointermove',  e=>{ if(e.pointerId===id) apply(e); });
+  stick.addEventListener('pointerup',    e=>{ if(e.pointerId===id) release(); });
+  stick.addEventListener('pointercancel',e=>{ if(e.pointerId===id) release(); });
 }
 
 /* ===================== main loop ===================== */
@@ -625,7 +675,7 @@ for(const [id,fmt] of [['radius',v=>v],['rev',v=>(+v).toFixed(1)],['dir',v=>v]])
 }
 const simRoot = cv.closest('.sim-root');
 $('mAuto').onclick=()=>{ mode='auto'; $('mAuto').classList.add('on'); $('mManual').classList.remove('on');
-  simRoot.classList.remove('manual'); for(const k in keys)keys[k]=false;
+  simRoot.classList.remove('manual'); resetStick();
   $('sMode').textContent='autonomous'; setState('idle'); };
 $('mManual').onclick=()=>{ mode='manual'; $('mManual').classList.add('on'); $('mAuto').classList.remove('on');
   simRoot.classList.add('manual');

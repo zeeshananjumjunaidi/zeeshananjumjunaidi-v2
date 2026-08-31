@@ -857,7 +857,13 @@ kbd {
 .cred-count { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; color: var(--section-meta); }
 
 .cred-featured { position: relative; padding-left: 26px; margin-bottom: 18px; }
-.cred-featured .timeline-dot { top: 5px; background: var(--ember-1); border-color: var(--ember-1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ember-1) 22%, transparent); }
+/* left: 0, not the -26px .timeline-dot carries by default. Up in the career
+   timeline the dot's containing block is .timeline-item, which the parent's
+   padding has already pushed 26px in, so -26px pulls it back onto the rail.
+   Here the positioned ancestor is the padded element itself, so the same
+   value would put the dot 26px outside it -- off the line the timeline dots
+   above sit on, which is the whole point of sharing the marker. */
+.cred-featured .timeline-dot { left: 0; top: 5px; background: var(--ember-1); border-color: var(--ember-1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ember-1) 22%, transparent); }
 .cred-featured-name { font-family: var(--font-head); font-weight: 400; font-size: 17px; color: var(--headline-color); display: block; }
 .cred-featured-meta { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .06em; color: var(--card-label); display: block; margin-top: 5px; }
 
