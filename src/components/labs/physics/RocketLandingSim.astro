@@ -63,7 +63,7 @@ const CONCEPTS: { level: string; blurb: string; topics: Topic[] }[] = [
     <div class="rl-tabs">
       <button type="button" class="rl-tabbtn active" data-tab="simulator">Simulator</button>
       <button type="button" class="rl-tabbtn" data-tab="article">Article</button>
-      <button type="button" class="rl-tabbtn" data-tab="concepts">Concepts <span class="rl-soon">Soon</span></button>
+      <button type="button" class="rl-tabbtn" data-tab="concepts">Concepts</button>
     </div>
 
     <div class="rl-tab" data-tab="simulator" id="rlStage">
@@ -2549,13 +2549,30 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
 <script>
   var tabs = document.querySelectorAll(".rl-tabbtn");
   var panels = document.querySelectorAll(".rl-tab");
+
+  function show(target, writeHash) {
+    var known = false;
+    tabs.forEach(function (b) { if (b.dataset.tab === target) known = true; });
+    if (!known) return;
+    tabs.forEach(function (b) { b.classList.toggle("active", b.dataset.tab === target); });
+    panels.forEach(function (p) { p.hidden = p.dataset.tab !== target; });
+    // replaceState, not a hash assignment: setting location.hash would make
+    // the browser hunt for an element of that id and jump the page.
+    if (writeHash) history.replaceState(null, "", "#" + target);
+  }
+
   tabs.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var target = btn.dataset.tab;
-      tabs.forEach(function (b) { b.classList.toggle("active", b === btn); });
-      panels.forEach(function (p) { p.hidden = p.dataset.tab !== target; });
-    });
+    btn.addEventListener("click", function () { show(btn.dataset.tab, true); });
   });
+
+  /* The Article tab is a full piece of writing, eleven sections of it, and
+     until now it had no address: every visit opened the simulator and the
+     only way in was to notice the tab. It can be linked as
+     /lab/rocket-landing#article, which is what the writing index points at.
+     Arriving that way also means the canvas never comes into view, so the
+     simulator's three.js chunk is never fetched for a reader. */
+  show(location.hash.slice(1), false);
+  window.addEventListener("hashchange", function () { show(location.hash.slice(1), false); });
 </script>
 
 <style>
@@ -2581,13 +2598,6 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   .rl-tabbtn + .rl-tabbtn { margin-left: 18px; }
   .rl-tabbtn:hover { color: var(--headline-color); }
   .rl-tabbtn.active { color: var(--card-label); border-bottom-color: var(--card-label); }
-  .rl-soon {
-    display: inline-block; margin-left: 6px; padding: 1px 5px;
-    font-size: 8.5px; letter-spacing: 0.1em;
-    border: 1px solid var(--card-border); border-radius: 999px;
-    color: var(--card-desc); vertical-align: 1px;
-  }
-
   .panel {
     background: var(--card-bg);
     border: 1px solid var(--card-border);

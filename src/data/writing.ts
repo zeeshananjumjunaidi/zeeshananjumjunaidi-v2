@@ -1,5 +1,7 @@
-// Each entry needs a component in src/components/writing/ and a slug mapping
-// in src/pages/writing/[slug].astro.
+// An entry normally needs a component in src/components/writing/ and a slug
+// mapping in src/pages/writing/[slug].astro. The exception is an entry with
+// `href`, which is a piece that already lives somewhere else on the site and
+// only needs listing here.
 
 export interface WritingEntry {
   slug: string;
@@ -8,6 +10,11 @@ export interface WritingEntry {
   topics: string[];
   publishDate: Date;
   draft?: boolean;
+  /** Set when the piece lives outside /writing/<slug>. Such entries are
+   *  listed on the writing page but no page is generated for them. */
+  href?: string;
+  /** Short note on where it actually lives, shown beside the title. */
+  where?: string;
 }
 
 export const interactiveWriting: WritingEntry[] = [
@@ -26,5 +33,15 @@ export const interactiveWriting: WritingEntry[] = [
       'Why rockets are almost entirely fuel tank: deriving the rocket equation from momentum conservation, and what it means for staging, engine choice and propulsive landing.',
     topics: ['Physics', 'Orbital Mechanics', 'Propulsion'],
     publishDate: new Date('2026-08-30'),
+  },
+  {
+    slug: 'landing-a-booster',
+    title: 'Landing a Booster',
+    description:
+      'What it takes to put a returning first stage back on a pad: the state worth tracking, the forces acting on it, the two actuators that steer it, and the guidance law that decides when to light the engine.',
+    topics: ['Physics', 'Control Systems', 'Simulation'],
+    publishDate: new Date('2026-08-28'),
+    href: '/lab/rocket-landing#article',
+    where: 'In the Lab',
   },
 ];

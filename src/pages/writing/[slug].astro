@@ -13,7 +13,9 @@ const ARTICLE_COMPONENTS: Record<string, any> = {
 
 export function getStaticPaths() {
   return interactiveWriting
-    .filter((a) => !a.draft)
+    // `href` entries are pieces that already live elsewhere on the site, so
+    // there is no component to render and no page to build for them.
+    .filter((a) => !a.draft && !a.href)
     .map((a) => ({ params: { slug: a.slug }, props: { meta: a } }));
 }
 

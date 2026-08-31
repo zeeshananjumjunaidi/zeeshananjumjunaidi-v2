@@ -48,8 +48,11 @@ const written = new Set(entries.flatMap((a) => a.topics));
       <ul class="writing-list">
         {entries.map((entry) => (
           <li class="writing-item">
-            <a href={`/writing/${entry.slug}`}>
-              <span class="writing-item-title">{entry.title}</span>
+            <a href={entry.href ?? `/writing/${entry.slug}`}>
+              <span class="writing-item-title">
+                {entry.title}
+                {entry.where && <span class="writing-item-where">{entry.where}</span>}
+              </span>
               <span class="writing-item-desc">{entry.description}</span>
             </a>
             {entry.publishDate && (
@@ -107,6 +110,14 @@ const written = new Set(entries.flatMap((a) => a.topics));
   }
   .writing-item a:hover .writing-item-title,
   .writing-item a:focus-visible .writing-item-title { color: var(--card-label); }
+  /* Says where the piece actually opens, so a link that leaves the writing
+     section for a lab tool is not a surprise. */
+  .writing-item-where {
+    display: inline-block; margin-left: 9px; vertical-align: 2px;
+    font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--card-desc);
+    border: 1px solid var(--card-border); border-radius: 999px; padding: 2px 8px;
+  }
   .writing-item-desc {
     display: block; margin-top: 5px; max-width: 70ch;
     font-family: var(--font-body); font-weight: 300; font-size: 14.5px; line-height: 1.6;
