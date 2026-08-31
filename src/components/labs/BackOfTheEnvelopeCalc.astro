@@ -101,6 +101,21 @@ import MetricDialog from "./back-of-the-envelope/MetricDialog.astro";
   content: ""; position: absolute; left: -16px; top: 4px; bottom: 6px; width: 1px; background: var(--card-border);
 }
 
+/* Eleven tabs never fit a phone, and a flex item cannot shrink past its
+   min-content, so this row used to widen the whole page instead. Below the
+   width where they stop fitting it becomes a strip you swipe.
+   margin-bottom goes to 0 because overflow-x also makes overflow-y a
+   scroll container, and the -1px pull onto the hairline would otherwise
+   register as vertical overflow and add a second scrollbar. The active
+   underline then sits directly on the hairline rather than over it. */
+@media (max-width: 940px) {
+  .boe-tabs { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .boe-tabs::-webkit-scrollbar { display: none; }
+  .boe-tabbtn { flex: 0 0 auto; margin-bottom: 0; }
+  .boe-tabbtn + .boe-tabbtn { margin-left: 14px; }
+  .boe-tabbtn[data-tab="diagram"] { margin-left: 26px; }
+}
+
 .boe-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
 @media (min-width: 860px) { .boe-grid { grid-template-columns: 1fr 1fr; align-items: start; } }
 

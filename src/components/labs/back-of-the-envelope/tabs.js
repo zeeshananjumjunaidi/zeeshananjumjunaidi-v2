@@ -9,6 +9,10 @@ export function initTabs() {
     btn.addEventListener("click", function () {
       var target = btn.dataset.tab;
       tabs.forEach(function (b) { b.classList.toggle("active", b === btn); });
+      // Narrow screens turn the bar into a horizontal strip, so a tab tapped
+      // at the cut-off edge would stay half off-screen with its underline
+      // hidden. "nearest" on both axes is a no-op once it is fully visible.
+      if (btn.scrollIntoView) btn.scrollIntoView({ inline: "nearest", block: "nearest" });
       panels.forEach(function (p) { p.hidden = p.dataset.tab !== target; });
       // Use visibility (not the hidden attribute) so .boe-head keeps its height on
       // every tab -- hidden would collapse that row and yank the tab bar/content

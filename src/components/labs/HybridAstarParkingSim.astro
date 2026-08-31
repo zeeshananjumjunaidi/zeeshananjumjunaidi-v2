@@ -55,6 +55,13 @@
     <button id="reset">Reset</button>
   </div>
 
+  <div class="dpad">
+    <button data-k="fwd" aria-label="Drive forward">▲</button>
+    <button data-k="left" aria-label="Steer left">◀</button>
+    <button data-k="back" aria-label="Reverse">▼</button>
+    <button data-k="right" aria-label="Steer right">▶</button>
+  </div>
+
   <section class="concepts">
     <h2>The concepts, with intuition</h2>
     <div class="tabbar" id="tabbar">
@@ -169,7 +176,7 @@
   .sim-main {max-width:1100px;margin:0 auto;padding:0}
   .stage{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
   .panel{background:var(--card-bg);border:1px solid var(--card-border);border-radius:10px;padding:12px}
-  .canvaswrap{flex:1 1 560px;min-width:320px;position:relative}
+  .canvaswrap{flex:1 1 560px;min-width:min(320px,100%);position:relative}
   canvas{width:100%;height:auto;display:block;border-radius:6px;background:#0d1117;
     touch-action:none;cursor:crosshair}
   .side{flex:1 1 240px;min-width:220px;font-size:13px}
@@ -195,6 +202,15 @@
     transition:border-color .4s ease}
   button:hover{border-color:var(--card-label)}
   button.on{border-color:var(--card-label);background:color-mix(in srgb, var(--card-label) 10%, transparent)}
+  /* Manual mode is WASD/arrows, which a phone does not have, so half the
+     tool was unusable there. Same affordance as the SLAM Playground's pad,
+     laid out as a cross since this one steers rather than strafes. Gated on
+     manual because it means nothing while the planner is driving. */
+  .dpad{display:none;grid-template-columns:repeat(3,54px);gap:6px;margin-top:14px;justify-content:center}
+  .dpad button{height:46px;padding:0;font-size:17px;touch-action:none;user-select:none}
+  .dpad button[data-k="fwd"]{grid-column:2}
+  @media (pointer:coarse){ .sim-root.manual .dpad{display:grid} }
+
   .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
     background:rgba(11,15,20,.55);border-radius:6px;font-size:14px;color:#e6edf3}
   .overlay.show{display:flex}
@@ -550,6 +566,15 @@ const KEY={KeyW:'fwd',ArrowUp:'fwd',KeyS:'back',ArrowDown:'back',
            KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right'};
 addEventListener('keydown',e=>{const k=KEY[e.code]; if(k&&mode==='manual'){keys[k]=true;e.preventDefault();}});
 addEventListener('keyup',e=>{const k=KEY[e.code]; if(k){keys[k]=false;}});
+/* No pointer capture: the release has to come from pointerleave when a
+   thumb slides off the button, and capture would suppress it. */
+for(const btn of document.querySelectorAll('.dpad button')){
+  const k=btn.dataset.k;
+  btn.addEventListener('pointerdown',e=>{ keys[k]=true; e.preventDefault(); });
+  btn.addEventListener('pointerup',   ()=> keys[k]=false);
+  btn.addEventListener('pointerleave',()=> keys[k]=false);
+  btn.addEventListener('pointercancel',()=> keys[k]=false);
+}
 
 /* ===================== main loop ===================== */
 let last=performance.now();
@@ -598,9 +623,12 @@ $('radiusV');
 for(const [id,fmt] of [['radius',v=>v],['rev',v=>(+v).toFixed(1)],['dir',v=>v]]){
   const el=$(id); const out=$(id+'V'); el.oninput=()=>out.textContent=fmt(el.value);
 }
+const simRoot = cv.closest('.sim-root');
 $('mAuto').onclick=()=>{ mode='auto'; $('mAuto').classList.add('on'); $('mManual').classList.remove('on');
+  simRoot.classList.remove('manual'); for(const k in keys)keys[k]=false;
   $('sMode').textContent='autonomous'; setState('idle'); };
 $('mManual').onclick=()=>{ mode='manual'; $('mManual').classList.add('on'); $('mAuto').classList.remove('on');
+  simRoot.classList.add('manual');
   $('sMode').textContent='manual'; setState('driving'); plan=null; explored=null; goalGhost=null; };
 $('reset').onclick=()=>{ car={x:80,y:500,th:0}; steer=0; plan=null; explored=null; goalGhost=null;
   trav={i:0,s:0,pause:0}; driveDir=1; setState('idle'); for(const k in keys)keys[k]=false;

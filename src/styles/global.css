@@ -159,6 +159,11 @@
 
 html, body { margin: 0; padding: 0; }
 
+/* Backstop only -- the sims and the calculator's tab strip each handle
+   their own width. `clip` rather than `hidden` so it doesn't turn the
+   viewport into a scroll container and break sticky positioning. */
+html { overflow-x: clip; }
+
 body {
   background: var(--page-bg);
   font-family: var(--font-body);
@@ -271,6 +276,14 @@ img { max-width: 100%; display: block; }
 .topbar nav a { transition: color .5s ease; }
 .topbar nav a:hover, .topbar nav a:focus-visible { color: var(--topbar-hover); }
 
+/* 10px text with no padding is a ~12px tap target. Padding rather than a
+   larger font, so the topbar keeps its size on a mouse and only grows
+   where a finger actually needs the room. */
+@media (pointer: coarse) {
+  .topbar nav { gap: 14px; }
+  .topbar nav a { padding: 8px 2px; }
+}
+
 .theme-toggle {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -332,6 +345,12 @@ img { max-width: 100%; display: block; }
   font-size: clamp(18px, 3.4vw, 30px);
   color: var(--script-color);
   white-space: nowrap;
+}
+/* nowrap means the script sets the row's min width, and at 320px it lands
+   within a few px of the panel's inner width. Buy back the margin. */
+@media (max-width: 420px) {
+  .rule-row { gap: 10px; }
+  .script { font-size: 16px; }
 }
 
 .hero-body {
@@ -888,3 +907,24 @@ kbd {
 .site-footer .col { display: flex; flex-direction: column; gap: 8px; }
 .site-footer a { color: var(--footer-link); transition: color .4s ease; }
 .site-footer a:hover, .site-footer a:focus-visible { color: var(--footer-link-hover); }
+
+/* ---- Touch adaptations ----------------------------------------------------
+   Cross-cutting rules that have to outrank component styles. Astro scopes a
+   component's CSS with a [data-astro-cid-*] attribute, which lifts even a
+   plain `select` to (0,1,1), so a bare element selector here would lose.
+   Hence !important: these are device adaptations, not design choices. */
+
+/* iOS Safari zooms the viewport whenever a focused field is under 16px, and
+   does not zoom back out when the field blurs. Applies to the calculator's
+   number inputs, the diagram sidebar's search box, and the SLAM selects. */
+@media (pointer: coarse) {
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select { font-size: 16px !important; }
+}
+
+/* Tab bars across the lab tools are 8px/4px padding on 11px text, roughly a
+   27px target. WCAG 2.2 asks for 24px minimum; this clears it with room. */
+@media (pointer: coarse) {
+  .boe-tabbtn, .rl-tabbtn { padding-top: 12px !important; padding-bottom: 12px !important; }
+}

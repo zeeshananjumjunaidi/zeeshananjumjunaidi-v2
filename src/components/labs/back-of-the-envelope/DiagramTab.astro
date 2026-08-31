@@ -166,7 +166,16 @@
 .dg-sidebar-item-icon { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 @media (max-width: 640px) {
-  .dg-body { flex-direction: column; }
+  /* A fixed 600px canvas plus the stacked sidebar is taller than a phone
+     screen, so the toolbar scrolls away while you are working in it. */
+  .dg-body { flex-direction: column; --dg-canvas-h: 60vh; }
+  /* dvh tracks the browser's own chrome, so the canvas doesn't hide under
+     the address bar. Not a duplicate declaration: the minifier drops the
+     vh line when both sit in the same block, which leaves the property
+     invalid (and the canvas height:auto) wherever dvh is unsupported. */
+  @supports (height: 1dvh) {
+    .dg-body { --dg-canvas-h: 60dvh; }
+  }
   .dg-sidebar {
     width: auto; max-height: 220px; border-right: 1px solid var(--card-border); border-bottom: 0;
     transition: max-height .2s ease, opacity .2s ease, border-width .2s ease;
