@@ -5,15 +5,29 @@ interface Props {
   title: string;
   description: string;
   image?: string;
+  imageAlt?: string;
   type?: 'website' | 'profile' | 'article';
+  publishedTime?: string;
 }
+
+// Square, 460px. Fine as a fallback, wrong for a 1.91:1 banner slot.
+const DEFAULT_IMAGE = 'https://avatars.githubusercontent.com/u/17067044?v=4';
 
 const {
   title,
   description,
-  image = 'https://avatars.githubusercontent.com/u/17067044?v=4',
+  image = DEFAULT_IMAGE,
+  imageAlt,
   type = 'website',
+  publishedTime,
 } = Astro.props;
+
+/* Every page claimed summary_large_image, including the ones falling back to
+   the avatar, which puts a small square portrait in a slot built for a wide
+   banner. Twitter and Slack letterbox or crop it and the result looks broken.
+   The card type follows the image instead. Anything passed explicitly is one
+   of the lab OG screenshots, which are 1200x630 by convention. */
+const hasWideCard = image !== DEFAULT_IMAGE;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
@@ -38,9 +52,13 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 <meta property="og:description" content={description}>
 <meta property="og:url" content={canonicalURL}>
 <meta property="og:image" content={image}>
+{hasWideCard && <meta property="og:image:width" content="1200">}
+{hasWideCard && <meta property="og:image:height" content="630">}
+{imageAlt && <meta property="og:image:alt" content={imageAlt}>}
 <meta property="og:locale" content="en_US">
+{publishedTime && <meta property="article:published_time" content={publishedTime}>}
 
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:card" content={hasWideCard ? 'summary_large_image' : 'summary'}>
 <meta name="twitter:title" content={title}>
 <meta name="twitter:description" content={description}>
 <meta name="twitter:image" content={image}>

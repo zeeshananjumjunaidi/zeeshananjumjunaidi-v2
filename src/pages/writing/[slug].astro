@@ -36,7 +36,12 @@ const articleSchema = {
   keywords: meta.topics.join(', '),
 };
 ---
-<BaseLayout title={`${meta.title} - Zeeshan Anjum Junaidi`} description={meta.description}>
+<BaseLayout
+  title={`${meta.title} - Zeeshan Anjum Junaidi`}
+  description={meta.description}
+  type="article"
+  publishedTime={meta.publishDate ? meta.publishDate.toISOString() : undefined}
+>
   <script type="application/ld+json" is:inline set:html={JSON.stringify(articleSchema)} />
   <div class="writing-page">
     <Nav />
