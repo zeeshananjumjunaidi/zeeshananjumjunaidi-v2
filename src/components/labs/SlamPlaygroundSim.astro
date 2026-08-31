@@ -8,7 +8,17 @@
   <div class="views">
     <div class="panel">
       <h2>Ground truth - what actually exists</h2>
-      <canvas id="world" width="560" height="560"></canvas>
+      <div class="worldwrap">
+        <canvas id="world" width="560" height="560"></canvas>
+        <div class="stick" id="stickMove" data-stick="move" aria-hidden="true">
+          <span class="stick-nub"></span>
+          <span class="stick-cap" id="stickMoveCap">move</span>
+        </div>
+        <div class="stick" id="stickYaw" data-stick="yaw" aria-hidden="true">
+          <span class="stick-nub"></span>
+          <span class="stick-cap">yaw</span>
+        </div>
+      </div>
     </div>
     <div class="panel">
       <h2>Robot's belief - map built from sensors only</h2>
@@ -59,12 +69,6 @@
     <span>keyframes <b id="kfCount">0</b></span>
   </div>
 
-  <div class="dpad">
-    <button data-k="al">◀</button>
-    <button data-k="fwd">▲</button>
-    <button data-k="back">▼</button>
-    <button data-k="ar">▶</button>
-  </div>
 
   <!-- ====================== concepts ====================== -->
   <section class="concepts">
@@ -251,9 +255,48 @@
   .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--card-desc)}
   .legend span::before{content:"";display:inline-block;width:18px;height:3px;
     border-radius:2px;margin-right:6px;vertical-align:middle;background:var(--c)}
-  .dpad{display:none;gap:6px;margin-top:14px;justify-content:center}
-  .dpad button{width:54px;height:46px;font-size:17px}
-  @media (pointer:coarse){.dpad{display:flex}}
+  /* ---- touch driving ----
+     A pad under the canvases meant scrolling away from the robot to reach
+     it, so you were steering something you could not see. These sit on the
+     world canvas instead. They are deliberately small islands rather than
+     the whole canvas being a control surface: touch-action: none is scoped
+     to the sticks, so a drag anywhere else on the canvas still scrolls the
+     page, which on a phone is most of the screen.
+
+     Two sticks because the drone needs three axes and one stick carries
+     two. Ground vehicles use only the left one (their strafe keys feed the
+     same turn term as the yaw keys, so a second stick would do nothing). */
+  .worldwrap{position:relative}
+  .stick{
+    display:none; position:absolute; bottom:26px;
+    width:104px; height:104px; border-radius:50%;
+    background:color-mix(in srgb, #0d1117 55%, transparent);
+    border:1px solid color-mix(in srgb, var(--est) 45%, transparent);
+    touch-action:none; user-select:none; -webkit-user-select:none;
+    align-items:center; justify-content:center;
+  }
+  .stick[data-stick=move]{left:12px}
+  .stick[data-stick=yaw]{right:12px}
+  .stick-nub{
+    width:42px; height:42px; border-radius:50%;
+    background:color-mix(in srgb, var(--est) 70%, transparent);
+    box-shadow:0 0 0 1px color-mix(in srgb, #0d1117 60%, transparent);
+    pointer-events:none;
+    transition:transform .12s ease;
+  }
+  .stick.held .stick-nub{transition:none}
+  /* Below the ring, not inside it: at full deflection the nub reaches the
+     rim and would sit on top of the label. */
+  .stick-cap{
+    position:absolute; bottom:-15px; left:0; right:0; text-align:center;
+    font-family:var(--font-mono); font-size:8.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--est); opacity:.75;
+    pointer-events:none;
+  }
+  @media (pointer:coarse){
+    .stick[data-stick=move]{display:flex}
+    .sim-root.drone .stick[data-stick=yaw]{display:flex}
+  }
 
   /* concepts section */
   .concepts{margin-top:28px;background:var(--card-bg);border:1px solid var(--card-border);
@@ -521,11 +564,65 @@ const KEYMAP = {KeyW:'fwd', ArrowUp:'fwd', KeyS:'back', ArrowDown:'back',
                 KeyA:'a', KeyD:'d', ArrowLeft:'al', ArrowRight:'ar'};
 addEventListener('keydown', e=>{ const k = KEYMAP[e.code]; if(k){keys[k]=true; e.preventDefault();} });
 addEventListener('keyup',   e=>{ const k = KEYMAP[e.code]; if(k){keys[k]=false;} });
-for (const btn of document.querySelectorAll('.dpad button')){
-  const k = btn.dataset.k;
-  btn.addEventListener('pointerdown', e=>{ keys[k]=true; e.preventDefault(); });
-  btn.addEventListener('pointerup',   ()=> keys[k]=false);
-  btn.addEventListener('pointerleave',()=> keys[k]=false);
+/* Thumbsticks on the world canvas. The motion model reads booleans, not an
+ * analog vector, so each axis is thresholded: past the deadzone the key is
+ * held, inside it the key is released. The nub still tracks the finger
+ * continuously, because a stick that does not move under your thumb reads
+ * as broken even when it is working. */
+const STICK_R = 34, STICK_DEAD = 9;
+// Read lazily: `ui` is built further down, and this only runs on a gesture.
+const vehNow = () => document.getElementById('veh').value;
+for (const stick of document.querySelectorAll('.stick')){
+  const nub = stick.querySelector('.stick-nub');
+  const yawOnly = stick.dataset.stick === 'yaw';
+  let id = null;
+
+  // Which pair the horizontal axis drives: for the drone the left stick
+  // strafes (a/d) and the right one yaws (al/ar); a ground vehicle has one
+  // stick and turns with it.
+  const lateral = () => (yawOnly || vehNow() !== 'drone') ? ['al','ar'] : ['a','d'];
+
+  // Only ever clears the axes this stick owns. Clearing all six here would
+  // mean the drone's move stick cancelling the yaw stick every time a thumb
+  // lifted, which is exactly the two-handed case the second stick is for.
+  function release(){
+    const [l, r] = lateral();
+    keys[l] = keys[r] = false;
+    if (!yawOnly) keys.fwd = keys.back = false;
+    nub.style.transform = '';
+    stick.classList.remove('held');
+    id = null;
+  }
+  function apply(e){
+    const b = stick.getBoundingClientRect();
+    let dx = e.clientX - (b.left + b.width/2);
+    let dy = e.clientY - (b.top + b.height/2);
+    const len = Math.hypot(dx, dy);
+    if (len > STICK_R){ dx = dx/len*STICK_R; dy = dy/len*STICK_R; }
+    nub.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    const [l, r] = lateral();
+    keys[l] = dx < -STICK_DEAD;
+    keys[r] = dx >  STICK_DEAD;
+    // The yaw stick is one axis. Leaving fwd/back to the other stick keeps
+    // the drone's translation on a single thumb.
+    if (!yawOnly){
+      keys.fwd  = dy < -STICK_DEAD;
+      keys.back = dy >  STICK_DEAD;
+    }
+  }
+
+  stick.addEventListener('pointerdown', e=>{
+    if (id !== null) return;
+    id = e.pointerId;
+    stick.setPointerCapture(id);
+    stick.classList.add('held');
+    apply(e);
+    e.preventDefault();
+  });
+  stick.addEventListener('pointermove', e=>{ if (e.pointerId === id) apply(e); });
+  stick.addEventListener('pointerup',     e=>{ if (e.pointerId === id) release(); });
+  stick.addEventListener('pointercancel', e=>{ if (e.pointerId === id) release(); });
 }
 
 /* ---------- controls + tabs ---------- */
@@ -536,7 +633,24 @@ const VEH_HINT = {
   car:   'no turning in place - A/D steers, must roll to turn',
   drone: 'A/D strafe sideways, ←/→ yaw'
 };
-ui.veh.onchange = ()=>{ $('vehHint').textContent = VEH_HINT[ui.veh.value]; steer = 0; };
+/* Only the drone gets the second stick, so the root has to follow the
+   select -- including on load, since the browser can restore a non-default
+   selection on a reload. */
+const simRoot = $('world').closest('.sim-root');
+function applyVehicle(){
+  const v = ui.veh.value;
+  $('vehHint').textContent = VEH_HINT[v];
+  simRoot.classList.toggle('drone', v === 'drone');
+  $('stickMoveCap').textContent = v === 'drone' ? 'move' : 'drive';
+}
+ui.veh.onchange = ()=>{
+  applyVehicle();
+  steer = 0;
+  // The yaw stick may be going display:none under a thumb, in which case it
+  // never fires its pointerup and whatever it was holding stays latched.
+  for (const k in keys) keys[k] = false;
+};
+applyVehicle();
 ui.noise.oninput = ()=> $('noiseV').textContent = (+ui.noise.value).toFixed(1);
 ui.drift.oninput = ()=> $('driftV').textContent = (+ui.drift.value).toFixed(1);
 $('reset').onclick = resetRun;
