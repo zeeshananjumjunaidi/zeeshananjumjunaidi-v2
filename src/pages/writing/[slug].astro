@@ -47,7 +47,7 @@ const ogImageURL = existsSync(new URL(`../../../public/writing/${slug}-og.png`, 
 ---
 <BaseLayout
   title={`${meta.title} - Zeeshan Anjum Junaidi`}
-  description={meta.description}
+  description={meta.metaDescription || meta.description}
   type="article"
   image={ogImageURL}
   imageAlt={ogImageURL ? `Figure from "${meta.title}"` : undefined}

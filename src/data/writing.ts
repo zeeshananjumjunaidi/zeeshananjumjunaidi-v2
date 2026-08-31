@@ -8,6 +8,10 @@ export interface WritingEntry {
   title: string;
   description: string;
   topics: string[];
+  /** Shown as the standfirst and in the index, so length is an editorial
+   *  choice. Set `metaDescription` when it runs past ~160 characters and
+   *  search results would truncate it. Same split the labs use. */
+  metaDescription?: string;
   publishDate: Date;
   draft?: boolean;
   /** Set when the piece lives outside /writing/<slug>. Such entries are
@@ -31,6 +35,8 @@ export const interactiveWriting: WritingEntry[] = [
     title: 'The Tsiolkovsky rocket equation',
     description:
       'Why rockets are almost entirely fuel tank: deriving the rocket equation from momentum conservation, and what it means for staging, engine choice and propulsive landing.',
+    metaDescription:
+      'Why rockets are almost entirely fuel tank: deriving the rocket equation from momentum conservation, and what it means for staging and engine choice.',
     topics: ['Physics', 'Orbital Mechanics', 'Propulsion'],
     publishDate: new Date('2026-08-30'),
   },

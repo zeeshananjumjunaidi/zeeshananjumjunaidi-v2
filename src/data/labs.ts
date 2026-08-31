@@ -15,7 +15,7 @@ export const labs: Lab[] = [
     slug: 'slam-playground',
     title: 'SLAM Playground',
     tagline: 'Mapping an unknown space while tracking your own position inside it',
-    metaDescription: 'An interactive SLAM (simultaneous localization and mapping) simulator: drive a robot with noisy LiDAR, GPS, and IMU sensors, watch occupancy-grid mapping and ICP scan matching fuse ground truth and belief in real time in your browser.',
+    metaDescription: 'An interactive SLAM simulator: drive a robot on noisy LiDAR, GPS and IMU, and watch occupancy-grid mapping and ICP scan matching correct its belief.',
     tags: ['SLAM', 'occupancy grid', 'ICP', 'sensor fusion'],
     writeup: [
       "SLAM, simultaneous localization and mapping, is the chicken-and-egg problem at the heart of every autonomous robot: to know where you are, you need a map; to build a map, you need to know where you are. The robot never gets ground truth, only noisy sensor readings, and has to fuse them into a single best guess of both at once.",
@@ -27,7 +27,7 @@ export const labs: Lab[] = [
     slug: 'hybrid-astar-parking',
     title: 'Hybrid A* Parking',
     tagline: 'Planning a full reverse-parking maneuver into a tight bay',
-    metaDescription: 'A hybrid A* path-planning demo: watch a search over reachable vehicle states (not grid cells) plan and drive a full reverse-parking maneuver, turning radius and gear changes included, directly in your browser.',
+    metaDescription: 'A hybrid A* path-planning demo: a search over reachable vehicle states, not grid cells, planning and driving a full reverse-parking maneuver.',
     tags: ['hybrid A*', 'parking', 'Reeds-Shepp'],
     writeup: [
       "Plain A* searches a grid and happily produces paths with instant 90° turns, fine for a game character, useless for a car. Hybrid A* searches over the vehicle's actual reachable states instead of grid cells: at every step it only considers moves the car could really drive, respecting its turning radius and letting it choose forward or reverse gears. The result is a path an actual steering wheel can execute, gear changes included.",
@@ -39,7 +39,7 @@ export const labs: Lab[] = [
     slug: 'back-of-the-envelope',
     title: 'Back of the Envelope',
     tagline: 'Capacity math for system design',
-    metaDescription: 'A free back-of-the-envelope system design calculator: traffic, storage, cache, bandwidth, compute, database sharding, queues, latency, availability, and cost math, plus an animated diagram tool for sketching the architecture, all in your browser.',
+    metaDescription: 'A back-of-the-envelope system design calculator: traffic, storage, cache, bandwidth, compute, sharding, queues, latency and cost, plus a diagram tool.',
     tags: ['capacity planning', 'estimation'],
     collapsibleWriteup: true,
     writeup: [
@@ -53,7 +53,7 @@ export const labs: Lab[] = [
     slug: 'rocket-landing',
     title: 'Rocket Landing',
     tagline: 'Learn how to land a rocket under real gravity, drag, and fuel-burn constraints',
-    metaDescription: 'A three.js rocket-landing physics sim: control thrust, fuel, and descent rate to land a booster under real gravity, drag, and fuel-burn constraints, in your browser.',
+    metaDescription: 'A three.js rocket-landing physics sim: control thrust and descent rate to land a booster under real gravity, drag and fuel-burn constraints.',
     tags: ['three.js', 'rigid-body physics', 'control'],
     writeup: [
       "Landing a rocket is a control problem before it's a physics problem: gravity and drag are fixed, thrust and fuel are the only levers, and running out of either at the wrong altitude ends the run.",
