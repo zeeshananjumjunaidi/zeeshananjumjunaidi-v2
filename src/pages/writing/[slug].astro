@@ -1,4 +1,5 @@
 ---
+import { existsSync } from 'node:fs';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Nav from '../../components/Nav.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
@@ -35,11 +36,21 @@ const articleSchema = {
   author: { '@type': 'Person', name: 'Zeeshan Anjum Junaidi', url: 'https://zeeshananjum.com' },
   keywords: meta.topics.join(', '),
 };
+
+// Same filesystem lookup the lab route uses: an article with a card in
+// public/writing gets a wide preview, one without falls back to the avatar
+// and a small card. Nothing to register when the next article lands.
+const slug = Astro.params.slug as string;
+const ogImageURL = existsSync(new URL(`../../../public/writing/${slug}-og.png`, import.meta.url))
+  ? new URL(`/writing/${slug}-og.png`, Astro.site).toString()
+  : undefined;
 ---
 <BaseLayout
   title={`${meta.title} - Zeeshan Anjum Junaidi`}
   description={meta.description}
   type="article"
+  image={ogImageURL}
+  imageAlt={ogImageURL ? `Figure from "${meta.title}"` : undefined}
   publishedTime={meta.publishDate ? meta.publishDate.toISOString() : undefined}
 >
   <script type="application/ld+json" is:inline set:html={JSON.stringify(articleSchema)} />
