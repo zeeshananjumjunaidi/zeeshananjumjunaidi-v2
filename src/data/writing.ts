@@ -19,6 +19,9 @@ export interface WritingEntry {
   href?: string;
   /** Short note on where it actually lives, shown beside the title. */
   where?: string;
+  /** Set when the article supplies its own layout instead of the centred
+   *  reading measure that .writing-prose imposes. */
+  wide?: boolean;
 }
 
 export const interactiveWriting: WritingEntry[] = [
@@ -47,7 +50,8 @@ export const interactiveWriting: WritingEntry[] = [
       'What it takes to put a returning first stage back on a pad: the state worth tracking, the forces acting on it, the two actuators that steer it, and the guidance law that decides when to light the engine.',
     topics: ['Physics', 'Control Systems', 'Simulation'],
     publishDate: new Date('2026-08-28'),
-    href: '/lab/rocket-landing#article',
-    where: 'In the Lab',
+    // Brings its own two-column layout (reading column plus a margin rail),
+    // so the route renders it outside the usual .writing-prose measure.
+    wide: true,
   },
 ];

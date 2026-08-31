@@ -6,10 +6,12 @@ import SiteFooter from '../../components/SiteFooter.astro';
 import { interactiveWriting } from '../../data/writing';
 import TsiolkovskyEquation from '../../components/writing/TsiolkovskyEquation.astro';
 import OutboxPattern from '../../components/writing/OutboxPattern.astro';
+import LandingABooster from '../../components/writing/LandingABooster.astro';
 
 const ARTICLE_COMPONENTS: Record<string, any> = {
   'tsiolkovsky-rocket-equation': TsiolkovskyEquation,
   'transactional-outbox': OutboxPattern,
+  'landing-a-booster': LandingABooster,
 };
 
 export function getStaticPaths() {
@@ -54,7 +56,7 @@ const ogImageURL = existsSync(new URL(`../../../public/writing/${slug}-og.png`, 
   publishedTime={meta.publishDate ? meta.publishDate.toISOString() : undefined}
 >
   <script type="application/ld+json" is:inline set:html={JSON.stringify(articleSchema)} />
-  <div class="writing-page">
+  <div class:list={['writing-page', { wide: meta.wide }]}>
     <Nav />
 
     <a class="back-link" href="/#writing">&larr; Back to writing</a>
@@ -74,7 +76,7 @@ const ogImageURL = existsSync(new URL(`../../../public/writing/${slug}-og.png`, 
       )}
     </header>
 
-    <article class="writing-block writing-prose">
+    <article class:list={meta.wide ? 'writing-self' : 'writing-block writing-prose'}>
       {ArticleComponent && <ArticleComponent />}
     </article>
   </div>
@@ -86,6 +88,10 @@ const ogImageURL = existsSync(new URL(`../../../public/writing/${slug}-og.png`, 
   /* --measure is px-based, not ch: the masthead and the body use different
      fonts, and ch would put their left edges in different places. */
   .writing-page { --measure: 34rem; padding: 28px 4px 0; max-width: 880px; margin: 0 auto; }
+  /* An article that lays itself out gets the room to do it, and its masthead
+     widens to match rather than staying pinned to the reading measure. */
+  .writing-page.wide { max-width: 1100px; --measure: 46rem; }
+  .writing-self { margin-bottom: 72px; }
   .back-link {
     font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
     color: var(--card-desc); transition: color .4s ease;
