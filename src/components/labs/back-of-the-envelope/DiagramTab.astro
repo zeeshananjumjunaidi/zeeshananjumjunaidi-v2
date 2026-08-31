@@ -160,6 +160,10 @@
   display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: grab;
   font-family: var(--font-mono); font-size: 11.5px; color: var(--headline-color); white-space: nowrap;
   transition: background .15s ease, color .15s ease;
+  /* Same defect as the canvas: a drag source whose label is selectable, so
+     a long press selects the preset name instead of picking it up. The
+     toolbar chips next to it already had this. */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
 .dg-sidebar-item:hover { background: color-mix(in srgb, var(--card-label) 10%, transparent); color: var(--card-label); }
 .dg-sidebar-item:active { cursor: grabbing; }
@@ -188,7 +192,18 @@
   overflow: hidden; cursor: grab; touch-action: none; flex: 1 1 auto; min-width: 0;
   background-image: radial-gradient(color-mix(in srgb, var(--card-border) 70%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
+  /* Nodes carried user-select: none but nothing else on the surface did, so
+     pressing an edge started a text selection on the SVG <text> of whatever
+     label sat nearby, and Android raised its selection toolbar (complete
+     with a web-search entry) instead of selecting the edge. Set on the wrap
+     rather than per-element so edges, labels, grips and the grid are all
+     covered. touch-callout kills the equivalent long-press menu on iOS. */
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
+/* The inline edge-label editor is a real <input> inside the wrap, and an
+   inherited `none` can stop you selecting inside a form control. Node
+   labels are contenteditable, which the spec already exempts. */
+.dg-canvas-wrap input { user-select: text; -webkit-user-select: text; }
 .dg-canvas-wrap.panning { cursor: grabbing; }
 .dg-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .dg-svg { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
