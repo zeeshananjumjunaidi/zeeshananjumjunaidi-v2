@@ -2574,6 +2574,14 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   canvas {
     width: 100%;
     aspect-ratio: 16/10;
+    /* The HUD needs a floor to live in, and 16/10 does not give it one: the
+       canvas is ~72px narrower than the viewport (.wrap 40 + .lab-page 8 +
+       .panel 24), so a 412px phone gets a 315x197 frame and the corner
+       panels, the phase chip and the instrument cluster all land on top of
+       each other. min-height lets the ratio relax toward portrait exactly
+       when it needs to, with no breakpoint to keep in sync: above ~470px of
+       canvas the ratio still wins. */
+    min-height: 400px;
     display: block;
     border-radius: 6px;
     background: linear-gradient(#b9c6cf, #e7e2d6);
@@ -2621,7 +2629,8 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   /* Both want the top centre, so the phase chip moves under the button. */
   #rlStage:fullscreen .rl-phasechip { top: 48px; }
   #rlStage:fullscreen .rl-viewport { flex: 1 1 auto; min-height: 0; }
-  #rlStage:fullscreen .rl-viewport canvas { width: 100%; height: 100%; aspect-ratio: auto; }
+  /* min-height: 0 or the floor above overflows a short landscape screen. */
+  #rlStage:fullscreen .rl-viewport canvas { width: 100%; height: 100%; aspect-ratio: auto; min-height: 0; }
 
   #rlStage:fullscreen .rl-drawer-wrap {
     position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
@@ -2771,10 +2780,45 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   .rl-keyrow kbd { font-size: 8.5px; padding: 1px 4px; border-radius: 3px; box-shadow: none; }
   .rl-keyrow span { margin-left: 3px; letter-spacing: 0.06em; }
 
+  /* Five floating groups on a narrow canvas: two top corners, two bottom
+     corners, a centre chip and the instrument cluster. The min-height floor
+     on the canvas gives them vertical room, but horizontally they still
+     collide, so they get rearranged into two rows and two columns:
+
+       top-left altitude | top-right propellant
+                  phase chip
+              (vehicle)
+        bottom-left T+   | instruments, bottom-right
+
+     The chip drops below the top row instead of running between it. The
+     instruments move off the T+ panel's centre line. The camera name shares
+     the bottom-right corner with the instruments, so it goes; the camera
+     buttons under the canvas already say which one is active. */
   @media (max-width: 560px) {
     .rl-att { width: 58px; height: 58px; }
     .rl-thr { width: 20px; height: 58px; }
     .rl-keys { display: none !important; }
+    .rl-phasechip { top: 104px; }
+    .rl-instruments { left: auto; right: 10px; transform: none; }
+    .rl-hud-br { display: none; }
+    .rl-hudpanel { padding: 6px 9px; }
+    .rl-hud-v { font-size: 17px; }
+  }
+
+  /* Phone tier. The two top panels are still set by their widest row
+     ("Vertical -55.3" and "Gimbal -1.1° / 0.3°"), which at the sizes above
+     comes to ~273px of panel against a 288px canvas on a 360px phone: they
+     touch. Dropping to 10px text with a tighter row gap and 6px corner
+     offsets brings the pair to ~246px, which clears even a 320px screen. */
+  @media (max-width: 420px) {
+    .rl-hudpanel { font-size: 10px; padding: 5px 8px; }
+    .rl-hud-k { font-size: 9px; }
+    .rl-hud-v { font-size: 15px; }
+    .rl-hud-row { gap: 8px; margin-top: 4px; font-size: 10px; }
+    .rl-hud-tl { top: 6px; left: 6px; }
+    .rl-hud-tr { top: 6px; right: 6px; }
+    .rl-hud-bl { bottom: 6px; left: 6px; }
+    .rl-instruments { right: 6px; bottom: 6px; }
   }
 
   .rl-verdict {
@@ -2931,7 +2975,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
   .rl-masthead { max-width: 68ch; padding-bottom: 4px; }
   .rl-title {
     font-family: var(--font-body);
-    font-size: 34px; font-weight: 600; line-height: 1.2;
+    font-size: clamp(26px, 6.5vw, 34px); font-weight: 600; line-height: 1.2;
     color: var(--headline-color);
     margin: 0 0 14px;
     text-wrap: balance;
@@ -3010,7 +3054,7 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     padding: 3px 10px; margin-bottom: 16px;
   }
   .rl-cs-head h2 {
-    font-family: var(--font-body); font-size: 30px; font-weight: 600; line-height: 1.2;
+    font-family: var(--font-body); font-size: clamp(24px, 6vw, 30px); font-weight: 600; line-height: 1.2;
     color: var(--headline-color); margin: 0 0 14px; text-wrap: balance;
   }
   .rl-cs-head p {
@@ -3074,6 +3118,12 @@ x &larr; x + (h/6)&middot;( k&#8321; + 2k&#8322; + 2k&#8323; + k&#8324; )</div>
     margin: 4px 0 8px;
     overflow-x: auto;
     white-space: pre;
+    /* Some of these run past 70 characters, and `pre` means they set their
+       own min width. Without this the longest ones widened the page; now
+       that the root clips horizontally they would be silently cut off
+       instead. Each equation scrolls in its own box, same as the prose
+       code blocks in global.css. */
+    overflow-x: auto;
     color: var(--headline-color);
   }
   .rl-eqcap {

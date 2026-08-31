@@ -43,9 +43,16 @@
     .boe-export-dialog {
       width: min(480px, calc(100vw - 32px));
       max-height: calc(100vh - 64px); overflow-y: auto;
+      /* vh is the large viewport on a phone, so with the address bar showing
+         the dialog can be taller than what you can actually see and its top
+         ends up off-screen. Separate rule, not a second declaration in this
+         block: the minifier drops the losing one when both sit together. */
       background: var(--card-bg); color: var(--headline-color);
       border: 1px solid var(--card-border); padding: 20px 22px;
       font-family: var(--font-body);
+    }
+    @supports (height: 1dvh) {
+      .boe-export-dialog { max-height: calc(100dvh - 64px); }
     }
     .boe-export-dialog::backdrop { background: color-mix(in srgb, #000 55%, transparent); }
     .boe-export-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }

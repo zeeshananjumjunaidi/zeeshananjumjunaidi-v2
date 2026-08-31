@@ -905,7 +905,10 @@ kbd {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--footer-text);
 }
 .site-footer .col { display: flex; flex-direction: column; gap: 8px; }
-.site-footer a { color: var(--footer-link); transition: color .4s ease; }
+/* The address is one 29-character token with no break opportunity, and it
+   sets the column's min width. At 320px that is within ~35px of the whole
+   content box, so give it somewhere to break rather than relying on it. */
+.site-footer a { color: var(--footer-link); transition: color .4s ease; overflow-wrap: anywhere; }
 .site-footer a:hover, .site-footer a:focus-visible { color: var(--footer-link-hover); }
 
 /* ---- Touch adaptations ----------------------------------------------------
@@ -927,4 +930,15 @@ kbd {
    27px target. WCAG 2.2 asks for 24px minimum; this clears it with room. */
 @media (pointer: coarse) {
   .boe-tabbtn, .rl-tabbtn { padding-top: 12px !important; padding-bottom: 12px !important; }
+}
+
+/* The rest of the small mono links and disclosures: 11px text with no
+   vertical padding at all, so ~14px tall. No !important needed -- none of
+   these set a padding of their own for a scoped rule to win with. */
+@media (pointer: coarse) {
+  .site-footer a,
+  .back-link,
+  .cred-more summary,
+  .repo-more summary,
+  .writing-collapse summary { padding-top: 6px; padding-bottom: 6px; }
 }
