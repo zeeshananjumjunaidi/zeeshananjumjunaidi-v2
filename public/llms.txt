@@ -1,0 +1,38 @@
+# Zeeshan Anjum Junaidi
+
+Senior software engineer based in Karachi, Pakistan. Works on infrastructure
+and platform engineering at IDWise: Kubernetes, Terraform, CI/CD and network
+security across AWS and GCP, behind identity verification and anti-money-
+laundering systems.
+
+Outside work, builds simulation engines and interactive technical tools. The
+Lab and the writing below are personal exploration, not professional
+employment experience. Robotics, spaceflight and control-systems material on
+this site is self-directed study, not part of the job described above.
+
+## Writing
+
+- [Landing a Booster](https://zeeshananjum.com/writing/landing-a-booster/): eleven sections on returning a first stage to a pad. State vector, translational and rotational dynamics, gimbal and grid-fin allocation, ZEM/ZEV guidance, numerics.
+- [The Tsiolkovsky rocket equation](https://zeeshananjum.com/writing/tsiolkovsky-rocket-equation/): deriving the rocket equation from momentum conservation, and what it means for staging and engine choice.
+- [The transactional outbox](https://zeeshananjum.com/writing/transactional-outbox/): why a database write and an event publish cannot both succeed, and the ordering bug most implementations ship with.
+
+## Lab
+
+Interactive tools, each running in the browser with no backend.
+
+- [Rocket Landing](https://zeeshananjum.com/lab/rocket-landing/): three.js powered-descent simulator. Thrust, drag, fuel burn, autopilot and manual flight.
+- [SLAM Playground](https://zeeshananjum.com/lab/slam-playground/): simultaneous localization and mapping. Noisy LiDAR, GPS and IMU, occupancy-grid mapping, ICP scan matching.
+- [Hybrid A* Parking](https://zeeshananjum.com/lab/hybrid-astar-parking/): path planning over reachable vehicle states rather than grid cells, including reverse-parking maneuvers.
+- [Back of the Envelope](https://zeeshananjum.com/lab/back-of-the-envelope/): system design capacity calculator. Traffic, storage, cache, bandwidth, compute, sharding, queues, latency, cost, plus a diagram tool.
+
+## Elsewhere
+
+- [GitHub](https://github.com/zeeshananjumjunaidi)
+- [LinkedIn](https://www.linkedin.com/in/zeeshananjum/)
+- [RSS](https://zeeshananjum.com/rss.xml)
+
+## Notes
+
+The canonical source is the HTML on this site; every page carries schema.org
+JSON-LD referencing one Person entity at https://zeeshananjum.com/#person.
+This file is an index, not a copy, and may lag behind the pages it points to.

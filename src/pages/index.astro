@@ -6,28 +6,8 @@ import WorkSection from '../components/WorkSection.astro';
 import LabSection from '../components/LabSection.astro';
 import WritingSection from '../components/WritingSection.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import { personSchema } from '../data/person';
 
-const personSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'Person',
-  name: 'Zeeshan Anjum Junaidi',
-  url: 'https://zeeshananjum.com',
-  image: 'https://avatars.githubusercontent.com/u/17067044?v=4',
-  jobTitle: 'Senior Software Engineer',
-  worksFor: {
-    '@type': 'Organization',
-    name: 'IDWise',
-  },
-  address: {
-    '@type': 'PostalAddress',
-    addressLocality: 'Karachi',
-    addressCountry: 'PK',
-  },
-  sameAs: [
-    'https://github.com/zeeshananjumjunaidi',
-    'https://www.linkedin.com/in/zeeshananjum/',
-  ],
-};
 ---
 <BaseLayout
   title="Zeeshan Anjum Junaidi | Senior Software Engineer"

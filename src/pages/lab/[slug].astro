@@ -7,6 +7,7 @@ import SlamPlaygroundSim from '../../components/labs/SlamPlaygroundSim.astro';
 import HybridAstarParkingSim from '../../components/labs/HybridAstarParkingSim.astro';
 import BackOfTheEnvelopeCalc from '../../components/labs/BackOfTheEnvelopeCalc.astro';
 import { labs } from '../../data/labs';
+import { authorRef } from '../../data/person';
 import RocketLandingSim from '../../components/labs/physics/RocketLandingSim.astro';
 
 const SIM_COMPONENTS: Record<string, any> = {
@@ -43,7 +44,7 @@ const toolSchema = {
   applicationCategory: 'EducationalApplication',
   operatingSystem: 'Any (runs in the browser)',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-  author: { '@type': 'Person', name: 'Zeeshan Anjum Junaidi', url: 'https://zeeshananjum.com' },
+  author: authorRef,
   keywords: lab.tags.join(', '),
 };
 ---

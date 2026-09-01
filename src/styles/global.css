@@ -448,6 +448,14 @@ img { max-width: 100%; display: block; }
    collapses empty tracks, so a lone card used to stretch the whole width
    and cost as much vertical space as a three-card domain. Anything with
    more than one card, or with repo lists, still spans the full width. */
+/* States the boundary out loud. Without it the Lab's subject matter sits
+   directly under the employment history and reads as professional experience,
+   which it is not -- a machine summarising the page has no other way to tell. */
+.lab-scope {
+  font-family: var(--font-body); font-weight: 300; font-size: 14px; line-height: 1.7;
+  color: var(--card-desc); max-width: 62ch; margin: 0 0 22px;
+}
+
 .domain-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px 20px; margin-top: 4px; }
 .domain-block.wide { grid-column: 1 / -1; }
 @media (max-width: 700px) { .domain-grid { grid-template-columns: 1fr; } }

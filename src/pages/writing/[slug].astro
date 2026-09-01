@@ -4,6 +4,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import Nav from '../../components/Nav.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import { interactiveWriting } from '../../data/writing';
+import { authorRef } from '../../data/person';
 import TsiolkovskyEquation from '../../components/writing/TsiolkovskyEquation.astro';
 import OutboxPattern from '../../components/writing/OutboxPattern.astro';
 import LandingABooster from '../../components/writing/LandingABooster.astro';
@@ -35,8 +36,10 @@ const articleSchema = {
   headline: meta.title,
   description: meta.description,
   datePublished: meta.publishDate ? meta.publishDate.toISOString() : undefined,
-  author: { '@type': 'Person', name: 'Zeeshan Anjum Junaidi', url: 'https://zeeshananjum.com' },
+  author: authorRef,
   keywords: meta.topics.join(', '),
+  about: meta.topics.map((t: string) => ({ '@type': 'Thing', name: t })),
+  inLanguage: 'en',
 };
 
 // Same filesystem lookup the lab route uses: an article with a card in
