@@ -591,6 +591,23 @@
 
 .dg-style-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--card-desc); opacity: 0.7; padding: 6px 10px 0; }
 .dg-style-row { display: flex; gap: 4px; padding: 4px 10px 6px; flex-wrap: wrap; }
+
+/* The icon row folds away. Its summary doubles as the current-value readout,
+   so the menu stays short without hiding what is already set. */
+.dg-style-fold > summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--card-desc); opacity: 0.7; padding: 6px 10px 4px;
+  cursor: pointer; list-style: none;
+}
+.dg-style-fold > summary::-webkit-details-marker { display: none; }
+.dg-style-fold > summary::after { content: "▸"; font-size: 8px; opacity: 0.8; }
+.dg-style-fold[open] > summary::after { content: "▾"; }
+.dg-style-fold > summary:hover { opacity: 1; color: var(--card-label); }
+.dg-style-fold-val { margin-left: auto; display: inline-flex; align-items: center; color: var(--card-label); }
+.dg-style-fold-val .dg-menu-icon-svg { width: 14px; height: 14px; }
+/* Capped so a long list scrolls inside the menu rather than running off it. */
+.dg-style-row-scroll { max-height: 148px; overflow-y: auto; }
 .dg-context-menu .dg-style-btn {
   font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--card-desc); background: transparent; border: 1px solid var(--card-border);
@@ -2746,6 +2763,19 @@
     save();
   }
 
+  // Empty string clears it: the importer stores null for "no animation", and
+  // the menu's None option carries "" like the icon row's does.
+  function setSelectionAnimate(key) {
+    if (selectedNodeIds.size === 0) return;
+    pushUndo();
+    selectedNodeIds.forEach(function (id) {
+      var n = nodeById(id);
+      if (n && n.type !== "container") n.animate = key || null;
+    });
+    renderNodes();
+    save();
+  }
+
   function showContextMenu(items, clientX, clientY) {
     contextMenu.innerHTML = "";
     items.forEach(function (item) {
@@ -2782,14 +2812,32 @@
         return;
       }
       if (item.optionRow) {
-        if (item.rowLabel) {
+        /* A row can fold itself away. Thirty-five icons laid out flat pushed
+           everything below them off the bottom of the menu, so that row now
+           opens on demand and reports its current value in the summary. */
+        var host = contextMenu, fold = null;
+        if (item.collapsible) {
+          fold = document.createElement("details");
+          fold.className = "dg-style-fold";
+          var sum = document.createElement("summary");
+          var picked = item.options.filter(function (o) { return o.key === item.current; })[0];
+          sum.innerHTML = '<span>' + item.rowLabel + '</span>';
+          var val = document.createElement("span");
+          val.className = "dg-style-fold-val";
+          if (picked && picked.icon) val.innerHTML = iconSvg(picked.icon, "dg-menu-icon-svg");
+          else val.textContent = picked ? picked.label : "None";
+          sum.appendChild(val);
+          fold.appendChild(sum);
+          contextMenu.appendChild(fold);
+          host = fold;
+        } else if (item.rowLabel) {
           var lbl = document.createElement("div");
           lbl.className = "dg-style-label";
           lbl.textContent = item.rowLabel;
           contextMenu.appendChild(lbl);
         }
         var row2 = document.createElement("div");
-        row2.className = "dg-style-row";
+        row2.className = "dg-style-row" + (item.collapsible ? " dg-style-row-scroll" : "");
         item.options.forEach(function (opt) {
           var ob = document.createElement("button");
           ob.type = "button";
@@ -2803,7 +2851,7 @@
           ob.addEventListener("click", function () { hideContextMenu(); item.onPick(opt.key); });
           row2.appendChild(ob);
         });
-        contextMenu.appendChild(row2);
+        host.appendChild(row2);
         return;
       }
       var btn = document.createElement("button");
@@ -2857,9 +2905,20 @@
           onPick: setSelectionShape
         });
         items.push({
-          optionRow: true, rowLabel: "Icon", current: node.icon || "",
+          optionRow: true, collapsible: true, rowLabel: "Icon", current: node.icon || "",
           options: [{ key: "", label: "None" }].concat(COMPONENT_PRESETS.map(function (p) { return { key: p.icon, label: p.label, icon: p.icon }; })),
           onPick: setSelectionIcon
+        });
+        // The animation field was importable but had no control anywhere, so
+        // the only way to set one was to hand-edit JSON or ask an LLM for it.
+        items.push({
+          optionRow: true, rowLabel: "Animation", current: node.animate || "",
+          options: [
+            { key: "", label: "None" }, { key: "notify", label: "Notify" },
+            { key: "fill", label: "Fill" }, { key: "spinner", label: "Spinner" },
+            { key: "heartbeat", label: "Heartbeat" }, { key: "error", label: "Error" }
+          ],
+          onPick: setSelectionAnimate
         });
         items.push({ swatches: true, onPick: setSelectionColor });
         items.push("separator");
