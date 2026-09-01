@@ -7,6 +7,11 @@
         <div class="dg-chip" id="dgAddBox" draggable="true" title="Drag onto the canvas, or click to add">+ Box</div>
         <div class="dg-chip" id="dgAddContainer" draggable="true" title="Drag onto the canvas, or click to add">+ Container</div>
         <div class="dg-chip" id="dgAddText" draggable="true" title="Drag onto the canvas, or click to add">+ Text</div>
+        <button type="button" class="dg-chip dg-chip-btn dg-chip-llm" id="dgAskLlm"
+          title="Copy a prompt for any LLM, then paste back what it writes">
+          <svg class="dg-icon dg-chip-llm-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 11.6 7l4.4 1.6L11.6 10 10 14.5 8.4 10 4 8.6 8.4 7z"/><path d="M15.5 13.5l.7 1.9 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>
+          Ask an LLM
+        </button>
         <div class="dg-tool-group">
           <button type="button" class="dg-btn" id="dgZoomOut" aria-label="Zoom out">−</button>
           <span class="dg-zoom-val" id="dgZoomVal">100%</span>
@@ -50,6 +55,7 @@
         </button>
       </div>
 
+      <p class="dg-llm-hint"><b>Ask an LLM</b> copies a prompt you can paste into any chat. Describe your system, paste the JSON it returns, and the diagram is laid out for you.</p>
       <div class="dg-body">
         <div class="dg-sidebar" id="dgSidebar">
           <div class="dg-sidebar-search-wrap">
@@ -78,12 +84,93 @@
         </div>
       </div>
 
+      <dialog id="dgImportDialog" class="dg-import-dialog">
+        <div class="dg-import-head">
+          <h3>Import a diagram</h3>
+          <button type="button" class="dg-import-x" id="dgImportClose" aria-label="Close">&times;</button>
+        </div>
+        <p class="dg-import-note">
+          Paste the JSON below, or have an LLM write it: copy the prompt, describe
+          your system, and paste back what it returns. Diagrams that arrive without
+          coordinates get laid out automatically.
+        </p>
+        <textarea id="dgImportText" class="dg-import-text" rows="9" spellcheck="false"
+          placeholder='{ "nodes": [ { "id": "api", "label": "API" } ], "edges": [] }'></textarea>
+        <p class="dg-import-err" id="dgImportErr" hidden></p>
+        <div class="dg-import-actions">
+          <button type="button" class="dg-btn dg-import-prompt" id="dgImportPrompt">Copy prompt</button>
+          <button type="button" class="dg-btn" id="dgImportFile">Load a file</button>
+          <button type="button" class="dg-btn dg-import-go" id="dgImportGo">Import</button>
+        </div>
+      </dialog>
+
       <p class="boe-hint dg-hint">Drag "+ Box", "+ Container", or "+ Text" onto the canvas, or click any of them to add. The components panel on the left (toggle it with the button before "+ Box") holds pre-labeled icons grouped by client and identity, compute, data, messaging and network, or AI -- drag one onto the canvas or click it to drop it in the middle. A container is a large frame: drop boxes (or other containers, nested as deep as you like) inside it and it carries them when it moves. Drag from a box's edge dot to connect it to another box. Double-click a box or a connection to rename it. Click to select, then press Delete to remove, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo. Right-click a box for more actions, including its shape (rect, rounded, diamond, or borderless text), an icon, and a color. Right-click a connection to set its line style, arrow direction, or an animated flow. Shift-click to select several boxes, then Group to move them as one, Ungroup to split them apart again. To Front and To Back change which box sits on top when they overlap. Scroll to zoom, drag empty space to pan. Saved to this browser automatically, and Export/Import JSON move a diagram between browsers or back it up.</p>
     </div>
   </div>
 
 <style is:global>
 .dg-root { margin-top: 4px; }
+
+.dg-import-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px); overflow-y: auto;
+  background: var(--card-bg); color: var(--headline-color);
+  border: 1px solid var(--card-border); padding: 20px 22px;
+  font-family: var(--font-body);
+}
+@supports (height: 1dvh) {
+  .dg-import-dialog { max-height: calc(100dvh - 64px); }
+}
+.dg-import-dialog::backdrop { background: color-mix(in srgb, #000 55%, transparent); }
+.dg-import-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.dg-import-head h3 {
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--card-label); margin: 0;
+}
+.dg-import-x { background: transparent; border: 0; color: var(--card-desc); font-size: 20px; line-height: 1; cursor: pointer; }
+.dg-import-note {
+  font-family: var(--font-body); font-weight: 300; font-size: 13.5px; line-height: 1.65;
+  color: var(--card-desc); margin: 0 0 14px;
+}
+.dg-import-text {
+  width: 100%; box-sizing: border-box; resize: vertical;
+  background: transparent; border: 1px solid var(--card-border); border-radius: 4px;
+  padding: 10px 12px; color: var(--headline-color);
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.6; outline: none;
+}
+.dg-import-text:focus { border-color: var(--card-label); }
+.dg-import-err {
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5;
+  color: var(--tone-bad); margin: 8px 0 0;
+}
+.dg-import-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.dg-import-actions .dg-btn { width: auto; padding: 7px 14px; }
+.dg-import-go { margin-left: auto; color: var(--card-label); border-color: var(--card-label); }
+
+/* Copying the prompt is the first step of the whole flow, so it draws the eye:
+   a slow sheen across the button until it has been used once. Stops for good
+   on click, and never runs for anyone who asked for less motion. */
+.dg-import-prompt {
+  position: relative; overflow: hidden;
+  color: var(--card-label); border-color: var(--card-label);
+  background: color-mix(in srgb, var(--card-label) 12%, transparent);
+}
+.dg-import-prompt::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%,
+    color-mix(in srgb, var(--card-label) 30%, transparent) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: dg-sheen 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.dg-import-prompt.used::after { animation: none; opacity: 0; }
+@keyframes dg-sheen {
+  0% { background-position: 130% 0; }
+  60%, 100% { background-position: -40% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dg-import-prompt::after { animation: none; opacity: 0; }
+}
 .dg-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
 .dg-chip {
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
@@ -92,6 +179,26 @@
 }
 .dg-chip:active { cursor: grabbing; }
 .dg-chip-btn { cursor: pointer; font: inherit; }
+
+/* Solid rather than the dashed "drag me" chips beside it, because it opens a
+   dialog instead of dropping a node, and tinted so it reads as the one thing
+   here that is not another shape to place. */
+.dg-chip-llm {
+  display: inline-flex; align-items: center; gap: 7px;
+  border-style: solid;
+  background: color-mix(in srgb, var(--card-label) 12%, transparent);
+  transition: background .3s ease, border-color .3s ease;
+}
+.dg-chip-llm:hover, .dg-chip-llm:focus-visible {
+  background: color-mix(in srgb, var(--card-label) 22%, transparent);
+  border-color: var(--card-border-hover);
+}
+.dg-chip-llm-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.dg-llm-hint {
+  font-family: var(--font-body); font-weight: 300; font-size: 12.5px; line-height: 1.6;
+  color: var(--card-desc); margin: -4px 0 12px;
+}
+.dg-llm-hint b { color: var(--card-label); font-weight: 400; }
 .dg-tool-group { display: flex; align-items: center; gap: 6px; }
 .dg-zoom-val { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); min-width: 34px; text-align: center; }
 .dg-btn {
@@ -556,6 +663,16 @@
   var GRID = 22; // matches .dg-canvas-wrap's dotted background-size, so snapped positions land on visible dots
   function snap(v) { return Math.round(v / GRID) * GRID; }
 
+  /* Declared once and used by both the import normalizer and the LLM prompt.
+     They were inline literals in the normalizer, which is how the prompt came
+     to advertise a smaller model than the tool actually accepts. */
+  var SHAPES = ["rect", "rounded", "diamond", "text"];
+  var ANIMATIONS = ["notify", "fill", "spinner", "heartbeat", "error"];
+  var EDGE_FLOWS = ["dot", "dash", "packet"];
+  var EDGE_ROUTINGS = ["straight", "orthogonal", "rounded", "curved"];
+  var ARROW_STYLES = ["one", "both", "none"];
+
+  var COLOR_KEYS = ["slate","blue","teal","green","purple","rose","aws","gcp","azure"];
   var NODE_COLORS = [
     { key: "slate", label: "Slate", hex: "#7c8aa5" },
     { key: "blue", label: "Blue", hex: "#5b8def" },
@@ -2122,16 +2239,198 @@
     return max + 1;
   }
 
+  var importDialog = document.getElementById("dgImportDialog");
+  var importText = document.getElementById("dgImportText");
+  var importErr = document.getElementById("dgImportErr");
+
+  /* Built from NODE_ICONS rather than a hand-written list, so the prompt can
+     never offer an icon the tool does not have. */
+  function importPrompt() {
+    return [
+      "Write a system diagram as JSON for a browser tool.",
+      "Reply with JSON only: no prose, no markdown code fences.",
+      "",
+      "Example:",
+      "{",
+      '  "nodes": [',
+      '    { "id": "api", "label": "API Gateway", "icon": "gateway", "shape": "rect", "color": "blue" },',
+      '    { "id": "db", "label": "Postgres", "icon": "db", "color": "teal" }',
+      "  ],",
+      '  "edges": [',
+      '    { "from": "api", "to": "db", "label": "query", "flow": "dot", "routing": "orthogonal" }',
+      "  ]",
+      "}",
+      "",
+      "Node fields. Only id and label are required:",
+      "  id        short and unique. Edges reference it.",
+      "  label     1 to 4 words.",
+      "  shape     " + SHAPES.join(" | ") + ". diamond for a decision or branch,",
+      "            text for a bare caption with no border.",
+      "  icon      " + Object.keys(NODE_ICONS).join(", "),
+      "  color     " + COLOR_KEYS.join(" | "),
+      "  animate   " + ANIMATIONS.join(" | ") + ". A running hint on the node:",
+      "            error marks something failing, spinner something in progress,",
+      "            heartbeat something alive, fill something filling up.",
+      "",
+      "Edge fields. Only from and to are required:",
+      "  label          1 to 3 words.",
+      "  lineStyle      solid | dashed. dashed for anything asynchronous.",
+      "  arrowStyle     " + ARROW_STYLES.join(" | ") + ".",
+      "  flow           " + EDGE_FLOWS.join(" | ") + ". Animates traffic along the edge.",
+      "  flowDirection  forward | alternate. alternate for request/response.",
+      "  routing        " + EDGE_ROUTINGS.join(" | ") + ".",
+      "",
+      "Leave out x, y, w, h, type, parentId, groupId, fromPort, toPort and bend.",
+      "The tool positions and sizes everything.",
+      "",
+      "6 to 15 nodes, flowing left to right, entry points first. Use icons and",
+      "colors to group things that belong together, and animate or flow only",
+      "where the behaviour is worth pointing at.",
+      "",
+      "The system to draw: "
+    ].join("\n");
+  }
+
+  /* LLMs wrap JSON in fences and add a sentence either side however firmly you
+     ask them not to, so recover the object rather than rejecting the paste. */
+  function parseLoose(text) {
+    var t = String(text || "").trim().replace(/^```[a-z]*\s*/i, "").replace(/\s*```$/, "").trim();
+    try { return JSON.parse(t); } catch (e) {}
+    var first = t.indexOf("{"), last = t.lastIndexOf("}");
+    if (first === -1 || last <= first) throw new Error("No JSON object found.");
+    return JSON.parse(t.slice(first, last + 1));
+  }
+
+  function showImportError(msg) {
+    importErr.textContent = msg;
+    importErr.hidden = false;
+  }
+
   importBtn.addEventListener("click", function () {
+    importErr.hidden = true;
+    importText.value = "";
+    if (importDialog.showModal) importDialog.showModal();
+  });
+  // Same dialog, its own entrance: buried behind "Import JSON" nobody found it.
+  document.getElementById("dgAskLlm").addEventListener("click", function () {
+    importErr.hidden = true;
+    importText.value = "";
+    if (importDialog.showModal) importDialog.showModal();
+  });
+  document.getElementById("dgImportClose").addEventListener("click", function () { importDialog.close(); });
+  document.getElementById("dgImportFile").addEventListener("click", function () {
     importInput.value = "";
     importInput.click();
   });
+  document.getElementById("dgImportPrompt").addEventListener("click", function (e) {
+    var btn = e.currentTarget;
+    navigator.clipboard.writeText(importPrompt()).then(function () {
+      btn.classList.add("used");
+      btn.textContent = "Copied";
+      setTimeout(function () { btn.textContent = "Copy prompt"; }, 1600);
+    }, function () { showImportError("Could not reach the clipboard."); });
+  });
+  document.getElementById("dgImportGo").addEventListener("click", function () {
+    var data;
+    try { data = parseLoose(importText.value); }
+    catch (err) { return showImportError("Could not read that as JSON. " + err.message); }
+    if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
+      return showImportError('Needs a "nodes" array and an "edges" array.');
+    }
+    if (!data.nodes.length) return showImportError("That diagram has no nodes.");
+    importDialog.close();
+    applyDiagramData(data);
+  });
+
+  /* Longest-path layering, left to right. A diagram written by hand or by the
+     export always carries coordinates; one written by an LLM will not, and
+     without this every node lands on 0,0 in a single pile. Rank 0 is anything
+     with no incoming edge, and each node sits one rank past its deepest
+     predecessor. A cycle cannot raise ranks forever because the pass count is
+     capped at the node count. Containers are skipped: they are frames around
+     other nodes, so laying them out as boxes would be wrong. */
+  function autoLayout(ns, es) {
+    var COL_GAP = 90, ROW_GAP = 34, ORIGIN = 60;
+    var laid = ns.filter(function (n) { return n.type !== "container"; });
+    if (!laid.length) return;
+    var inSet = {};
+    laid.forEach(function (n) { inSet[n.id] = true; });
+
+    var links = es.filter(function (e) { return e.from !== e.to && inSet[e.from] && inSet[e.to]; });
+
+    /* Drop back edges first. Ranking on a cyclic graph terminates but ratchets:
+       a retry loop like worker -> queue -> worker pushed its nodes out to rank
+       19 in an eight-node diagram, leaving a huge empty gap. A DFS marks any
+       edge landing on a node still on the stack, and ranking runs on the rest.
+       The edge is still drawn, it just doesn't get a say in the ordering. */
+    var adj = {};
+    laid.forEach(function (n) { adj[n.id] = []; });
+    links.forEach(function (e) { adj[e.from].push(e); });
+    var state = {}, back = {};
+    var ekey = function (e) { return e.from + ">" + e.to; };
+    (function () {
+      function walk(id) {
+        state[id] = 1;
+        adj[id].forEach(function (e) {
+          if (state[e.to] === 1) { back[ekey(e)] = true; return; }
+          if (!state[e.to]) walk(e.to);
+        });
+        state[id] = 2;
+      }
+      // Sources first, so the ranking follows the direction traffic actually
+      // flows rather than whichever node happened to be listed first.
+      var indeg = {};
+      laid.forEach(function (n) { indeg[n.id] = 0; });
+      links.forEach(function (e) { indeg[e.to]++; });
+      laid.filter(function (n) { return !indeg[n.id]; }).forEach(function (n) { if (!state[n.id]) walk(n.id); });
+      laid.forEach(function (n) { if (!state[n.id]) walk(n.id); });
+    })();
+    var forward = links.filter(function (e) { return !back[ekey(e)]; });
+
+    var rank = {};
+    laid.forEach(function (n) { rank[n.id] = 0; });
+    for (var pass = 0; pass < laid.length; pass++) {
+      var moved = false;
+      forward.forEach(function (e) {
+        if (rank[e.to] < rank[e.from] + 1) { rank[e.to] = rank[e.from] + 1; moved = true; }
+      });
+      if (!moved) break;
+    }
+
+    var cols = {};
+    laid.forEach(function (n) { (cols[rank[n.id]] = cols[rank[n.id]] || []).push(n); });
+    var order = Object.keys(cols).map(Number).sort(function (a, b) { return a - b; });
+
+    var colW = {}, colH = {};
+    order.forEach(function (r) {
+      colW[r] = Math.max.apply(null, cols[r].map(function (n) { return n.w; }));
+      colH[r] = cols[r].reduce(function (s, n) { return s + n.h; }, 0) + ROW_GAP * (cols[r].length - 1);
+    });
+    var tallest = Math.max.apply(null, order.map(function (r) { return colH[r]; }));
+
+    var x = ORIGIN;
+    order.forEach(function (r) {
+      var y = ORIGIN + (tallest - colH[r]) / 2;   // columns centre on one axis
+      cols[r].forEach(function (n) {
+        n.x = Math.round(x + (colW[r] - n.w) / 2);
+        n.y = Math.round(y);
+        y += n.h + ROW_GAP;
+      });
+      x += colW[r] + COL_GAP;
+    });
+  }
 
   // Shared by the file importer and by preset/slot loading (which arrives as
   // a `boe:load-diagram` event below) -- both need the same defensive
   // normalization, and duplicating it is how the two would drift apart.
   function applyDiagramData(data) {
       pushUndo();
+      // Checked before normalization, which defaults missing coordinates to 0
+      // and would otherwise make "no layout given" indistinguishable from
+      // "everything legitimately sits at the origin".
+      var needsLayout = data.nodes.some(function (nd) {
+        return !nd || typeof nd.x !== "number" || typeof nd.y !== "number";
+      });
 
       // Normalize defensively: imported nodes/edges keep their own ids (so internal
       // from/to references stay valid), missing fields fall back to safe defaults.
@@ -2147,12 +2446,12 @@
           type: nd && nd.type === "container" ? "container" : "box",
           parentId: (nd && nd.parentId) || null,
           groupId: (nd && nd.groupId) || null,
-          color: (nd && nd.color) || null,
-          shape: (nd && ["rect", "rounded", "diamond", "text"].indexOf(nd.shape) !== -1) ? nd.shape : "rect",
+          color: (nd && COLOR_KEYS.indexOf(nd.color) !== -1) ? nd.color : null,
+          shape: (nd && SHAPES.indexOf(nd.shape) !== -1) ? nd.shape : "rect",
           icon: (nd && NODE_ICONS[nd.icon]) ? nd.icon : "",
           // Export writes `animate` but this list used to omit it, so any
           // diagram with animated nodes lost them on the way back in.
-          animate: (nd && ["notify", "fill", "spinner", "heartbeat", "error"].indexOf(nd.animate) !== -1) ? nd.animate : null,
+          animate: (nd && ANIMATIONS.indexOf(nd.animate) !== -1) ? nd.animate : null,
           metric: (nd && typeof nd.metric === "string") ? canonicalId(nd.metric) : null
         };
       });
@@ -2167,10 +2466,10 @@
             to: ed.to,
             label: typeof ed.label === "string" ? ed.label : "",
             lineStyle: ed.lineStyle === "dashed" ? "dashed" : "solid",
-            arrowStyle: (ed.arrowStyle === "both" || ed.arrowStyle === "none") ? ed.arrowStyle : "one",
-            flow: (ed.flow === "dot" || ed.flow === "dash" || ed.flow === "packet") ? ed.flow : "none",
+            arrowStyle: ARROW_STYLES.indexOf(ed.arrowStyle) !== -1 ? ed.arrowStyle : "one",
+            flow: EDGE_FLOWS.indexOf(ed.flow) !== -1 ? ed.flow : "none",
             flowDirection: ed.flowDirection === "alternate" ? "alternate" : "forward",
-            routing: (["orthogonal", "rounded", "curved"].indexOf(ed.routing) !== -1) ? ed.routing : "straight",
+            routing: EDGE_ROUTINGS.indexOf(ed.routing) !== -1 ? ed.routing : "straight",
             // Port anchors are optional: an edge without them keeps the old
             // centre-facing behaviour rather than being forced onto a side.
             fromPort: PORT_AT[ed.fromPort] ? ed.fromPort : null,
@@ -2178,6 +2477,8 @@
             bend: (typeof ed.bend === "number" && isFinite(ed.bend)) ? ed.bend : null
           };
         });
+
+      if (needsLayout) autoLayout(importedNodes, importedEdges);
 
       nodes = importedNodes;
       edges = importedEdges;
@@ -2220,6 +2521,8 @@
         alert("That file isn't valid JSON.");
         return;
       }
+      // Reached through the dialog's "Load a file", so dismiss it on success.
+      if (importDialog.open) importDialog.close();
       if (!data || !Array.isArray(data.nodes) || !Array.isArray(data.edges)) {
         alert('That file doesn\'t look like a diagram export (expected "nodes" and "edges" arrays).');
         return;
