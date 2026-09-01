@@ -2423,17 +2423,42 @@
       colW[r] = Math.max.apply(null, cols[r].map(function (n) { return n.w; }));
       colH[r] = cols[r].reduce(function (s, n) { return s + n.h; }, 0) + ROW_GAP * (cols[r].length - 1);
     });
-    var tallest = Math.max.apply(null, order.map(function (r) { return colH[r]; }));
-
-    var x = ORIGIN;
+    /* Wrap the rank sequence into bands, the way a paragraph wraps. A real
+       system is deep before it is wide -- an agent platform runs thirteen hops
+       from browser to sandbox before the branches even start -- and one column
+       per rank turns that depth straight into width. Unwrapped, a 40-node
+       diagram came out 3880x476: a thin ribbon that fits to about 23% zoom
+       with unreadable labels and an empty canvas above and below it. */
+    var MAX_W = 1600, BAND_GAP = 96;
+    var bands = [[]], bandW = 0;
     order.forEach(function (r) {
-      var y = ORIGIN + (tallest - colH[r]) / 2;   // columns centre on one axis
-      cols[r].forEach(function (n) {
-        n.x = Math.round(x + (colW[r] - n.w) / 2);
-        n.y = Math.round(y);
-        y += n.h + ROW_GAP;
+      var band = bands[bands.length - 1];
+      var need = colW[r] + (band.length ? COL_GAP : 0);
+      if (band.length && bandW + need > MAX_W) {
+        bands.push([r]);
+        bandW = colW[r];
+      } else {
+        band.push(r);
+        bandW += need;
+      }
+    });
+
+    var bandTop = ORIGIN;
+    bands.forEach(function (band) {
+      // Each band centres on its own tallest column, not a global one, or a
+      // single deep column would pad every other band with dead space.
+      var tallest = Math.max.apply(null, band.map(function (r) { return colH[r]; }));
+      var x = ORIGIN;
+      band.forEach(function (r) {
+        var y = bandTop + (tallest - colH[r]) / 2;
+        cols[r].forEach(function (n) {
+          n.x = Math.round(x + (colW[r] - n.w) / 2);
+          n.y = Math.round(y);
+          y += n.h + ROW_GAP;
+        });
+        x += colW[r] + COL_GAP;
       });
-      x += colW[r] + COL_GAP;
+      bandTop += tallest + BAND_GAP;
     });
   }
 
