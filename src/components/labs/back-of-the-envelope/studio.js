@@ -6,7 +6,6 @@
 import { computeGraph, GLOBAL_DEFAULTS } from "./engine.js";
 import { KINDS, KIND_KEYS, FIELDS, kindOf, propsOf, fieldsOf, scalingOf } from "./node-types.js";
 import { fmt, int, short, bytes, dur } from "./format.js";
-import { runTests } from "./engine.test.js";
 import { renderRunChart, runToCsv } from "./chart.js";
 import { setModel, setRun, clearRun, getState } from "./run-store.js";
 
@@ -184,7 +183,6 @@ export function initStudio(bridge) {
   var timelineEl = document.getElementById("dgTimeline");
   var globalsBtn = document.getElementById("dgGlobals");
   var globalsPanel = document.getElementById("dgGlobalsPanel");
-  var testsEl = document.getElementById("dgTests");
   var legendEl = document.getElementById("dgLegend");
   var chartEl = document.getElementById("dgChart");
   var chartSvg = document.getElementById("dgChartSvg");
@@ -805,26 +803,6 @@ export function initStudio(bridge) {
     globalsPanel.appendChild(note);
   }
 
-  function buildTests() {
-    if (!testsEl) return;
-    var results = runTests();
-    var failed = results.filter(function (r) { return !r.pass; });
-    testsEl.innerHTML = "";
-    var head = el("div", "dg-tests-head",
-      failed.length ? failed.length + " of " + results.length + " engine checks failing"
-                    : "All " + results.length + " engine checks pass");
-    head.dataset.status = failed.length ? "bad" : "ok";
-    testsEl.appendChild(head);
-    results.forEach(function (r) {
-      var row = el("div", "dg-test-row");
-      row.dataset.pass = r.pass ? "1" : "0";
-      row.appendChild(el("span", "dg-test-mark", r.pass ? "ok" : "x"));
-      row.appendChild(el("span", "dg-test-name", r.name));
-      if (r.note) row.appendChild(el("span", "dg-test-note", r.note));
-      testsEl.appendChild(row);
-    });
-  }
-
   function setEnabled(on) {
     enabled = on;
     try { localStorage.setItem(ON_KEY, on ? "on" : "off"); } catch (e) {}
@@ -916,15 +894,6 @@ export function initStudio(bridge) {
       globalsPanel.hidden = !open;
       globalsBtn.setAttribute("aria-expanded", open ? "true" : "false");
       if (open && !globalsPanel.childElementCount) buildGlobals();
-    });
-  }
-  var testsBtn = document.getElementById("dgTestsToggle");
-  if (testsBtn) {
-    testsBtn.addEventListener("click", function () {
-      var open = testsEl.hidden;
-      testsEl.hidden = !open;
-      testsBtn.setAttribute("aria-expanded", open ? "true" : "false");
-      if (open) buildTests();
     });
   }
   // A hidden tab keeps animating otherwise, and the ramp would race ahead.

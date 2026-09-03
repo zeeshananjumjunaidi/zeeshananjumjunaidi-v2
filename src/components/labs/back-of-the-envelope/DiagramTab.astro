@@ -87,7 +87,6 @@
             <span>Autoscale</span>
           </label>
           <button type="button" class="dg-btn dg-btn-quiet" id="dgGlobals" aria-expanded="false">Assumptions</button>
-          <button type="button" class="dg-btn dg-btn-quiet" id="dgTestsToggle" aria-expanded="false">Engine checks</button>
         </div>
         <div class="dg-globals-panel" id="dgGlobalsPanel" hidden></div>
         <div class="dg-verdict" id="dgVerdict"></div>
@@ -108,7 +107,6 @@
             <svg class="dg-chart-svg" id="dgChartSvg" role="img" aria-label="Traffic and tail latency over the run"></svg>
           </div>
         </div>
-        <div class="dg-tests" id="dgTests" hidden></div>
       </div>
       <div class="dg-body">
         <div class="dg-sidebar" id="dgSidebar">
@@ -722,6 +720,9 @@
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
   gap: 8px 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-border);
 }
+/* An author display rule beats the browser rule for [hidden], so without this
+   the attribute does nothing and the panel can never be closed again. */
+.dg-globals-panel[hidden] { display: none; }
 .dg-globals-note {
   grid-column: 1 / -1; margin: 2px 0 0; font-family: var(--font-body); font-weight: 300;
   font-size: 12px; line-height: 1.5; color: var(--card-desc);
@@ -766,6 +767,7 @@
 .dg-stat.tone-bad .dg-stat-val { color: var(--st-sat); }
 
 .dg-studio-warn { margin-top: 10px; display: grid; gap: 5px; }
+.dg-studio-warn[hidden] { display: none; }
 .dg-studio-warn-row {
   display: flex; align-items: baseline; gap: 8px;
   font-family: var(--font-body); font-weight: 300; font-size: 12.5px; line-height: 1.5;
@@ -888,14 +890,6 @@
 .dg-timeline-row[data-status="red"] .dg-timeline-label { color: var(--st-red); }
 .dg-timeline-row[data-status="saturated"] .dg-timeline-label { color: var(--st-sat); }
 
-.dg-tests { margin-top: 12px; border-top: 1px solid var(--card-border); padding-top: 10px; }
-.dg-tests-head { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); margin-bottom: 6px; }
-.dg-tests-head[data-status="ok"] { color: var(--st-green); }
-.dg-tests-head[data-status="bad"] { color: var(--st-sat); }
-.dg-test-row { display: flex; gap: 8px; font-family: var(--font-mono); font-size: 10px; padding: 2px 0; color: var(--card-desc); }
-.dg-test-row[data-pass="0"] { color: var(--st-sat); }
-.dg-test-mark { flex: none; width: 14px; }
-.dg-test-note { opacity: 0.7; }
 
 /* On a phone the panel would cover most of the canvas, so it becomes a sheet
    across the bottom and the timeline moves out of its way. */
