@@ -12,6 +12,11 @@
           <svg class="dg-icon dg-chip-llm-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 11.6 7l4.4 1.6L11.6 10 10 14.5 8.4 10 4 8.6 8.4 7z"/><path d="M15.5 13.5l.7 1.9 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/></svg>
           Ask an LLM
         </button>
+        <button type="button" class="dg-chip dg-chip-btn dg-chip-studio" id="dgStudioToggle"
+                aria-pressed="true" title="Show load, latency and cost across the diagram">
+          <svg class="dg-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16V9"/><path d="M8 16V4"/><path d="M13 16v-5"/><path d="M18 16v-9"/></svg>
+          Capacity
+        </button>
         <div class="dg-tool-group">
           <button type="button" class="dg-btn" id="dgZoomOut" aria-label="Zoom out">−</button>
           <span class="dg-zoom-val" id="dgZoomVal">100%</span>
@@ -56,6 +61,55 @@
       </div>
 
       <p class="dg-llm-hint"><b>Ask an LLM</b> copies a prompt you can paste into any chat. Describe your system, paste the JSON it returns, and the diagram is laid out for you.</p>
+      <div class="dg-studio" id="dgStudio">
+        <div class="dg-studio-dials">
+          <div class="dg-dial">
+            <label class="dg-dial-label" for="dgDau">Daily active users <output id="dgDauOut">1M</output></label>
+            <input type="range" id="dgDau" min="3" max="9" step="0.01" value="6" aria-label="Daily active users">
+          </div>
+          <div class="dg-dial dg-dial-narrow">
+            <label class="dg-dial-label" for="dgPeak">Peak <output id="dgPeakOut">3x</output></label>
+            <input type="range" id="dgPeak" min="1" max="20" step="0.1" value="3" aria-label="Peak multiplier">
+          </div>
+          <div class="dg-run">
+            <label class="dg-dial-label" for="dgScenario">Load test</label>
+            <div class="dg-run-row">
+              <select class="dg-scenario" id="dgScenario" aria-label="Load test shape"></select>
+              <button type="button" class="dg-btn dg-run-btn" id="dgRamp">
+                <svg class="dg-icon dg-run-play" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 4l10 6-10 6z" fill="currentColor" stroke="none"/></svg>
+                <svg class="dg-icon dg-run-stop" viewBox="0 0 20 20" aria-hidden="true" hidden><rect x="5" y="5" width="10" height="10" fill="currentColor" stroke="none"/></svg>
+                <span id="dgRampLabel">Run</span>
+              </button>
+            </div>
+          </div>
+          <label class="dg-switch" title="Let every node that can add instances do so as load rises">
+            <input type="checkbox" id="dgAutoscale">
+            <span>Autoscale</span>
+          </label>
+          <button type="button" class="dg-btn dg-btn-quiet" id="dgGlobals" aria-expanded="false">Assumptions</button>
+          <button type="button" class="dg-btn dg-btn-quiet" id="dgTestsToggle" aria-expanded="false">Engine checks</button>
+        </div>
+        <div class="dg-globals-panel" id="dgGlobalsPanel" hidden></div>
+        <div class="dg-verdict" id="dgVerdict"></div>
+        <div class="dg-stats" id="dgStats"></div>
+        <div class="dg-legend" id="dgLegend"></div>
+        <div class="dg-studio-warn" id="dgStudioWarn" hidden></div>
+        <div class="dg-chart" id="dgChart" hidden>
+          <div class="dg-chart-head">
+            <span class="dg-chart-title" id="dgChartTitle"></span>
+            <span class="dg-chart-key">
+              <span class="dg-chart-key-item" data-series="rps">traffic</span>
+              <span class="dg-chart-key-item" data-series="p99">p99</span>
+            </span>
+            <button type="button" class="dg-btn dg-btn-quiet" id="dgChartCsv" title="Download the run as CSV">CSV</button>
+            <button type="button" class="dg-chart-x" id="dgChartClose" aria-label="Hide the chart" title="Hide">&times;</button>
+          </div>
+          <div class="dg-chart-scroll">
+            <svg class="dg-chart-svg" id="dgChartSvg" role="img" aria-label="Traffic and tail latency over the run"></svg>
+          </div>
+        </div>
+        <div class="dg-tests" id="dgTests" hidden></div>
+      </div>
       <div class="dg-body">
         <div class="dg-sidebar" id="dgSidebar">
           <div class="dg-sidebar-search-wrap">
@@ -81,7 +135,15 @@
           </div>
           <input type="text" id="dgEdgeLabelInput" class="dg-edge-input" autocomplete="off" hidden>
           <div id="dgContextMenu" class="dg-context-menu" hidden></div>
+          <div class="dg-timeline" id="dgTimeline" hidden></div>
         </div>
+        <aside class="dg-props" id="dgProps" hidden>
+          <div class="dg-props-head">
+            <span class="dg-props-title" id="dgPropsTitle">Node</span>
+            <button type="button" class="dg-props-x" id="dgPropsClose" aria-label="Hide this panel" title="Hide">&times;</button>
+          </div>
+          <div class="dg-props-body" id="dgPropsBody"></div>
+        </aside>
       </div>
 
       <dialog id="dgImportDialog" class="dg-import-dialog">
@@ -194,6 +256,12 @@
   border-color: var(--card-border-hover);
 }
 .dg-chip-llm-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.dg-chip-studio { display: inline-flex; align-items: center; gap: 7px; border-style: solid; }
+.dg-chip-studio .dg-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.dg-chip-studio[aria-pressed="true"] {
+  color: var(--card-label); border-color: var(--card-label);
+  background: color-mix(in srgb, var(--card-label) 12%, transparent);
+}
 .dg-llm-hint {
   font-family: var(--font-body); font-weight: 300; font-size: 12.5px; line-height: 1.6;
   color: var(--card-desc); margin: -4px 0 12px;
@@ -622,11 +690,397 @@
 .dg-root:-webkit-full-screen .dg-body { --dg-canvas-h: calc(100vh - 130px); }
 
 .dg-hint { margin-top: 10px; }
+
+/* ---- Capacity studio ------------------------------------------------- */
+/* Status colours are shared by the verdict, the node badges and the ramp
+   timeline, so a red node and a red log row are the same red. Never colour
+   alone: red and saturated also carry a "!" glyph in the badge text. */
+/* On .dg-root, not .dg-studio: the node badges and the properties column are
+   siblings of the dial strip, so tokens scoped to it never reached them and
+   every load bar came out uncoloured. */
+.dg-root {
+  --st-green: #5fae6a; --st-amber: #d0a03c; --st-red: #d9784f; --st-sat: #cf5563;
+}
+.dg-studio {
+  border: 1px solid var(--card-border); background: var(--card-bg);
+  padding: 12px 14px; margin-bottom: 12px;
+}
+.dg-studio[hidden] { display: none; }
+.dg-studio-dials { display: flex; flex-wrap: wrap; align-items: end; gap: 14px; }
+.dg-dial { flex: 1 1 240px; min-width: 0; }
+.dg-dial-narrow { flex: 0 1 150px; }
+.dg-dial-label {
+  display: block; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--card-desc); margin-bottom: 5px;
+}
+.dg-dial-label output { color: var(--headline-color); font-size: 12px; letter-spacing: 0; }
+.dg-dial input[type="range"] { width: 100%; accent-color: var(--card-label); margin: 0; }
+.dg-ramp[data-running] { color: var(--st-sat); border-color: var(--st-sat); }
+.dg-btn-quiet { border-style: dashed; }
+
+.dg-globals-panel {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: 8px 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--card-border);
+}
+.dg-globals-note {
+  grid-column: 1 / -1; margin: 2px 0 0; font-family: var(--font-body); font-weight: 300;
+  font-size: 12px; line-height: 1.5; color: var(--card-desc);
+}
+
+/* The verdict is the whole point of the tool, so it gets the largest type in
+   the panel and a rule in the status colour. */
+.dg-verdict {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px;
+  margin-top: 14px; padding: 10px 0 10px 12px;
+  border-left: 3px solid var(--card-border);
+  font-family: var(--font-body); font-weight: 300; font-size: 15px; line-height: 1.5;
+  color: var(--card-desc);
+}
+.dg-verdict-name { font-weight: 400; color: var(--headline-color); }
+.dg-verdict[data-status="amber"] { border-left-color: var(--st-amber); }
+.dg-verdict[data-status="red"] { border-left-color: var(--st-red); }
+.dg-verdict[data-status="saturated"] { border-left-color: var(--st-sat); }
+.dg-verdict[data-status="saturated"] .dg-verdict-name { color: var(--st-sat); }
+.dg-verdict[data-status="red"] .dg-verdict-name { color: var(--st-red); }
+.dg-verdict-jump {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase;
+  background: none; border: 1px solid var(--card-border); color: var(--card-desc);
+  padding: 4px 9px; cursor: pointer;
+}
+.dg-verdict-jump:hover { border-color: var(--card-label); color: var(--headline-color); }
+
+.dg-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(84px, 45%), 1fr));
+  gap: 1px; margin-top: 12px; background: var(--card-border);
+  border: 1px solid var(--card-border);
+}
+.dg-stat { background: var(--card-bg); padding: 8px 10px; cursor: help; }
+.dg-stat-val { font-family: var(--font-mono); font-size: 15px; color: var(--headline-color); }
+.dg-stat-label {
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--card-desc); margin-top: 3px;
+}
+.dg-stat-why { opacity: 0.5; margin-left: 3px; }
+.dg-stat.tone-ok .dg-stat-val { color: var(--st-green); }
+.dg-stat.tone-warn .dg-stat-val { color: var(--st-amber); }
+.dg-stat.tone-bad .dg-stat-val { color: var(--st-sat); }
+
+.dg-studio-warn { margin-top: 10px; display: grid; gap: 5px; }
+.dg-studio-warn-row {
+  display: flex; align-items: baseline; gap: 8px;
+  font-family: var(--font-body); font-weight: 300; font-size: 12.5px; line-height: 1.5;
+  color: var(--card-desc);
+}
+.dg-warn-dot {
+  flex: none; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 9px; border: 1px solid currentColor;
+}
+.dg-warn-warn .dg-warn-dot { color: var(--st-amber); }
+.dg-warn-info .dg-warn-dot { color: var(--card-desc); opacity: 0.7; }
+.dg-warn-jump {
+  font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  background: none; border: none; border-bottom: 1px solid var(--card-border);
+  color: var(--card-desc); cursor: pointer; padding: 0 0 1px;
+}
+
+/* Load badge on the node itself. Absolutely placed along the bottom edge so
+   it never joins the flex column and pushes the label around. */
+.dg-load {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 5px 4px;
+  pointer-events: none; text-align: center;
+}
+.dg-load-bar {
+  height: 3px; background: color-mix(in srgb, var(--card-border) 80%, transparent);
+  overflow: hidden; margin-bottom: 3px;
+}
+.dg-load-bar i { display: block; height: 100%; background: var(--st-green); transition: width .18s ease; }
+.dg-load-txt {
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.02em;
+  color: var(--card-desc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dg-node[data-status] { padding-bottom: 20px; }
+/* Entry points show what they emit rather than a utilization bar, since they
+   have no capacity of their own to be a fraction of. */
+.dg-emits {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 0 5px 4px;
+  pointer-events: none; text-align: center;
+  font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.02em;
+  color: var(--card-desc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dg-node:has(> .dg-emits) { padding-bottom: 18px; }
+.dg-node[data-status="amber"] .dg-load-bar i { background: var(--st-amber); }
+.dg-node[data-status="red"] .dg-load-bar i { background: var(--st-red); }
+.dg-node[data-status="saturated"] .dg-load-bar i {
+  /* Hatched as well as red, so the worst state is not carried by colour alone. */
+  background: repeating-linear-gradient(45deg, var(--st-sat) 0 3px, color-mix(in srgb, var(--st-sat) 45%, transparent) 3px 6px);
+}
+.dg-node[data-status="red"] { border-color: var(--st-red); }
+.dg-node[data-status="saturated"] { border-color: var(--st-sat); }
+.dg-node[data-status="red"] .dg-load-txt { color: var(--st-red); }
+.dg-node[data-status="saturated"] .dg-load-txt { color: var(--st-sat); }
+.dg-node.dg-critical { box-shadow: 0 0 0 2px color-mix(in srgb, var(--card-label) 45%, transparent); }
+.dg-node[data-shape="diamond"] .dg-load, .dg-node.container .dg-load { display: none; }
+
+/* Its own column beside the canvas, not floating over it. An overlay inside
+   .dg-canvas-wrap inherited the pan gesture: pressing it captured the pointer
+   and cleared the selection, so the panel hid itself before a click landed. */
+.dg-props {
+  flex: 0 0 232px; min-width: 0; max-height: var(--dg-canvas-h);
+  display: flex; flex-direction: column;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border); border-left: 0;
+}
+.dg-props[hidden] { display: none; }
+.dg-props-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border-bottom: 1px solid var(--card-border);
+}
+.dg-props-title {
+  flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 11px;
+  color: var(--headline-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dg-props-x {
+  background: none; border: none; color: var(--card-desc); font-size: 17px; line-height: 1;
+  cursor: pointer; padding: 0 2px;
+}
+.dg-props-body { overflow-y: auto; padding: 8px 10px 10px; display: grid; gap: 7px; }
+.dg-prop { display: grid; grid-template-columns: 1fr 82px; align-items: center; gap: 8px; }
+.dg-prop-label { font-family: var(--font-mono); font-size: 10px; color: var(--card-desc); line-height: 1.35; }
+.dg-prop-input {
+  font-family: var(--font-mono); font-size: 11px; width: 100%; box-sizing: border-box;
+  background: transparent; color: var(--headline-color);
+  border: 1px solid var(--card-border); padding: 4px 6px;
+}
+.dg-prop-input:focus { outline: none; border-color: var(--card-label); }
+.dg-prop-input::placeholder { color: var(--card-desc); opacity: 0.55; }
+.dg-prop-kind, .dg-prop-wide { grid-template-columns: 1fr; gap: 4px; }
+.dg-prop-off { opacity: 0.5; }
+.dg-prop-note {
+  font-family: var(--font-body); font-weight: 300; font-size: 11.5px; line-height: 1.45;
+  color: var(--card-desc); margin: 2px 0 0;
+}
+.dg-prop-effect {
+  margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--card-border);
+  display: grid; gap: 4px;
+}
+.dg-prop-effect-row { font-family: var(--font-mono); font-size: 10px; line-height: 1.45; color: var(--card-desc); }
+.dg-prop-effect-row.tone-bad { color: var(--st-sat); }
+/* The first line of a client readout answers the question the control asks. */
+.dg-prop-effect-lead { color: var(--headline-color); font-size: 11px; }
+
+.dg-timeline {
+  position: absolute; left: 10px; bottom: 10px; width: 250px; max-height: 44%;
+  overflow-y: auto; background: var(--card-bg); border: 1px solid var(--card-border);
+  padding: 8px 10px; z-index: 6;
+}
+.dg-timeline-head {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--card-desc); margin-bottom: 6px;
+}
+.dg-timeline-row {
+  display: grid; grid-template-columns: 58px 1fr; gap: 2px 8px;
+  font-family: var(--font-mono); font-size: 10px; padding: 3px 0;
+  border-top: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
+}
+.dg-timeline-dau { color: var(--card-desc); }
+.dg-timeline-label { color: var(--headline-color); overflow: hidden; text-overflow: ellipsis; }
+.dg-timeline-status { grid-column: 2; color: var(--card-desc); font-size: 9px; }
+.dg-timeline-row[data-status="red"] .dg-timeline-label { color: var(--st-red); }
+.dg-timeline-row[data-status="saturated"] .dg-timeline-label { color: var(--st-sat); }
+
+.dg-tests { margin-top: 12px; border-top: 1px solid var(--card-border); padding-top: 10px; }
+.dg-tests-head { font-family: var(--font-mono); font-size: 11px; color: var(--card-desc); margin-bottom: 6px; }
+.dg-tests-head[data-status="ok"] { color: var(--st-green); }
+.dg-tests-head[data-status="bad"] { color: var(--st-sat); }
+.dg-test-row { display: flex; gap: 8px; font-family: var(--font-mono); font-size: 10px; padding: 2px 0; color: var(--card-desc); }
+.dg-test-row[data-pass="0"] { color: var(--st-sat); }
+.dg-test-mark { flex: none; width: 14px; }
+.dg-test-note { opacity: 0.7; }
+
+/* On a phone the panel would cover most of the canvas, so it becomes a sheet
+   across the bottom and the timeline moves out of its way. */
+
+
+/* Run control. The shape picker and the play button read as one unit, since
+   neither means much without the other. */
+.dg-run { flex: 0 1 250px; min-width: 0; }
+.dg-run-row { display: flex; gap: 0; }
+.dg-scenario {
+  flex: 1 1 auto; min-width: 0;
+  font-family: var(--font-mono); font-size: 11px;
+  background: transparent; color: var(--headline-color);
+  border: 1px solid var(--card-border); border-right: 0; padding: 6px 8px;
+}
+.dg-scenario:focus { outline: none; border-color: var(--card-label); }
+.dg-run-btn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  color: var(--card-label); border-color: var(--card-label);
+  background: color-mix(in srgb, var(--card-label) 12%, transparent);
+}
+.dg-run-btn:hover { background: color-mix(in srgb, var(--card-label) 22%, transparent); }
+.dg-run-btn .dg-icon { width: 12px; height: 12px; }
+.dg-run-btn[data-running] {
+  color: var(--st-sat); border-color: var(--st-sat);
+  background: color-mix(in srgb, var(--st-sat) 14%, transparent);
+}
+
+.dg-switch {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--card-desc);
+  border: 1px solid var(--card-border); padding: 6px 10px;
+}
+.dg-switch:hover { border-color: var(--card-label); color: var(--headline-color); }
+.dg-switch input { accent-color: var(--card-label); margin: 0; }
+.dg-switch:has(input:checked) { border-color: var(--card-label); color: var(--card-label); }
+
+/* A node that has run out of room to grow. The dashes say "no further" without
+   depending on the border colour alone. */
+.dg-node.dg-at-ceiling { border-style: dashed; }
+
+.dg-timeline-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dg-timeline-x {
+  background: none; border: none; color: var(--card-desc); font-size: 15px; line-height: 1;
+  cursor: pointer; padding: 0 2px; margin: -2px -2px 0 0;
+}
+.dg-timeline-x:hover { color: var(--headline-color); }
+.dg-timeline-note {
+  font-family: var(--font-body); font-weight: 300; font-size: 12px; line-height: 1.5;
+  color: var(--headline-color); margin-bottom: 6px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--card-border);
+}
+.dg-timeline-empty {
+  font-family: var(--font-body); font-weight: 300; font-size: 12px; line-height: 1.5;
+  color: var(--card-desc);
+}
+.dg-timeline-row[data-status="ceiling"] .dg-timeline-label { color: var(--st-amber); }
+.dg-timeline-row[data-status="ceiling"] .dg-timeline-status { color: var(--st-amber); }
+
+
+/* Run chart. Two log-scaled series over one time axis, plus a ribbon showing
+   how many nodes were in trouble at each moment. */
+.dg-chart { margin-top: 12px; border-top: 1px solid var(--card-border); padding-top: 10px; }
+.dg-chart[hidden] { display: none; }
+.dg-chart-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px;
+}
+.dg-chart-title {
+  flex: 1 1 auto; min-width: 0;
+  font-family: var(--font-mono); font-size: 11px; color: var(--headline-color);
+}
+.dg-chart-key { display: flex; gap: 12px; }
+.dg-chart-key-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--card-desc);
+}
+.dg-chart-key-item::before { content: ""; width: 14px; height: 2px; background: var(--card-label); }
+.dg-chart-key-item[data-series="p99"]::before { background: var(--st-red); }
+.dg-chart-x {
+  background: none; border: none; color: var(--card-desc); font-size: 15px; line-height: 1;
+  cursor: pointer; padding: 0 2px;
+}
+.dg-chart-x:hover { color: var(--headline-color); }
+/* Scrolls rather than shrinks. At 380px wide the 1000-unit viewBox puts the
+   tick labels under 4px, which is not a chart any more. */
+.dg-chart-scroll { overflow-x: auto; }
+.dg-chart-svg { width: 100%; min-width: 520px; height: auto; display: block; overflow: visible; }
+
+.dg-chart-grid { stroke: var(--card-border); stroke-width: 1; opacity: 0.5; }
+.dg-chart-area { fill: color-mix(in srgb, var(--card-label) 14%, transparent); stroke: none; }
+.dg-chart-line { fill: none; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.dg-chart-rps { stroke: var(--card-label); }
+.dg-chart-p99 { stroke: var(--st-red); stroke-dasharray: 4 3; }
+.dg-chart-tick {
+  font-family: var(--font-mono); font-size: 9px; fill: var(--card-desc);
+}
+.dg-chart-tick-l { text-anchor: end; }
+.dg-chart-tick-r { text-anchor: start; }
+.dg-chart-tick-x { text-anchor: middle; }
+.dg-chart-axis { font-family: var(--font-mono); font-size: 8.5px; fill: var(--card-desc); opacity: 0.7; }
+.dg-chart-band { stroke: none; }
+.dg-chart-band[data-status="green"] { fill: var(--st-green); }
+.dg-chart-band[data-status="amber"] { fill: var(--st-amber); }
+.dg-chart-band[data-status="red"] { fill: var(--st-red); }
+.dg-chart-band[data-status="saturated"] { fill: var(--st-sat); }
+.dg-chart-band-frame { fill: none; stroke: var(--card-border); stroke-width: 1; }
+.dg-chart-mark { stroke: var(--card-desc); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.55; }
+.dg-chart-mark[data-status="saturated"] { stroke: var(--st-sat); opacity: 0.85; }
+.dg-chart-mark[data-status="red"] { stroke: var(--st-red); opacity: 0.75; }
+.dg-chart-mark-label {
+  font-family: var(--font-mono); font-size: 9px; fill: var(--card-desc);
+}
+.dg-chart-mark-label[data-status="saturated"] { fill: var(--st-sat); }
+.dg-chart-mark-label[data-status="red"] { fill: var(--st-red); }
+
+/* Colour legend under the stats. The badge colours mean nothing without it. */
+.dg-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px;
+  font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--card-desc);
+}
+.dg-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.dg-legend-swatch { width: 14px; height: 3px; background: var(--st-green); }
+.dg-legend-item[data-status="amber"] .dg-legend-swatch { background: var(--st-amber); }
+.dg-legend-item[data-status="red"] .dg-legend-swatch { background: var(--st-red); }
+.dg-legend-item[data-status="saturated"] .dg-legend-swatch {
+  background: repeating-linear-gradient(45deg, var(--st-sat) 0 3px, color-mix(in srgb, var(--st-sat) 45%, transparent) 3px 6px);
+}
+
+/* Shown instead of an empty panel when nothing is selected, so the column
+   never looks like it has broken. */
+.dg-props-empty {
+  font-family: var(--font-body); font-weight: 300; font-size: 12.5px; line-height: 1.6;
+  color: var(--card-desc);
+}
+.dg-props-empty p { margin: 0 0 8px; }
+.dg-props-empty p:last-child { margin-bottom: 0; opacity: 0.85; }
+
+/* One line saying what this kind does to a request, above its numbers. */
+.dg-props-blurb {
+  margin: 0 0 4px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border);
+  font-family: var(--font-body); font-weight: 300; font-size: 12px; line-height: 1.5;
+  color: var(--card-desc);
+}
+
+/* A 190px sidebar plus a 232px panel leaves almost no canvas on a laptop
+   half-screen, so below this the panel wraps onto its own row instead of
+   competing for the same one. */
+@media (max-width: 900px) {
+  .dg-body { flex-wrap: wrap; }
+  .dg-props {
+    flex: 1 0 100%; max-height: 220px;
+    border-left: 1px solid var(--card-border); border-top: 0;
+  }
+  .dg-props-body { grid-template-columns: 1fr 1fr; }
+  .dg-prop { grid-template-columns: 1fr 76px; }
+  .dg-prop-effect, .dg-prop-kind, .dg-props-empty, .dg-props-blurb { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+  .dg-props-body { grid-template-columns: 1fr; }
+  .dg-prop { grid-template-columns: 1fr 70px; }
+  .dg-timeline { left: 8px; right: 8px; width: auto; bottom: 8px; max-height: 40%; }
+  .dg-verdict { font-size: 14px; }
+  .dg-stat-val { font-size: 13px; }
+}
+
+/* Brief ring after "show me" jumps to a node, so the eye lands on it. */
+.dg-node.dg-flash { animation: dg-flash 1.1s ease-out 1; }
+@keyframes dg-flash {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--card-label) 70%, transparent); }
+  100% { box-shadow: 0 0 0 16px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dg-node.dg-flash { animation: none; }
+}
 </style>
 
 <script>
   import { canonicalId, formatMetric } from "./metrics.js";
   import { openMetricDialog } from "./metric-dialog.js";
+  import { initStudio } from "./studio.js";
+  import { PALETTE_KIND, KIND_KEYS, kindOf } from "./node-types.js";
 
 (function () {
   var wrap = document.getElementById("dgCanvasWrap");
@@ -671,6 +1125,7 @@
   var nextId = 1;
   var selectedNodeIds = new Set();
   var selectedEdgeId = null;
+  var studio = null;
   var undoStack = [];
   var UNDO_LIMIT = 50;
 
@@ -880,6 +1335,7 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes: nodes, edges: edges, nextId: nextId, view: view }));
     } catch (e) {}
+    if (studio) studio.recompute();
   }
 
   function applyView() {
@@ -1071,6 +1527,7 @@
     applyEdgeSelectionClasses();
     renderGroupOverlay();
     updateGroupButtons();
+    if (studio) studio.recompute();
   }
 
   function clearSelection() {
@@ -1443,6 +1900,8 @@
       var k = el.children[i];
       if (k.classList.contains("dg-port") || k.classList.contains("dg-resize-handle")) continue;
       if (k.classList.contains("dg-node-badge") || k.classList.contains("dg-node-fillbar")) continue;
+      if (k.classList.contains("dg-load")) continue;
+      if (k.classList.contains("dg-emits")) continue;
       total += k.offsetHeight;
       n++;
     }
@@ -1580,6 +2039,7 @@
     nodeLayer.innerHTML = "";
     nodes.forEach(createNodeEl);
     applyNodeSelectionClasses();
+    if (studio) studio.recompute();
   }
 
   function clipPoint(cx, cy, w, h, dx, dy) {
@@ -2014,6 +2474,10 @@
       type: isContainer ? "container" : "box",
       shape: extra.shape || (isText ? "text" : "rect"),
       icon: extra.icon || "",
+      // What this behaves like in the capacity model. Set from the palette
+      // rather than guessed from the icon, so restyling a node later cannot
+      // silently change its numbers.
+      kind: extra.kind || null,
       parentId: null,
       color: null
     };
@@ -2098,7 +2562,7 @@
     var mx = e.clientX - rect.left, my = e.clientY - rect.top;
     var canvasX = (mx - view.panX) / view.zoom;
     var canvasY = (my - view.panY) / view.zoom;
-    var extra = payload.icon ? { icon: payload.icon, label: payload.label } : undefined;
+    var extra = payload.icon ? { icon: payload.icon, label: payload.label, kind: PALETTE_KIND[payload.icon] || null } : undefined;
     addNode(canvasX - size[0] / 2, canvasY - size[1] / 2, kind, extra);
   });
 
@@ -2139,7 +2603,7 @@
     var rect = wrap.getBoundingClientRect();
     var cx = (rect.width / 2 - view.panX) / view.zoom;
     var cy = (rect.height / 2 - view.panY) / view.zoom;
-    addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label });
+    addNode(cx - 70, cy - 28, "box", { icon: preset.icon, label: preset.label, kind: PALETTE_KIND[preset.icon] || null });
   }
 
   // Built once; the list never changes at runtime. Items carry their label
@@ -2288,6 +2752,10 @@
       "  animate   " + ANIMATIONS.join(" | ") + ". A running hint on the node:",
       "            error marks something failing, spinner something in progress,",
       "            heartbeat something alive, fill something filling up.",
+      "  kind      " + KIND_KEYS.join(" | ") + ".",
+      "            What it does to a request, which is what the tool sizes it by.",
+      "            Left out, it is taken from the icon, so set it only when the",
+      "            icon would be misleading (a NoSQL store drawn with the db icon).",
       "",
       "Edge fields. Only from and to are required:",
       "  label          1 to 3 words.",
@@ -2299,6 +2767,12 @@
       "",
       "Leave out x, y, w, h, type, parentId, groupId, fromPort, toPort and bend.",
       "The tool positions and sizes everything.",
+      "",
+      "Every node gets sensible capacity, latency and cost defaults for its kind,",
+      "so leave numbers out unless the system has a figure worth stating. When it",
+      "does, put it in props, for example:",
+      '  { "id": "db", "label": "Postgres", "icon": "db",',
+      '    "props": { "writeCapacityRps": 4000, "maxConnections": 300 } }',
       "",
       "6 to 15 nodes, flowing left to right, entry points first. Use icons and",
       "colors to group things that belong together, and animate or flow only",
@@ -2494,6 +2968,11 @@
           // Export writes `animate` but this list used to omit it, so any
           // diagram with animated nodes lost them on the way back in.
           animate: (nd && ANIMATIONS.indexOf(nd.animate) !== -1) ? nd.animate : null,
+          // Behaviour, not appearance. Falls back to whatever the icon
+          // implies, which is how every diagram written before this worked.
+          kind: (nd && KIND_KEYS.indexOf(nd.kind) !== -1) ? nd.kind
+              : ((nd && PALETTE_KIND[nd.icon]) || null),
+          props: (nd && nd.props && typeof nd.props === "object" && !Array.isArray(nd.props)) ? nd.props : undefined,
           metric: (nd && typeof nd.metric === "string") ? canonicalId(nd.metric) : null
         };
       });
@@ -2729,6 +3208,10 @@
   // Stop pointerdown from bubbling to wrap's pan/deselect handler, which would
   // clear the selection and hide the menu before a menu button's own click fires.
   contextMenu.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
+  // Same guard for the ramp log: it sits inside the canvas, and without this
+  // a press on it starts a pan and wipes the selection before the click lands.
+  var timelineEl = document.getElementById("dgTimeline");
+  if (timelineEl) timelineEl.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
 
   function hideContextMenu() {
     contextMenu.hidden = true;
@@ -2782,7 +3265,11 @@
     pushUndo();
     selectedNodeIds.forEach(function (id) {
       var n = nodeById(id);
-      if (n && n.type !== "container") n.icon = iconKey;
+      if (!n || n.type === "container") return;
+      // Pin the behaviour it already had before restyling it, so an older
+      // node whose kind was only ever implied by its icon keeps its numbers.
+      if (!n.kind) n.kind = kindOf(n);
+      n.icon = iconKey;
     });
     renderNodes();
     save();
@@ -2995,6 +3482,26 @@
           onPick: function (key) { setEdgeProp(eid, "flowDirection", key); }
         });
       }
+      // How much of the source node traffic takes this edge. Only worth
+      // showing while the capacity model is on, and it is the difference
+      // between a dead-letter path carrying every request and carrying the
+      // 1% that actually fails.
+      if (studio && studio.isEnabled()) {
+        var share = edge.weight === undefined || edge.weight === null ? 1 : edge.weight;
+        var fromNode = nodeById(edge.from);
+        var isBranch = fromNode && fromNode.shape === "diamond";
+        edgeItems.push({
+          optionRow: true,
+          rowLabel: isBranch ? "Branch" : "Share",
+          current: String(share),
+          options: [
+            { key: "1", label: "100%" }, { key: "0.5", label: "50%" },
+            { key: "0.25", label: "25%" }, { key: "0.1", label: "10%" },
+            { key: "0.01", label: "1%" }, { key: "0.001", label: "0.1%" }
+          ],
+          onPick: function (key) { setEdgeProp(eid, "weight", parseFloat(key)); }
+        });
+      }
       edgeItems.push("separator");
       edgeItems.push({ label: "Delete", danger: true, action: deleteSelection });
       showContextMenu(edgeItems, e.clientX, e.clientY);
@@ -3041,5 +3548,43 @@
   renderEdges();
   applyView();
   updateGroupButtons();
+
+  // Pans and zooms to a node, then flashes it, so "show me" on the verdict
+  // lands somewhere the reader can actually see.
+  function focusNode(id) {
+    var node = nodeById(id);
+    if (!node) return;
+    var rect = wrap.getBoundingClientRect();
+    view.zoom = clamp(view.zoom, 0.6, 1.4);
+    view.panX = rect.width / 2 - (node.x + node.w / 2) * view.zoom;
+    view.panY = rect.height / 2 - (node.y + node.h / 2) * view.zoom;
+    applyView();
+    selectNodesOnly([id]);
+    var el = nodeLayer.querySelector('[data-id="' + id + '"]');
+    if (!el) return;
+    el.classList.remove("dg-flash");
+    void el.offsetWidth;
+    el.classList.add("dg-flash");
+  }
+
+  studio = initStudio({
+    root: dgRoot,
+    nodeLayer: nodeLayer,
+    edgeLayer: edgeLayer,
+    getNodes: function () { return nodes; },
+    getEdges: function () { return edges; },
+    getNode: nodeById,
+    renderEdges: renderEdges,
+    fitNode: function (id) {
+      var node = nodeById(id);
+      var el = nodeLayer.querySelector('[data-id="' + id + '"]');
+      return node && el ? fitNodeHeight(el, node) : false;
+    },
+    getSelection: function () { return Array.from(selectedNodeIds); },
+    pushUndo: pushUndo,
+    save: save,
+    focusNode: focusNode
+  });
+
 })();
 </script>

@@ -1,3 +1,4 @@
+import { getState } from "./run-store.js";
 // Scrapes the rendered DOM rather than a per-tab metadata registry, so tabs
 // added later export with no changes here.
 
@@ -111,6 +112,107 @@ function resolvePins(nodes) {
   return pins;
 }
 
+// The capacity model and the last load test, shaped for the same section
+// pipeline the calculator tabs use. Both are skipped when there is nothing
+// to say, so the export dialog never offers an empty checkbox.
+function pctOf(x) {
+  if (!isFinite(x)) return "over 100%";
+  if (x > 0 && x < 0.005) return "<1%";
+  return Math.round(x * 100) + "%";
+}
+
+function money(x) {
+  if (!isFinite(x)) return "n/a";
+  if (Math.abs(x) >= 1000) return "$" + Math.round(x).toLocaleString("en-US");
+  return "$" + x.toFixed(2);
+}
+
+function round(x, d) {
+  var f = Math.pow(10, d === undefined ? 1 : d);
+  return isFinite(x) ? Math.round(x * f) / f : 0;
+}
+
+export function collectCapacity() {
+  var st = getState();
+  if (!st.result) return null;
+  var sys = st.result.system;
+  var g = st.globals || {};
+  var out = [
+    { label: "Peak requests per second", value: String(round(sys.peakRps)), unit: "rps" },
+    { label: "Bottleneck", value: sys.bottleneck ? sys.bottleneck.label : "none", unit: "" },
+    { label: "Bottleneck utilization", value: sys.bottleneck ? pctOf(sys.bottleneck.utilization) : "n/a", unit: "" },
+    { label: "Limited by", value: sys.bottleneck ? sys.bottleneck.binding : "n/a", unit: "" },
+    { label: "Headroom", value: isFinite(sys.headroom) ? round(sys.headroom, 2) + "x" : "n/a", unit: "" },
+    { label: "Latency p50", value: String(round(sys.p50)), unit: "ms" },
+    { label: "Latency p99", value: String(round(sys.p99)), unit: "ms" },
+    { label: "End to end availability", value: (sys.availability * 100).toFixed(3), unit: "%" },
+    { label: "Downtime per year", value: String(round(sys.downtimeMinutesPerYear)), unit: "min" },
+    { label: "Monthly cost", value: money(sys.totalCost), unit: "" },
+    { label: "Cost per 1k requests", value: money(sys.costPer1kRequests), unit: "" },
+    { label: "Autoscaling", value: g.autoscale ? "on" : "off", unit: "" },
+    { label: "Soonest disk full", value: isFinite(sys.daysToFull)
+        ? Math.round(sys.daysToFull) + " days" + (sys.fillsFirst ? " (" + sys.fillsFirst.label + ")" : "")
+        : "no ceiling set", unit: "" }
+  ];
+
+  var head = ["Node", "Kind", "Load rps", "Utilization", "Status", "Limited by", "Scaling", "Running", "Connections", "p50 ms", "$/month"];
+  var rows = [];
+  Object.keys(st.result.nodes).forEach(function (id) {
+    var r = st.result.nodes[id];
+    if (!r.serves || !r.onPath) return;
+    rows.push([
+      r.label, r.kind, String(round(r.loadRps)), pctOf(r.utilization), r.status,
+      r.binding || "capacity",
+      r.scaling || "fixed",
+      r.scaling === "vertical" ? round(r.sizeMult, 2) + "x size" : String(r.units) + " inst",
+      r.connCap > 0 ? Math.round(r.connDemand) + " / " + Math.round(r.connCap) : "n/a",
+      String(round(r.totalMs)), money(r.monthlyCost)
+    ]);
+  });
+  rows.sort(function (a, b) { return parseFloat(b[2]) - parseFloat(a[2]); });
+
+  var notes = (st.result.warnings || []).map(function (w) { return w.text; });
+  notes.push("Capacities, prices and latencies are order-of-magnitude estimates, not quotes.");
+  return {
+    key: "capacity", title: "Capacity model",
+    panels: [{ title: "System", fields: [], outputs: out }],
+    table: { title: "Per node, busiest first", head: head, rows: rows },
+    notes: notes
+  };
+}
+
+export function collectLoadTest() {
+  var st = getState();
+  if (!st.scenario || st.samples.length < 2) return null;
+  var peak = st.samples.reduce(function (a, b) { return b.rps > a.rps ? b : a; }, st.samples[0]);
+  var worst = st.samples.reduce(function (a, b) { return Math.max(a, b.p99); }, 0);
+  var dearest = st.samples.reduce(function (a, b) { return Math.max(a, b.cost); }, 0);
+  var out = [
+    { label: "Shape", value: st.scenario.label, unit: "" },
+    { label: "Duration", value: String(st.scenario.seconds), unit: "s" },
+    { label: "Peak traffic reached", value: String(round(peak.rps)), unit: "rps" },
+    { label: "Peak daily users", value: Number(peak.dau).toLocaleString("en-US"), unit: "" },
+    { label: "Worst p99", value: String(round(worst)), unit: "ms" },
+    { label: "Highest monthly cost", value: money(dearest), unit: "" },
+    { label: "Samples recorded", value: String(st.samples.length), unit: "" }
+  ];
+  var WORD = {
+    amber: "filling up", red: "nearly full",
+    saturated: "over capacity", ceiling: "at its limit"
+  };
+  var rows = (st.events || []).map(function (e) {
+    return [Number(e.dau).toLocaleString("en-US"), e.label, e.detail || WORD[e.status] || e.status];
+  });
+  var notes = [];
+  if (st.note) notes.push(st.note);
+  return {
+    key: "loadtest", title: "Load test",
+    panels: [{ title: "Run", fields: [], outputs: out }],
+    table: { title: "What gave way, in order", head: ["Daily users", "Node", "What happened"], rows: rows },
+    notes: notes
+  };
+}
+
 export function collectDiagram() {
   try {
     var raw = localStorage.getItem(DIAGRAM_KEY);
@@ -127,6 +229,10 @@ export function listSectionKeys() {
   document.querySelectorAll(".boe-tabbtn").forEach(function (btn) {
     keys.push({ key: btn.dataset.tab, label: btn.textContent.trim() });
   });
+  // Offered only when the diagram has actually been computed or run, so the
+  // dialog never shows a checkbox that would export nothing.
+  if (getState().result) keys.push({ key: "capacity", label: "Capacity model" });
+  if (getState().scenario) keys.push({ key: "loadtest", label: "Load test" });
   return keys;
 }
 
@@ -136,6 +242,12 @@ export function buildPayload(title, description, selectedKeys) {
     if (key === "diagram") {
       var dg = collectDiagram();
       sections.push({ key: "diagram", title: "Diagram", nodes: dg.nodes, edges: dg.edges, pins: resolvePins(dg.nodes) });
+    } else if (key === "capacity") {
+      var cap = collectCapacity();
+      if (cap) sections.push(cap);
+    } else if (key === "loadtest") {
+      var lt = collectLoadTest();
+      if (lt) sections.push(lt);
     } else {
       var s = collectSection(key);
       if (s) sections.push(s);
@@ -267,6 +379,19 @@ export function toMarkdown(payload) {
         lines.push("");
       }
     });
+    // A wide grid of its own, which the label/value shape above cannot carry.
+    if (section.table && section.table.rows.length) {
+      if (section.table.title) {
+        lines.push("### " + section.table.title);
+        lines.push("");
+      }
+      lines.push("| " + section.table.head.join(" | ") + " |");
+      lines.push("| " + section.table.head.map(function () { return "---"; }).join(" | ") + " |");
+      section.table.rows.forEach(function (r) {
+        lines.push("| " + r.map(escapeMd).join(" | ") + " |");
+      });
+      lines.push("");
+    }
     if (section.notes.length) {
       section.notes.forEach(function (note) {
         lines.push("> " + note);
@@ -370,6 +495,20 @@ export function buildPrintView(container, payload) {
       });
       container.appendChild(table);
     });
+    if (section.table && section.table.rows.length) {
+      if (section.table.title) container.appendChild(el("h3", "boe-print-h3", section.table.title));
+      var wide = document.createElement("table");
+      wide.className = "boe-print-table boe-print-grid";
+      var hr = document.createElement("tr");
+      section.table.head.forEach(function (h) { hr.appendChild(el("th", "boe-print-th", h)); });
+      wide.appendChild(hr);
+      section.table.rows.forEach(function (r) {
+        var tr = document.createElement("tr");
+        r.forEach(function (c) { tr.appendChild(el("td", "boe-print-value", c)); });
+        wide.appendChild(tr);
+      });
+      container.appendChild(wide);
+    }
     section.notes.forEach(function (note) {
       container.appendChild(el("p", "boe-print-note", note));
     });
@@ -416,36 +555,48 @@ export function initExport() {
   titleEl.addEventListener("input", persistMeta);
   descEl.addEventListener("input", persistMeta);
 
-  listSectionKeys().forEach(function (s) {
-    var label = document.createElement("label");
-    label.className = "boe-export-check";
-    var input = document.createElement("input");
-    input.type = "checkbox";
-    input.checked = true;
-    input.dataset.key = s.key;
-    label.appendChild(input);
-    label.appendChild(document.createTextNode(s.label));
-    sectionsEl.appendChild(label);
-  });
-  var sectionInputs = sectionsEl.querySelectorAll("input[type=checkbox]");
+  // Rebuilt each time the dialog opens. The capacity and load-test sections
+  // only exist once the diagram has been computed or run, which happens after
+  // this module is initialised, so a list built once at load would miss them.
+  var sectionInputs = [];
+
+  function buildSections() {
+    var was = {};
+    sectionInputs.forEach(function (i) { was[i.dataset.key] = i.checked; });
+    sectionsEl.innerHTML = "";
+    listSectionKeys().forEach(function (s) {
+      var label = document.createElement("label");
+      label.className = "boe-export-check";
+      var input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = was[s.key] === undefined ? true : was[s.key];
+      input.dataset.key = s.key;
+      input.addEventListener("change", syncSelectAll);
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(s.label));
+      sectionsEl.appendChild(label);
+    });
+    sectionInputs = Array.prototype.slice.call(sectionsEl.querySelectorAll("input[type=checkbox]"));
+    syncSelectAll();
+  }
 
   function syncSelectAll() {
-    var checked = Array.prototype.filter.call(sectionInputs, function (i) { return i.checked; });
-    selectAllEl.checked = checked.length === sectionInputs.length;
+    var checked = sectionInputs.filter(function (i) { return i.checked; });
+    selectAllEl.checked = sectionInputs.length > 0 && checked.length === sectionInputs.length;
     selectAllEl.indeterminate = checked.length > 0 && checked.length < sectionInputs.length;
   }
-  sectionInputs.forEach(function (i) { i.addEventListener("change", syncSelectAll); });
   selectAllEl.addEventListener("change", function () {
     sectionInputs.forEach(function (i) { i.checked = selectAllEl.checked; });
     selectAllEl.indeterminate = false;
   });
+  buildSections();
 
   function selectedKeys() {
-    return Array.prototype.filter.call(sectionInputs, function (i) { return i.checked; })
+    return sectionInputs.filter(function (i) { return i.checked; })
       .map(function (i) { return i.dataset.key; });
   }
 
-  openBtn.addEventListener("click", function () { dialog.showModal(); });
+  openBtn.addEventListener("click", function () { buildSections(); dialog.showModal(); });
   closeBtn.addEventListener("click", function () { dialog.close(); });
   dialog.addEventListener("click", function (e) {
     if (e.target === dialog) dialog.close();
@@ -456,7 +607,10 @@ export function initExport() {
     var doc = { title: payload.title, description: payload.description, generated: payload.generated, sections: {} };
     payload.sections.forEach(function (s) {
       if (s.key === "diagram") doc.sections.diagram = { pinned: s.pins, nodes: s.nodes, edges: s.edges };
-      else doc.sections[s.key] = { title: s.title, panels: s.panels, notes: s.notes };
+      else doc.sections[s.key] = {
+        title: s.title, panels: s.panels, notes: s.notes,
+        table: s.table ? { head: s.table.head, rows: s.table.rows } : undefined
+      };
     });
     downloadBlob(slugify(payload.title) + ".yaml", "text/yaml", toYaml(doc));
     dialog.close();

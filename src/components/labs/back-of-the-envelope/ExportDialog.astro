@@ -113,4 +113,13 @@
       .boe-print-note { font-size: 11px; color: #333; border-left: 2px solid #999; padding-left: 8px; margin: 6px 0; }
       .boe-print-diagram { border: 1px solid #ccc; overflow: hidden; margin-bottom: 10px; }
     }
+
+    /* Wide grids (per-node capacity, load-test events) need a header row and
+       tighter type than the two-column label/value tables beside them. */
+    .boe-print-grid { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .boe-print-grid .boe-print-th {
+      text-align: left; font-weight: 600; border-bottom: 1px solid #999;
+      padding: 3px 6px 3px 0; white-space: nowrap;
+    }
+    .boe-print-grid .boe-print-value { padding: 2px 6px 2px 0; vertical-align: top; }
   </style>
